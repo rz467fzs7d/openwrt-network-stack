@@ -15,10 +15,10 @@
  * 参数：
  * - format: 节点名称格式模板（可选）
  *   - 不设置：保留原名称，仅去除 emoji 和地区关键词
- *   - 支持占位符：{flag} {code} {name_cn} {name_en} {name} {original}
+ *   - 支持占位符：{flag} {code} {name_cn} {name_en} {name} {original} {index}
+ *   - 示例："{name_en} {index}" -> "Hong Kong 1", "Hong Kong 2"
+ *   - 示例："{flag} {code}-{index}" -> "🇭��� HK-1", "🇭🇰 HK-2"
  *   - 示例："{name_en} {original}" -> "Hong Kong IPLC-01"
- *   - 示例："{flag} {code} {original}" -> "🇭🇰 HK IPLC-01"
- *   - 示例："{original}" -> "IPLC-01"
  */
 
 const $ = $substore;
@@ -360,6 +360,7 @@ const REGION_MAP = {
 function operator(proxies) {
     let matchedCount = 0;
     let unmatchedCount = 0;
+    const regionCounters = {}; // 按地区计数
 
     proxies.forEach(proxy => {
         const originalName = proxy.name || '';
@@ -391,21 +392,28 @@ function operator(proxies) {
         if (regionInfo) {
             proxy.code = regionInfo.code;
             proxy.region = regionInfo.name_en;
-        }
 
-        // 格式化节点名称
-        if (format && regionInfo) {
-            // 获取原始名称（去除地区相关信息）
-            let cleanName = removeRegionInfo(originalName, regionInfo);
+            // 地区计数（从 1 开始）
+            if (!regionCounters[regionInfo.code]) {
+                regionCounters[regionInfo.code] = 0;
+            }
+            regionCounters[regionInfo.code]++;
+            const index = regionCounters[regionInfo.code];
 
-            // 替换模板占位符
-            let formattedName = format
-                .replace(/{flag}/g, regionInfo.flag)
-                .replace(/{code}/g, regionInfo.code)
-                .replace(/{name_cn}/g, regionInfo.name_cn)
-                .replace(/{name_en}/g, regionInfo.name_en)
-                .replace(/{name}/g, regionInfo.name_en)
-                .replace(/{original}/g, cleanName.trim());
+            // 格式化节点名称
+            if (format) {
+                // 获取原始名称（去除地区相关信息）
+                let cleanName = removeRegionInfo(originalName, regionInfo);
+
+                // 替换模板占位符
+                let formattedName = format
+                    .replace(/{flag}/g, regionInfo.flag)
+                    .replace(/{code}/g, regionInfo.code)
+                    .replace(/{index}/g, index)
+                    .replace(/{name_cn}/g, regionInfo.name_cn)
+                    .replace(/{name_en}/g, regionInfo.name_en)
+                    .replace(/{name}/g, regionInfo.name_en)
+                    .replace(/{original}/g, cleanName.trim());
 
             proxy.name = formattedName.replace(/\s+/g, ' ').trim();
         } else {
