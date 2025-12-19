@@ -36,11 +36,13 @@ Sub Store 节点处理脚本，用于格式化节点地区信息和节点名称�
 | 占位符 | 说明 | 示例值 |
 |--------|------|--------|
 | `{flag}` | emoji 国旗 | 🇭🇰 |
-| `{code}` | 地区代码 | HK |
+| `{code}` | 地��代码 | HK |
 | `{name_cn}` | 中文名称 | 香港 |
 | `{name_en}` | 英文名称 | Hong Kong |
 | `{name}` | 英文名称（等同 name_en） | Hong Kong |
 | `{index}` | 地区内序号（从 1 开始） | 1, 2, 3... |
+| `{index:02d}` | 地区内序号（补零到 2 位） | 01, 02, 03... |
+| `{index:03d}` | 地区内序号（补零到 3 位） | 001, 002, 003... |
 | `{original}` | 原始节点名（去除地区信息） | IPLC-01 |
 
 ## 📋 使用场景
@@ -388,6 +390,22 @@ proxy-groups:
 ```
 输出：`HK 1`, `HK 2`, `JP 1`, `JP 2`
 
+**补零编号**：
+```json
+{
+  "format": "{name_en} {index:02d}"
+}
+```
+输出：`Hong Kong 01`, `Hong Kong 02`, `Japan 01`, `Japan 02`
+
+**三位补零**：
+```json
+{
+  "format": "{flag} {code}-{index:03d}"
+}
+```
+输出：`🇭🇰 HK-001`, `🇭🇰 HK-002`, `🇯🇵 JP-001`
+
 **带原始名称编号**：
 ```json
 {
@@ -395,14 +413,6 @@ proxy-groups:
 }
 ```
 输出：`Hong Kong 1 - Premium`, `Hong Kong 2 - IPLC`
-
-**补零编号（配合原始名称）**：
-```json
-{
-  "format": "{flag} {code}{index:02d}"
-}
-```
-注：当前版本 `{index}` 不支持格式化，建议使用简单数字
 
 ### 自定义分隔符
 
