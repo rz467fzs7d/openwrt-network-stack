@@ -40,6 +40,7 @@ Sub Store 节点处理脚本，用于格式化节点地区信息和节点名称�
 | `{name_cn}` | 中文名称 | 香港 |
 | `{name_en}` | 英文名称 | Hong Kong |
 | `{name}` | 英文名称（等同 name_en） | Hong Kong |
+| `{index}` | 地区内序号（从 1 开始） | 1, 2, 3... |
 | `{original}` | 原始节点名（去除地区信息） | IPLC-01 |
 
 ## 📋 使用场景
@@ -194,6 +195,31 @@ Sub Store 节点处理脚本，用于格式化节点地区信息和节点名称�
   "region": "Hong Kong"
 }
 ```
+
+### 场景 7：按地区自动编号
+
+**适用情况**：
+- 多个相同地区节点需要编号
+- 希望节点名称简洁统一
+- 便于快速识别节点顺序
+
+**配置**：
+```json
+{
+  "format": "{name_en} {index}"
+}
+```
+
+**效果**：
+
+| 输入 | 输出名称 | code | region |
+|------|----------|------|--------|
+| 🇭🇰 香港 IPLC-01 | Hong Kong 1 | HK | Hong Kong |
+| 🇭🇰 HK Premium | Hong Kong 2 | HK | Hong Kong |
+| 🇯🇵 Tokyo-A | Japan 1 | JP | Japan |
+| 🇯🇵 Osaka-B | Japan 2 | JP | Japan |
+
+**说明**：`{index}` 按地区分组计数，每个地区从 1 开始独立编号
 
 ## 🛠️ 在 Sub Store 中配置
 
@@ -351,6 +377,32 @@ proxy-groups:
 - 使用单个空格分隔占位符
 
 ## 🎨 高级用法
+
+### 使用序号编号
+
+**简洁编号**：
+```json
+{
+  "format": "{code} {index}"
+}
+```
+输出：`HK 1`, `HK 2`, `JP 1`, `JP 2`
+
+**带原始名称编号**：
+```json
+{
+  "format": "{name_en} {index} - {original}"
+}
+```
+输出：`Hong Kong 1 - Premium`, `Hong Kong 2 - IPLC`
+
+**补零编号（配合原始名称）**：
+```json
+{
+  "format": "{flag} {code}{index:02d}"
+}
+```
+注：当前版本 `{index}` 不支持格式化，建议使用简单数字
 
 ### 自定义分隔符
 
