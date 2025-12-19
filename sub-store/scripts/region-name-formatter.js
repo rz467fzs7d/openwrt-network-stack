@@ -3,8 +3,8 @@
  *
  * 功能：
  * - 从节点名称中识别地区信息（支持 emoji、中文、英文）
+ * - 自动设置标准化的 code 和 region 属性（用于 Mihomo 筛选）
  * - 支持自定义节点名称格式化
- * - 设置标准化的 code 和 region 属性
  * - 无需网络请求，瞬时完成
  *
  * 性能：处理 100 个节点 < 0.1 秒
@@ -13,26 +13,17 @@
  * 在 Sub Store 的订阅操作器中添加此脚本
  *
  * 参数：
- * - format: 节点名称格式模板（可选，默认保留原名称去除 emoji）
+ * - format: 节点名称格式模板（可选）
+ *   - 不设置：保留原名称，仅去除 emoji 和地区关键词
  *   - 支持占位符：{flag} {code} {name_cn} {name_en} {name} {original}
- *   - 示例："{flag} {name_en}" -> "🇭🇰 Hong Kong"
- *   - 示例："{code}-{name_cn}" -> "HK-香港"
  *   - 示例："{name_en} {original}" -> "Hong Kong IPLC-01"
- *
- * - setRegionAttributes: 是否设置 region 和 code 属性（默认: true）
- * - regionFormat: region 属性格式（可选，默认: "name_en"）
- *   - "name_en": 英文名称（如 "Hong Kong"）
- *   - "name_cn": 中文名称（如 "香港"）
- *   - "code": 地区代码（如 "HK"）
+ *   - 示例："{flag} {code} {original}" -> "🇭🇰 HK IPLC-01"
+ *   - 示例："{original}" -> "IPLC-01"
  */
 
 const $ = $substore;
 
-const {
-    format = null,
-    setRegionAttributes = true,
-    regionFormat = "name_en"
-} = $arguments;
+const { format = null } = $arguments;
 
 // 地区信息映射表（优先级从上到下）
 const REGION_MAP = {
@@ -396,22 +387,10 @@ function operator(proxies) {
             return;
         }
 
-        // 设置 region 和 code 属性
-        if (setRegionAttributes && regionInfo) {
+        // 设置 region 和 code 属性（始终设置）
+        if (regionInfo) {
             proxy.code = regionInfo.code;
-
-            // 根据 regionFormat 设置 region 属性
-            switch (regionFormat) {
-                case 'name_cn':
-                    proxy.region = regionInfo.name_cn;
-                    break;
-                case 'code':
-                    proxy.region = regionInfo.code;
-                    break;
-                case 'name_en':
-                default:
-                    proxy.region = regionInfo.name_en;
-            }
+            proxy.region = regionInfo.name_en;
         }
 
         // 格式化节点名称
