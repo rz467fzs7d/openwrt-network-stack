@@ -265,7 +265,7 @@ fallback-group: &FALLBACK_GROUP_BASE
 ### 添加新的地区节点组
 
 ```yaml
-# 1. 定义关键���
+# 1. 定义关键词
 x-keywords:
   korea: &KOREA_KEYWORDS "韩国|KR|korea|seoul"
 
