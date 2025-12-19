@@ -371,7 +371,7 @@ function operator(proxies) {
 
         for (const [key, info] of Object.entries(REGION_MAP)) {
             for (const keyword of info.keywords) {
-                if (lowerName.includes(keyword.toLowerCase())) {
+                if (matchKeyword(lowerName, keyword)) {
                     regionInfo = info;
                     matched = true;
                     matchedCount++;
@@ -416,6 +416,35 @@ function operator(proxies) {
 
     $.info(`地区格式化完成: 成功 ${matchedCount} 个, 未匹配 ${unmatchedCount} 个`);
     return proxies;
+}
+
+/**
+ * 智能匹配关键词（避免误匹配）
+ * @param {string} text - 要匹配的文本（小写）
+ * @param {string} keyword - 关键词
+ * @returns {boolean} 是否匹配
+ */
+function matchKeyword(text, keyword) {
+    const keywordLower = keyword.toLowerCase();
+
+    // 1. emoji 直接匹配
+    if (keyword.match(/[\uD83C-\uDBFF]/)) {
+        return text.includes(keyword);
+    }
+
+    // 2. 中文关键词直接匹配
+    if (keyword.match(/[\u4e00-\u9fa5]/)) {
+        return text.includes(keywordLower);
+    }
+
+    // 3. 短英文关键词（2-3字符）使用词边界匹配
+    if (keywordLower.length <= 3) {
+        const regex = new RegExp(`\\b${escapeRegex(keywordLower)}\\b`, 'i');
+        return regex.test(text);
+    }
+
+    // 4. 较长的英文关键词使用普通匹配
+    return text.includes(keywordLower);
 }
 
 /**
