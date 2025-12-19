@@ -15,19 +15,22 @@ Sub Store 节点处理脚本，用于格式化节点地区信息和节点名称�
 - 🏷️ **多格式识别**：支持 emoji、中文、英文、城市名
 - 🔌 **零依赖**：无需网络请求，完全本地处理
 - 🎨 **灵活格式化**：支持自定义节点名称模板
-- �� **自动设置属性**：自动设置 code 和 region 属性用于 Mihomo 筛选
+- 📝 **自动设置属性**：自动设置 code 和 region 属性用于 Mihomo 筛选
+- 🆔 **智能识别**：自动识别 IPLC 和运营商标识
 
 #### 核心功能
 
 1. **地区识别**：从节点名称中识别地区信息
 2. **属性设置**：自动设置标准化的 `code` 和 `region` 属性
-3. **名称格式化**：使用模板自定义节点名称格式（可选）
+3. **IPLC/运营商识别**：识别 IPLC 标识和运营商标识
+4. **名称格式化**：使用模板自定义节点名称格式（可选）
 
 #### 使用参数
 
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `format` | string | null | 节点名称格式模板（可选，不设置则保留原名称） |
+| `connector` | string | " " | 占位符之间的连接符（可选） |
 
 **说明**：脚本会自动为所有节点设置 `code` 和 `region` 属性（`region` 固定为英文名称）
 
@@ -36,14 +39,19 @@ Sub Store 节点处理脚本，用于格式化节点地区信息和节点名称�
 | 占位符 | 说明 | 示例值 |
 |--------|------|--------|
 | `{flag}` | emoji 国旗 | 🇭🇰 |
-| `{code}` | 地��代码 | HK |
+| `{code}` | 地区代码 | HK |
 | `{name_cn}` | 中文名称 | 香港 |
 | `{name_en}` | 英文名称 | Hong Kong |
 | `{name}` | 英文名称（等同 name_en） | Hong Kong |
 | `{index}` | 地区内序号（从 1 开始） | 1, 2, 3... |
 | `{index:02d}` | 地区内序号（补零到 2 位） | 01, 02, 03... |
-| `{index:03d}` | 地区内序号（补零到 3 位） | 001, 002, 003... |
-| `{original}` | 原始节点名（去除地区信息） | IPLC-01 |
+| `{iplc}` | IPLC 标识（存在时） | IPLC |
+| `{isp}` | 运营商代码 | ATT, SONET, HINET |
+| `{original}` | 原始节点名（去除地区信息） | Premium |
+
+**支持的运营商**：
+- ATT, Sonet, Hinet, NTT, Softbank, KT, SK
+- Singtel, Starhub, CMCC, CU, CT
 
 ## 📋 使用场景
 
@@ -65,25 +73,68 @@ Sub Store 节点处理脚本，用于格式化节点地区信息和节点名称�
 输入节点：
 ```json
 {
-  "name": "🇭🇰 Hong Kong IPLC-01"
+  "name": "ssSingapore IPLC(UDPN) 新加坡家宽"
 }
 ```
 
 输出节点：
 ```json
 {
-  "name": "Hong Kong IPLC-01",
-  "code": "HK",
-  "region": "Hong Kong"
+  "name": "IPLC 家宽",
+  "code": "SG",
+  "region": "Singapore"
 }
 ```
 
-### 场景 2：极简格式（仅保留节点标识）
+### 场景 2：提取 IPLC 和运营商信息
 
 **适用情况**：
-- 希望节点名称简洁统一
-- 移除所有 emoji 和地区标识
-- 保留原始节点信息
+- 节点名称包含 IPLC 和运营商信息
+- 需要统一格式化输出
+
+**配置**：
+```json
+{
+  "format": "{name_en} {iplc} {isp} {index}"
+}
+```
+
+**效果**：
+
+| 输入 | 输出 | code | region |
+|------|------|------|--------|
+| ssSingapore IPLC(UDPN) 新加坡家宽 | Singapore IPLC 1 | SG | Singapore |
+| IPLC(UDPN) 新加坡家宽 | Singapore IPLC 2 | SG | Singapore |
+| ssJapan IPLC(UDPN) 日本Sonet家宽 | Japan IPLC SONET 1 | JP | Japan |
+| ssUnited States IPLC(UDPN) 美国ATT家宽 | United States IPLC ATT 1 | US | United States |
+| ssTaiwan IPLC(UDPN) 台湾Hinet家宽 | Taiwan IPLC HINET 1 | TW | Taiwan |
+
+### 场景 3：紧凑格式（无空格）
+
+**适用情况**：
+- 需要简洁的节点名称
+- 使用自定义连接符
+
+**配置**：
+```json
+{
+  "format": "{name_en}{iplc}{isp}{index:02d}",
+  "connector": ""
+}
+```
+
+**效果**：
+```
+SingaporeIPLC01
+JapanIPLCSONET01
+UnitedStatesIPLCATT01
+```
+
+### 场景 4：仅保留原始名称（去除地区信息）
+
+**适用情况**：
+- 节点名称格式混乱
+- 只需要清理名称
 
 **配置**：
 ```json
@@ -93,85 +144,30 @@ Sub Store 节点处理脚本，用于格式化节点地区信息和节点名称�
 ```
 
 **效果**：
-
-输入：`🇭🇰 香港 IPLC-01` → 输出：
-```json
-{
-  "name": "IPLC-01",
-  "code": "HK",
-  "region": "Hong Kong"
-}
+```
+IPLC(UDPN) 新加坡家宽 → IPLC 家宽
+ssJapan IPLC(UDPN) 日本Sonet家宽 → IPLC Sonet 家宽
 ```
 
-### 场景 3：统一英文地区前缀（推荐）
+### 场景 5：使用分隔符
 
 **适用情况**：
-- 希望节点名称包含地区信息
-- 使用英文便于识别
-- 去除 emoji
+- 需要清晰的分隔
+- 便于阅读
 
 **配置**：
 ```json
 {
-  "format": "{name_en} {original}"
+  "format": "{name_en}|{iplc}|{isp}|{index}",
+  "connector": "-"
 }
 ```
 
 **效果**：
-
-| 输入 | 输出名称 | code | region |
-|------|----------|------|--------|
-| 🇭🇰 香港 01 | Hong Kong 01 | HK | Hong Kong |
-| 🇯🇵 Tokyo-Premium | Japan Tokyo-Premium | JP | Japan |
-| 🇺🇸 美国高速 | United States 高速 | US | United States |
-
-### 场景 4：emoji + 代码前缀
-
-**适用情况**：
-- 保留 emoji 视觉标识
-- 添加地区代码方便识别
-- 统一格式
-
-**配置**：
-```json
-{
-  "format": "{flag} {code} {original}"
-}
 ```
-
-**效果**：
-
-输入：`香港 IPLC-01` → 输出：
-```json
-{
-  "name": "🇭🇰 HK IPLC-01",
-  "code": "HK",
-  "region": "Hong Kong"
-}
-```
-
-### 场景 5：中文地区名称
-
-**适用情况**：
-- 偏好中文显示
-- 本地化需求
-
-**配置**：
-```json
-{
-  "format": "{name_cn} {original}"
-}
-```
-
-**效果**：
-
-输入：`🇭🇰 HK-01` → 输出：
-```json
-{
-  "name": "香港 01",
-  "code": "HK",
-  "region": "Hong Kong"
-}
+Singapore-IPLC-1
+Japan-IPLC-SONET-1
+United States-IPLC-ATT-1
 ```
 
 ### 场景 6：仅代码格式
@@ -183,19 +179,15 @@ Sub Store 节点处理脚本，用于格式化节点地区信息和节点名称�
 **配置**：
 ```json
 {
-  "format": "{code}-{original}"
+  "format": "{code}-{iplc}-{isp}-{index}"
 }
 ```
 
 **效果**：
-
-输入：`🇭🇰 香港 IPLC Premium` → 输出：
-```json
-{
-  "name": "HK-IPLC Premium",
-  "code": "HK",
-  "region": "Hong Kong"
-}
+```
+SG-IPLC-1
+JP-IPLC-SONET-1
+US-IPLC-ATT-1
 ```
 
 ### 场景 7：按地区自动编号
@@ -236,24 +228,18 @@ Sub Store 节点处理脚本，用于格式化节点地区信息和节点名称�
 
 ### 常用配置示例
 
-**推荐配置（统一英文格式）**：
+**推荐配置（提取 IPLC 和运营商）**：
 ```json
 {
-  "format": "{name_en} {original}"
+  "format": "{name_en} {iplc} {isp} {index}"
 }
 ```
 
-**极简配置（仅保留节点标识）**：
+**紧凑格式**：
 ```json
 {
-  "format": "{original}"
-}
-```
-
-**保留 emoji**：
-```json
-{
-  "format": "{flag} {name_en} {original}"
+  "format": "{name_en}{isp}{index:02d}",
+  "connector": ""
 }
 ```
 
@@ -262,6 +248,13 @@ Sub Store 节点处理脚本，用于格式化节点地区信息和节点名称�
 {}
 ```
 或不配置任何参数
+
+**极简格式**：
+```json
+{
+  "format": "{original}"
+}
+```
 
 ## 🎯 与 Mihomo 配合使用
 
@@ -298,11 +291,11 @@ proxy-groups:
 如果使用了 format，可以通过格式化后的名称筛选：
 
 ```yaml
-# 假设 format: "{name_en} {original}"
+# 假设 format: "{name_en} {iplc} {isp} {index}"
 proxy-groups:
-  - name: All Hong Kong
+  - name: All Hong Kong IPLC
     type: select
-    filter: "^Hong Kong"  # 匹配以 "Hong Kong" 开头的节点
+    filter: "^Hong Kong IPLC"  # 匹配以 "Hong Kong IPLC" 开头的节点
 ```
 
 ## 📖 支持的地区
@@ -346,16 +339,24 @@ proxy-groups:
 **正确示例**：
 ```json
 {
-  "format": "{flag} {name_en}"
+  "format": "{name_en} {iplc} {isp}"
 }
 ```
 
 **错误示例**：
 ```json
 {
-  format: '{flag} {name_en}'  // 错误：缺少双引号
+  format: '{name_en} {iplc}'  // 错误：缺少双引号
 }
 ```
+
+### 问题：运营商未识别
+
+**原因**：运营商名称不在 ISP_MAP 中
+
+**解决**：
+- 编辑脚本，在 ISP_MAP 中添加新的运营商
+- 或使用 `{original}` 保留原始信息
 
 ### 问题：{original} 为空
 
@@ -369,86 +370,51 @@ proxy-groups:
 - 使用不包含 `{original}` 的 format
 - 例如：`"{flag} {code}"`
 
-### 问题：节点名称有多余空格
-
-**原因**：format 模板中包含多余空格
-
-**解决**：
-脚本会自动清理多余空格，但如果仍有问题：
-- 检查 format 模板
-- 使用单个空格分隔占位符
-
 ## 🎨 高级用法
 
-### 使用序号编号
+### 自定义运营商
 
-**简洁编号**：
-```json
-{
-  "format": "{code} {index}"
-}
+编辑脚本中的 ISP_MAP：
+
+```javascript
+const ISP_MAP = {
+    'ATT': { keywords: ['att', 'at&t'], code: 'ATT' },
+    'Sonet': { keywords: ['sonet'], code: 'SONET' },
+    'Hinet': { keywords: ['hinet'], code: 'HINET' },
+    // 添加新运营商
+    'MyISP': { keywords: ['myisp', 'my-isp'], code: 'MYISP' },
+};
 ```
-输出：`HK 1`, `HK 2`, `JP 1`, `JP 2`
 
-**补零编号**：
-```json
-{
-  "format": "{name_en} {index:02d}"
-}
-```
-输出：`Hong Kong 01`, `Hong Kong 02`, `Japan 01`, `Japan 02`
+### 组合使用占位符
 
-**三位补零**：
-```json
-{
-  "format": "{flag} {code}-{index:03d}"
-}
-```
-输出：`🇭🇰 HK-001`, `🇭🇰 HK-002`, `🇯🇵 JP-001`
-
-**带原始名称编号**：
-```json
-{
-  "format": "{name_en} {index} - {original}"
-}
-```
-输出：`Hong Kong 1 - Premium`, `Hong Kong 2 - IPLC`
-
-### 自定义分隔符
+**场景**：有 IPLC 时显示 IPLC，没有时不显示
 
 ```json
 {
-  "format": "{flag}|{code}|{original}"
+  "format": "{name_en} {iplc} {isp} {index}"
 }
 ```
-输出：`🇭🇰|HK|IPLC-01`
+
+如果节点没有 IPLC，`{iplc}` 会被替换为空字符串。
 
 ### 条件格式（通过多个订阅实现）
 
 为不同订阅使用不同格式：
 
-**订阅 1（高端线路）**：
+**订阅 1（IPLC 线路）**：
 ```json
 {
-  "format": "⭐ {name_en} {original}"
+  "format": "{name_en} {iplc} {isp} {index}"
 }
 ```
 
 **订阅 2（普通线路）**：
 ```json
 {
-  "format": "{name_en} {original}"
+  "format": "{name_en} {index}"
 }
 ```
-
-### 添加自定义前后缀
-
-```json
-{
-  "format": "[{code}] {original} | {name_cn}"
-}
-```
-输出：`[HK] IPLC-01 | 香港`
 
 ## 🛠️ 自定义开发
 
@@ -468,6 +434,22 @@ const REGION_MAP = {
         name_cn: '巴西',
         name_en: 'Brazil',
         name: 'Brazil'
+    },
+};
+```
+
+### 添加新运营商
+
+编辑脚本中的 `ISP_MAP`：
+
+```javascript
+const ISP_MAP = {
+    // 现有映射...
+
+    // 添加新运营商
+    'MyISP': {
+        keywords: ['myisp', 'my-isp', '我的运营商'],
+        code: 'MYISP'
     },
 };
 ```
@@ -493,9 +475,9 @@ const REGION_MAP = {
 ```javascript
 // 节点对象
 {
-  name: "🇭🇰 Hong Kong IPLC-01",
-  server: "example.com",
-  port: 443,
+  name: "ssSingapore IPLC(UDPN) 新加坡家宽",
+  server: "oneinlink.ascwqw.org",
+  port: 13004,
   // ... 其他代理配置
 }
 ```
@@ -503,13 +485,13 @@ const REGION_MAP = {
 ### 脚本输出
 
 ```javascript
-// 处理后的节点对象
+// 处理后的节点对象（使用 format: "{name_en} {iplc} {isp} {index}"）
 {
-  name: "Hong Kong IPLC-01",        // 格式化后的名称
-  server: "example.com",
-  port: 443,
-  code: "HK",                       // 新增：地区代码
-  region: "Hong Kong",              // 新增：地区名称（固定英文）
+  name: "Singapore IPLC 1",        // 格式化后的名称
+  server: "oneinlink.ascwqw.org",
+  port: 13004,
+  code: "SG",                       // 新增：地区代码
+  region: "Singapore",              // 新增：地区名称（固定英文）
   // ... 其他配置保持不变
 }
 ```
@@ -527,7 +509,7 @@ $.warn('警告日志');
 $.error('错误日志');
 
 // 参数
-const { format } = $arguments;
+const { format, connector } = $arguments;
 ```
 
 ## 🤝 贡献
@@ -535,6 +517,7 @@ const { format } = $arguments;
 欢迎提交 Pull Request！
 
 - 添加新的地区映射
+- 添加新的运营商标识
 - 改进地区识别算法
 - 优化名称清理逻辑
 

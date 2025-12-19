@@ -4,6 +4,7 @@
  * 功能：
  * - 从节点名称中识别地区信息（支持 emoji、中文、英文）
  * - 自动设置标准化的 code 和 region 属性（用于 Mihomo 筛选）
+ * - 识别 IPLC 标识和运营商标识
  * - 支持自定义节点名称格式化
  * - 无需网络请求，瞬时完成
  *
@@ -15,15 +16,32 @@
  * 参数：
  * - format: 节点名称格式模板（可选）
  *   - 不设置：保留原名称，仅去除 emoji 和地区关键词
- *   - 支持占位符：{flag} {code} {name_cn} {name_en} {name} {original} {index}
- *   - 示例："{name_en} {index}" -> "Hong Kong 1", "Hong Kong 2"
- *   - 示例："{flag} {code}-{index}" -> "🇭��� HK-1", "🇭🇰 HK-2"
- *   - 示例："{name_en} {original}" -> "Hong Kong IPLC-01"
+ *   - 支持占位符：{flag} {code} {name_cn} {name_en} {name} {original} {index} {iplc} {isp}
+ *   - 示例："{name_en} {iplc} {isp} {index}" -> "Hong Kong IPLC ATT 1"
+ *   - 示例："{name_en}{isp}{index:02d}" -> "Hong Kong ATT01"
+ * - connector: 连接符（可选，默认为空格）
+ *   - 示例：connector = '' -> "HongKongIPLCATT1"
  */
 
 const $ = $substore;
 
-const { format = null } = $arguments;
+const { format = null, connector = ' ' } = $arguments;
+
+// 运营商映射表
+const ISP_MAP = {
+    'ATT': { keywords: ['att', 'at&t'], code: 'ATT' },
+    'Sonet': { keywords: ['sonet'], code: 'SONET' },
+    'Hinet': { keywords: ['hinet'], code: 'HINET' },
+    'NTT': { keywords: ['ntt'], code: 'NTT' },
+    'Softbank': { keywords: ['softbank'], code: 'SOFTBANK' },
+    'KT': { keywords: ['kt'], code: 'KT' },
+    'SK': { keywords: ['sk'], code: 'SK' },
+    'Singtel': { keywords: ['singtel'], code: 'SINGTEL' },
+    'Starhub': { keywords: ['starhub'], code: 'STARHUB' },
+    'CMCC': { keywords: ['cmcc', '中国移动'], code: 'CMCC' },
+    'CU': { keywords: ['cu', '中国联通'], code: 'CU' },
+    'CT': { keywords: ['ct', '中国电信'], code: 'CT' },
+};
 
 // 地区信息映射表（优先级从上到下）
 const REGION_MAP = {
@@ -33,7 +51,7 @@ const REGION_MAP = {
         code: 'HK',
         name_cn: '香港',
         name_en: 'Hong Kong',
-        name: 'Hong Kong'  // 默认等同于 name_en
+        name: 'Hong Kong'
     },
     'TW': {
         keywords: ['🇹🇼', '🏝️', '台湾', 'taiwan', 'tw'],
@@ -388,6 +406,21 @@ function operator(proxies) {
             return;
         }
 
+        // 识别 IPLC
+        let hasIPLC = /iplc/i.test(lowerName);
+
+        // 识别运营商
+        let ispInfo = null;
+        for (const [isp, info] of Object.entries(ISP_MAP)) {
+            for (const keyword of info.keywords) {
+                if (matchKeyword(lowerName, keyword)) {
+                    ispInfo = info;
+                    break;
+                }
+            }
+            if (ispInfo) break;
+        }
+
         // 设置 region 和 code 属性（始终设置）
         if (regionInfo) {
             proxy.code = regionInfo.code;
@@ -409,7 +442,7 @@ function operator(proxies) {
                 let formattedName = format
                     .replace(/{flag}/g, regionInfo.flag)
                     .replace(/{code}/g, regionInfo.code)
-                    .replace(/{index(?::0(\d+)d)?}/g, (match, width) => {
+                    .replace(/{index(?::0(\\d+)d)?}/g, (match, width) => {
                         // 支持 {index} 或 {index:02d} 格式
                         if (width) {
                             return String(index).padStart(parseInt(width), '0');
@@ -419,9 +452,17 @@ function operator(proxies) {
                     .replace(/{name_cn}/g, regionInfo.name_cn)
                     .replace(/{name_en}/g, regionInfo.name_en)
                     .replace(/{name}/g, regionInfo.name_en)
+                    .replace(/{iplc}/g, hasIPLC ? 'IPLC' : '')
+                    .replace(/{isp}/g, ispInfo ? ispInfo.code : '')
                     .replace(/{original}/g, cleanName.trim());
 
-                proxy.name = formattedName.replace(/\s+/g, ' ').trim();
+                // 使用 connector 连接各部分，并清理多余空格
+                formattedName = formattedName
+                    .replace(/\s+/g, ' ')
+                    .trim()
+                    .replace(/\s+/g, connector);
+
+                proxy.name = formattedName;
             } else {
                 // 默认行为：移除 emoji 和地区关键词
                 proxy.name = removeRegionInfo(originalName, regionInfo);
@@ -464,6 +505,7 @@ function matchKeyword(text, keyword) {
 
 /**
  * 移除节点名称中的地区相关信息（emoji、关键词等）
+ * 智能保留 IPLC、运营商等有用信息
  */
 function removeRegionInfo(str, regionInfo) {
     let result = str;
@@ -474,6 +516,9 @@ function removeRegionInfo(str, regionInfo) {
     // 移除其他常见 emoji
     result = result.replace(/[\uD83D-\uDBFF][\uDC00-\uDFFF]/g, '');
     result = result.replace(/🏝️/g, '');
+
+    // 移除节点类型前缀（ss、vmess、trojan等）
+    result = result.replace(/^(ss|vmess|trojan|hysteria|vless|ssr|v2ray)\s*/gi, '');
 
     if (regionInfo) {
         // 移除地区关键词（保留原始节点名的其他部分）
@@ -489,6 +534,9 @@ function removeRegionInfo(str, regionInfo) {
         }
     }
 
+    // 移除括号内容（如 (UDPN)、(专线) 等）
+    result = result.replace(/\([^)]*\)/g, '');
+
     // 清理多余空格和特殊字符
     result = result.replace(/^[\s\-_|]+|[\s\-_|]+$/g, '');
     result = result.replace(/\s+/g, ' ');
@@ -500,5 +548,5 @@ function removeRegionInfo(str, regionInfo) {
  * 转义正则表达式特殊字符
  */
 function escapeRegex(str) {
-    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return str.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');
 }
