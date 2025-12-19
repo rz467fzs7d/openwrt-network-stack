@@ -409,16 +409,23 @@ function operator(proxies) {
                 let formattedName = format
                     .replace(/{flag}/g, regionInfo.flag)
                     .replace(/{code}/g, regionInfo.code)
-                    .replace(/{index}/g, index)
+                    .replace(/{index(?::0(\d+)d)?}/g, (match, width) => {
+                        // 支持 {index} 或 {index:02d} 格式
+                        if (width) {
+                            return String(index).padStart(parseInt(width), '0');
+                        }
+                        return index;
+                    })
                     .replace(/{name_cn}/g, regionInfo.name_cn)
                     .replace(/{name_en}/g, regionInfo.name_en)
                     .replace(/{name}/g, regionInfo.name_en)
                     .replace(/{original}/g, cleanName.trim());
 
-            proxy.name = formattedName.replace(/\s+/g, ' ').trim();
-        } else {
-            // 默认行为：移除 emoji 和地区关键词
-            proxy.name = removeRegionInfo(originalName, regionInfo);
+                proxy.name = formattedName.replace(/\s+/g, ' ').trim();
+            } else {
+                // 默认行为：移除 emoji 和地区关键词
+                proxy.name = removeRegionInfo(originalName, regionInfo);
+            }
         }
     });
 
