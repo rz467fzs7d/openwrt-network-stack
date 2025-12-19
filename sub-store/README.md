@@ -15,21 +15,21 @@ Sub Store 节点处理脚本，用于格式化节点地区信息和节点名称�
 - 🏷️ **多格式识别**：支持 emoji、中文、英文、城市名
 - 🔌 **零依赖**：无需网络请求，完全本地处理
 - 🎨 **灵活格式化**：支持自定义节点名称模板
-- 📝 **标准化属性**：自动设置 code 和 region 属性
+- �� **自动设置属性**：自动设置 code 和 region 属性用于 Mihomo 筛选
 
 #### 核心功能
 
 1. **地区识别**：从节点名称中识别地区信息
-2. **属性设置**：设置标准化的 `code` 和 `region` 属性
-3. **名称格式化**：使用模板自定义节点名称格式
+2. **属性设置**：自动设置标准化的 `code` 和 `region` 属性
+3. **名称格式化**：使用模板自定义节点名称格式（可选）
 
 #### 使用参数
 
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `format` | string | null | 节点名称格式模板（可选） |
-| `setRegionAttributes` | boolean | true | 是否设置 region 和 code 属性 |
-| `regionFormat` | string | "name_en" | region 属性格式（name_en/name_cn/code） |
+| `format` | string | null | 节点名称格式模板（可选，不设置则保留原名称） |
+
+**说明**：脚本会自动为所有节点设置 `code` 和 `region` 属性（`region` 固定为英文名称）
 
 #### format 模板占位符
 
@@ -44,7 +44,7 @@ Sub Store 节点处理脚本，用于格式化节点地区信息和节点名称�
 
 ## 📋 使用场景
 
-### 场景 1：添加地区属性（不改变节点名称）
+### 场景 1：仅添加地区属性（不改变节点名称）
 
 **适用情况**：
 - 节点没有 region/code 属性
@@ -53,11 +53,9 @@ Sub Store 节点处理脚本，用于格式化节点地区信息和节点名称�
 
 **配置**：
 ```json
-{
-  "setRegionAttributes": true,
-  "regionFormat": "name_en"
-}
+{}
 ```
+或不配置任何参数
 
 **效果**：
 
@@ -77,7 +75,7 @@ Sub Store 节点处理脚本，用于格式化节点地区信息和节点名称�
 }
 ```
 
-### 场景 2：统一节点名称格式（无 emoji）
+### 场景 2：极简格式（仅保留节点标识）
 
 **适用情况**：
 - 希望节点名称简洁统一
@@ -87,8 +85,7 @@ Sub Store 节点处理脚本，用于格式化节点地区信息和节点名称�
 **配置**：
 ```json
 {
-  "format": "{original}",
-  "setRegionAttributes": true
+  "format": "{original}"
 }
 ```
 
@@ -103,18 +100,17 @@ Sub Store 节点处理脚本，用于格式化节点地区信息和节点名称�
 }
 ```
 
-### 场景 3：统一添加英文地区前缀
+### 场景 3：统一英文地区前缀（推荐）
 
 **适用情况**：
 - 希望节点名称包含地区信息
-- 使用英文便��识别
+- 使用英文便于识别
 - 去除 emoji
 
 **配置**：
 ```json
 {
-  "format": "{name_en} {original}",
-  "setRegionAttributes": true
+  "format": "{name_en} {original}"
 }
 ```
 
@@ -126,7 +122,7 @@ Sub Store 节点处理脚本，用于格式化节点地区信息和节点名称�
 | 🇯🇵 Tokyo-Premium | Japan Tokyo-Premium | JP | Japan |
 | 🇺🇸 美国高速 | United States 高速 | US | United States |
 
-### 场景 4：添加 emoji + 代码前缀
+### 场景 4：emoji + 代码前缀
 
 **适用情况**：
 - 保留 emoji 视觉标识
@@ -136,8 +132,7 @@ Sub Store 节点处理脚本，用于格式化节点地区信息和节点名称�
 **配置**：
 ```json
 {
-  "format": "{flag} {code} {original}",
-  "setRegionAttributes": true
+  "format": "{flag} {code} {original}"
 }
 ```
 
@@ -161,9 +156,7 @@ Sub Store 节点处理脚本，用于格式化节点地区信息和节点名称�
 **配置**：
 ```json
 {
-  "format": "{name_cn} {original}",
-  "setRegionAttributes": true,
-  "regionFormat": "name_cn"
+  "format": "{name_cn} {original}"
 }
 ```
 
@@ -174,7 +167,7 @@ Sub Store 节点处理脚本，用于格式化节点地区信息和节点名称�
 {
   "name": "香港 01",
   "code": "HK",
-  "region": "香港"
+  "region": "Hong Kong"
 }
 ```
 
@@ -187,9 +180,7 @@ Sub Store 节点处理脚本，用于格式化节点地区信息和节点名称�
 **配置**：
 ```json
 {
-  "format": "{code}-{original}",
-  "setRegionAttributes": true,
-  "regionFormat": "code"
+  "format": "{code}-{original}"
 }
 ```
 
@@ -200,7 +191,7 @@ Sub Store 节点处理脚本，用于格式化节点地区信息和节点名称�
 {
   "name": "HK-IPLC Premium",
   "code": "HK",
-  "region": "HK"
+  "region": "Hong Kong"
 }
 ```
 
@@ -217,37 +208,32 @@ Sub Store 节点处理脚本，用于格式化节点地区信息和节点名称�
 
 ### 常用配置示例
 
-**推荐配置（Mihomo 用户）**：
+**推荐配置（统一英文格式）**：
 ```json
 {
-  "format": "{name_en} {original}",
-  "setRegionAttributes": true,
-  "regionFormat": "name_en"
+  "format": "{name_en} {original}"
 }
 ```
 
-**极简配置**：
+**极简配置（仅保留节点标识）**：
 ```json
 {
-  "format": "{original}",
-  "setRegionAttributes": true
+  "format": "{original}"
 }
 ```
 
 **保留 emoji**：
 ```json
 {
-  "format": "{flag} {name_en} {original}",
-  "setRegionAttributes": true
+  "format": "{flag} {name_en} {original}"
 }
 ```
 
 **仅设置属性（不改名）**：
 ```json
-{
-  "setRegionAttributes": true
-}
+{}
 ```
+或不配置任何参数
 
 ## 🎯 与 Mihomo 配合使用
 
@@ -296,8 +282,7 @@ proxy-groups:
 脚本内置 40+ 个国家/地区的映射信息：
 
 | 地区 | code | flag | name_cn | name_en | 识别关键词 |
-|------|------|------|---------|---------|-----------|
-| 香港 | HK | 🇭🇰 | 香港 | Hong Kong | 🇭🇰、香港、hong kong、hk |
+|------|------|------|---------|---------|-----------| |香港 | HK | 🇭🇰 | 香港 | Hong Kong | 🇭🇰、香港、hong kong、hk |
 | 台湾 | TW | 🇹🇼 | 台湾 | Taiwan | 🇹🇼、🏝️、台湾、taiwan、tw |
 | 日本 | JP | 🇯🇵 | 日本 | Japan | 🇯🇵、日本、japan、tokyo、osaka |
 | 美国 | US | 🇺🇸 | 美国 | United States | 🇺🇸、美国、us、seattle |
@@ -425,7 +410,7 @@ const REGION_MAP = {
 };
 ```
 
-### 修改关键��优先级
+### 修改关键词优先级
 
 地区匹配按 `REGION_MAP` 的顺序进行，调整顺序可改变优先级：
 
@@ -462,7 +447,7 @@ const REGION_MAP = {
   server: "example.com",
   port: 443,
   code: "HK",                       // 新增：地区代码
-  region: "Hong Kong",              // 新增：地区名称
+  region: "Hong Kong",              // 新增：地区名称（固定英文）
   // ... 其他配置保持不变
 }
 ```
@@ -480,7 +465,7 @@ $.warn('警告日志');
 $.error('错误日志');
 
 // 参数
-const { format, setRegionAttributes } = $arguments;
+const { format } = $arguments;
 ```
 
 ## 🤝 贡献
