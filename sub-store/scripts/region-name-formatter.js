@@ -16,9 +16,12 @@
  * 参数：
  * - format: 节点名称格式模板（可选）
  *   - 不设置：保留原名称，仅去除 emoji 和地区关键词
- *   - 支持占位符：{flag} {code} {name_cn} {name_en} {name} {original} {index} {iplc} {isp}
- *   - 示例："{name_en} {iplc} {isp} {index}" -> "Hong Kong IPLC ATT 1"
- *   - 示例："{name_en}{isp}{index:02d}" -> "Hong Kong ATT01"
+ *   - 支持占位符：{countryFlag} {countryCode} {countryNameCN} {countryName} {ispCode} {iplc} {otherTags} {index} {original}
+ *   - 示例："{countryName} {iplc} {ispCode} {index}" -> "Hong Kong IPLC ATT 1"
+ *   - 示例："{countryName}{ispCode}{index:02d}" -> "Hong Kong ATT01"
+ *   - 示例："{countryName} {ispCode} {otherTags}" -> "Malaysia TMNET Home"
+ *   - 示例："{countryName} {iplc} {index:2d} {ispCode} {otherTags}" -> "Singapore IPLC 01 Home IPLC"
+ *   - otherTags 说明：自动识别并格式化额外标签（家宽、IPLC、BGP、CN2、5G、企业等），使用 connector 连接
  * - connector: 连接符（可选，默认为空格）
  *   - 示例：connector = '' -> "HongKongIPLCATT1"
  */
@@ -41,6 +44,21 @@ const ISP_MAP = {
     'CMCC': { keywords: ['cmcc', '中国移动'], code: 'CMCC' },
     'CU': { keywords: ['cu', '中国联通'], code: 'CU' },
     'CT': { keywords: ['ct', '中国电信'], code: 'CT' },
+    'TMNet': { keywords: ['tmnet'], code: 'TMNET' },
+};
+
+// 其他标签映射表（用于提取和格式化额外信息）
+// 格式: '标签名': { keywords: ['关键词1', '关键词2'], output: '输出名称' }
+// 说明: keywords 支持中文和英文，output 是最终显示的名称
+// 使用: 在 format 中使用 {otherTags} 占位符，会自动提取并用 connector 连接
+const OTHER_TAGS_MAP = {
+    '家宽': { keywords: ['家宽', 'home', 'home broadband', 'broadband'], output: 'Home' },
+    'IPLC': { keywords: ['iplc', '专线'], output: 'IPLC' },
+    'BGP': { keywords: ['bgp', 'bgp线路'], output: 'BGP' },
+    'CN2': { keywords: ['cn2', 'cn2gia', 'cn2-gia'], output: 'CN2' },
+    '5G': { keywords: ['5g', '5g网络'], output: '5G' },
+    '企业': { keywords: ['企业', 'enterprise', 'biz'], output: 'Enterprise' },
+    '家': { keywords: ['家'], output: 'Home' },
 };
 
 // 地区信息映射表（优先级从上到下）
@@ -421,6 +439,9 @@ function operator(proxies) {
             if (ispInfo) break;
         }
 
+        // 识别其他标签（从原始名称中提取，但排除地区关键词）
+        const otherTags = extractOtherTags(lowerName);
+
         // 设置 region 和 code 属性（始终设置）
         if (regionInfo) {
             proxy.code = regionInfo.code;
@@ -438,22 +459,22 @@ function operator(proxies) {
                 // 获取原始名称（去除地区相关信息）
                 let cleanName = removeRegionInfo(originalName, regionInfo);
 
-                // 替换模板占位符
+                // 替换模板占位符（使用两层命名）
                 let formattedName = format
-                    .replace(/{flag}/g, regionInfo.flag)
-                    .replace(/{code}/g, regionInfo.code)
-                    .replace(/{index(?::0(\\d+)d)?}/g, (match, width) => {
+                    .replace(/{countryFlag}/g, regionInfo.flag)
+                    .replace(/{countryCode}/g, regionInfo.code)
+                    .replace(/{countryNameCN}/g, regionInfo.name_cn)
+                    .replace(/{countryName}/g, regionInfo.name_en)
+                    .replace(/{index(?::0?(\d+)d)?}/g, (match, width) => {
                         // 支持 {index} 或 {index:02d} 格式
                         if (width) {
                             return String(index).padStart(parseInt(width), '0');
                         }
                         return index;
                     })
-                    .replace(/{name_cn}/g, regionInfo.name_cn)
-                    .replace(/{name_en}/g, regionInfo.name_en)
-                    .replace(/{name}/g, regionInfo.name_en)
                     .replace(/{iplc}/g, hasIPLC ? 'IPLC' : '')
-                    .replace(/{isp}/g, ispInfo ? ispInfo.code : '')
+                    .replace(/{ispCode}/g, ispInfo ? ispInfo.code : '')
+                    .replace(/{otherTags}/g, otherTags.join(connector))
                     .replace(/{original}/g, cleanName.trim());
 
                 // 使用 connector 连接各部分，并清理多余空格
@@ -495,12 +516,68 @@ function matchKeyword(text, keyword) {
 
     // 3. 短英文关键词（2-3字符）使用词边界匹配
     if (keywordLower.length <= 3) {
-        const regex = new RegExp(`\\b${escapeRegex(keywordLower)}\\b`, 'i');
+        const regex = new RegExp(`\\\b${escapeRegex(keywordLower)}\\\b`, 'i');
         return regex.test(text);
     }
 
     // 4. 较长的英文关键词使用普通匹配
     return text.includes(keywordLower);
+}
+
+/**
+ * 从节点名称中提取其他标签
+ * @param {string} text - 节点名称（小写）
+ * @returns {string[]} 标签输出名称列表
+ */
+function extractOtherTags(text) {
+    const tags = [];
+    const usedKeywords = new Set(); // 防止重复匹配
+
+    for (const [tagKey, tagInfo] of Object.entries(OTHER_TAGS_MAP)) {
+        for (const keyword of tagInfo.keywords) {
+            const keywordLower = keyword.toLowerCase();
+
+            // 跳过已使用的关键词
+            if (usedKeywords.has(keywordLower)) continue;
+
+            let matched = false;
+
+            if (keyword.match(/[\u4e00-\u9fa5]/)) {
+                // 中文关键词：需要精确匹配，避免误伤
+                // 使用更灵活的模式：允许前后有空格、标点、或直接接英文/数字/中文
+                const patterns = [
+                    new RegExp(`\\s${escapeRegex(keywordLower)}(?=\\s|$|-|[A-Za-z0-9])`, 'gi'),
+                    new RegExp(`^${escapeRegex(keywordLower)}(?=\\s|$|-|[A-Za-z0-9])`, 'gi'),
+                    new RegExp(`[A-Za-z0-9]${escapeRegex(keywordLower)}(?=\\s|$|-|[A-Za-z0-9])`, 'gi'),
+                    new RegExp(`[\\u4e00-\\u9fa5]${escapeRegex(keywordLower)}(?=\\s|$|-|[A-Za-z0-9])`, 'gi')
+                ];
+
+                for (const pattern of patterns) {
+                    if (pattern.test(text)) {
+                        matched = true;
+                        break;
+                    }
+                }
+            } else if (keywordLower.length <= 3) {
+                // 短英文关键词：严格词边界
+                const regex = new RegExp(`\\b${escapeRegex(keywordLower)}\\b`, 'gi');
+                matched = regex.test(text);
+            } else {
+                // 长英文关键词：词边界或前后空格
+                const regex = new RegExp(`(?:^|\\s)${escapeRegex(keywordLower)}(?:\\s|$|-)|\\b${escapeRegex(keywordLower)}\\b`, 'gi');
+                matched = regex.test(text);
+            }
+
+            if (matched) {
+                tags.push(tagInfo.output);
+                // 标记该标签的所有关键词为已使用
+                tagInfo.keywords.forEach(k => usedKeywords.add(k.toLowerCase()));
+                break; // 一个标签只添加一次
+            }
+        }
+    }
+
+    return tags;
 }
 
 /**
@@ -521,24 +598,57 @@ function removeRegionInfo(str, regionInfo) {
     result = result.replace(/^(ss|vmess|trojan|hysteria|vless|ssr|v2ray)\s*/gi, '');
 
     if (regionInfo) {
-        // 移除地区关键词（保留原始节点名的其他部分）
-        const nameLower = result.toLowerCase();
-        for (const keyword of regionInfo.keywords) {
-            const keywordLower = keyword.toLowerCase();
-            // 跳过 emoji（已经处理过）
-            if (keyword.match(/[\uD83C][\uDDE6-\uDDFF]/)) continue;
+        // 按长度排序，优先匹配长关键词（避免短词误匹配）
+        const sortedKeywords = [...regionInfo.keywords]
+            .filter(k => !k.match(/[\uD83C][\uDDE6-\uDDFF]/)) // 过滤掉emoji
+            .sort((a, b) => b.length - a.length);
 
-            // 精确匹配整个单词或作为前缀
-            const regex = new RegExp(`\\b${escapeRegex(keywordLower)}\\b|^${escapeRegex(keywordLower)}[\\s-]`, 'gi');
-            result = result.replace(regex, '');
+        for (const keyword of sortedKeywords) {
+            const keywordLower = keyword.toLowerCase();
+
+            // 根据关键词类型选择匹配策略
+            if (keyword.match(/[\u4e00-\u9fa5]/)) {
+                // 中文关键词：支持空格+关键词+空格/结束/标点/英文，或者开头+关键词+空格/结束/标点/英文
+                const patterns = [
+                    new RegExp(`\s${escapeRegex(keywordLower)}(?=\s|$|-|家宽|家|宽|[A-Za-z])`, 'gi'),
+                    new RegExp(`^${escapeRegex(keywordLower)}(?=\s|$|-|家宽|家|宽|[A-Za-z])`, 'gi')
+                ];
+
+                for (const pattern of patterns) {
+                    if (pattern.test(result)) {
+                        result = result.replace(pattern, (match) => {
+                            // 保留空格，不保留开头匹配
+                            return match.startsWith(' ') ? ' ' : '';
+                        });
+                        break;
+                    }
+                }
+
+            } else if (keyword.length <= 3) {
+                // 短英文关键词：严格词边界
+                const regex = new RegExp(`\b${escapeRegex(keywordLower)}\b`, 'gi');
+                result = result.replace(regex, '');
+
+            } else {
+                // 长英文关键词：词边界或前后空格，保留空格
+                const regex = new RegExp(`(?:^|\s)${escapeRegex(keywordLower)}(?:\s|$|-)|\b${escapeRegex(keywordLower)}\b`, 'gi');
+                result = result.replace(regex, (match) => {
+                    // 如果匹配到的是空格+关键词+空格/结束，保留一个空格
+                    // 如果匹配到的是单独的词边界，直接移除
+                    if (match.startsWith(' ') && (match.endsWith(' ') || match.endsWith('-') || match.length === keywordLower.length + 1)) {
+                        return ' ';
+                    }
+                    return '';
+                });
+            }
         }
     }
 
     // 移除括号内容（如 (UDPN)、(专线) 等）
-    result = result.replace(/\([^)]*\)/g, '');
+    result = result.replace(/\\([^)]*\\)/g, '');
 
     // 清理多余空格和特殊字符
-    result = result.replace(/^[\s\-_|]+|[\s\-_|]+$/g, '');
+    result = result.replace(/^[\s\\-_|]+|[\s\\-_|]+$/g, '');
     result = result.replace(/\s+/g, ' ');
 
     return result.trim();
@@ -548,5 +658,5 @@ function removeRegionInfo(str, regionInfo) {
  * 转义正则表达式特殊字符
  */
 function escapeRegex(str) {
-    return str.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');
+    return str.replace(/[.*+?^${}()|[\\\\\\\\]\\\\\\\\\\\\\\\\]/g, '\\\\\\\\$&');
 }
