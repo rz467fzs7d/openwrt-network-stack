@@ -38,20 +38,19 @@ Sub Store 节点处理脚本，用于格式化节点地区信息和节点名称�
 
 | 占位符 | 说明 | 示例值 |
 |--------|------|--------|
-| `{flag}` | emoji 国旗 | 🇭🇰 |
-| `{code}` | 地区代码 | HK |
-| `{name_cn}` | 中文名称 | 香港 |
-| `{name_en}` | 英文名称 | Hong Kong |
-| `{name}` | 英文名称（等同 name_en） | Hong Kong |
+| `{countryFlag}` | emoji 国旗 | 🇭🇰 |
+| `{countryCode}` | 国家代码 | HK |
+| `{countryNameCN}` | 国家中文名称 | 香港 |
+| `{countryName}` | 国家英文名称 | Hong Kong |
 | `{index}` | 地区内序号（从 1 开始） | 1, 2, 3... |
 | `{index:02d}` | 地区内序号（补零到 2 位） | 01, 02, 03... |
 | `{iplc}` | IPLC 标识（存在时） | IPLC |
-| `{isp}` | 运营商代码 | ATT, SONET, HINET |
+| `{ispCode}` | 运营商代码 | ATT, SONET, HINET |
 | `{original}` | 原始节点名（去除地区信息） | Premium |
 
 **支持的运营商**：
 - ATT, Sonet, Hinet, NTT, Softbank, KT, SK
-- Singtel, Starhub, CMCC, CU, CT
+- Singtel, Starhub, CMCC, CU, CT, TMNet
 
 ## 📋 使用场景
 
@@ -95,7 +94,7 @@ Sub Store 节点处理脚本，用于格式化节点地区信息和节点名称�
 **配置**：
 ```json
 {
-  "format": "{name_en} {iplc} {isp} {index}"
+  "format": "{countryName} {iplc} {ispCode} {index}"
 }
 ```
 
@@ -118,7 +117,7 @@ Sub Store 节点处理脚本，用于格式化节点地区信息和节点名称�
 **配置**：
 ```json
 {
-  "format": "{name_en}{iplc}{isp}{index:02d}",
+  "format": "{countryName}{iplc}{ispCode}{index:02d}",
   "connector": ""
 }
 ```
@@ -158,7 +157,7 @@ ssJapan IPLC(UDPN) 日本Sonet家宽 → IPLC Sonet 家宽
 **配置**：
 ```json
 {
-  "format": "{name_en}|{iplc}|{isp}|{index}",
+  "format": "{countryName}|{iplc}|{ispCode}|{index}",
   "connector": "-"
 }
 ```
@@ -179,7 +178,7 @@ United States-IPLC-ATT-1
 **配置**：
 ```json
 {
-  "format": "{code}-{iplc}-{isp}-{index}"
+  "format": "{countryCode}-{iplc}-{ispCode}-{index}"
 }
 ```
 
@@ -200,7 +199,7 @@ US-IPLC-ATT-1
 **配置**：
 ```json
 {
-  "format": "{name_en} {index}"
+  "format": "{countryName} {index}"
 }
 ```
 
@@ -231,14 +230,14 @@ US-IPLC-ATT-1
 **推荐配置（提取 IPLC 和运营商）**：
 ```json
 {
-  "format": "{name_en} {iplc} {isp} {index}"
+  "format": "{countryName} {iplc} {ispCode} {index}"
 }
 ```
 
 **紧凑格式**：
 ```json
 {
-  "format": "{name_en}{isp}{index:02d}",
+  "format": "{countryName}{ispCode}{index:02d}",
   "connector": ""
 }
 ```
@@ -291,7 +290,7 @@ proxy-groups:
 如果使用了 format，可以通过格式化后的名称筛选：
 
 ```yaml
-# 假设 format: "{name_en} {iplc} {isp} {index}"
+# 假设 format: "{countryName} {iplc} {ispCode} {index}"
 proxy-groups:
   - name: All Hong Kong IPLC
     type: select
@@ -339,14 +338,14 @@ proxy-groups:
 **正确示例**：
 ```json
 {
-  "format": "{name_en} {iplc} {isp}"
+  "format": "{countryName} {iplc} {ispCode}"
 }
 ```
 
 **错误示例**：
 ```json
 {
-  format: '{name_en} {iplc}'  // 错误：缺少双引号
+  format: '{countryName} {iplc}'  // 错误：缺少双引号
 }
 ```
 
@@ -368,7 +367,7 @@ proxy-groups:
 
 **解决**：
 - 使用不包含 `{original}` 的 format
-- 例如：`"{flag} {code}"`
+- 例如：`"{countryFlag} {countryCode}"`
 
 ## 🎨 高级用法
 
@@ -392,7 +391,7 @@ const ISP_MAP = {
 
 ```json
 {
-  "format": "{name_en} {iplc} {isp} {index}"
+  "format": "{countryName} {iplc} {ispCode} {index}"
 }
 ```
 
@@ -405,14 +404,14 @@ const ISP_MAP = {
 **订阅 1（IPLC 线路）**：
 ```json
 {
-  "format": "{name_en} {iplc} {isp} {index}"
+  "format": "{countryName} {iplc} {ispCode} {index}"
 }
 ```
 
 **订阅 2（普通线路）**：
 ```json
 {
-  "format": "{name_en} {index}"
+  "format": "{countryName} {index}"
 }
 ```
 
@@ -485,7 +484,7 @@ const REGION_MAP = {
 ### 脚本输出
 
 ```javascript
-// 处理后的节点对象（使用 format: "{name_en} {iplc} {isp} {index}"）
+// 处理后的节点对象（使用 format: "{countryName} {iplc} {ispCode} {index}"）
 {
   name: "Singapore IPLC 1",        // 格式化后的名称
   server: "oneinlink.ascwqw.org",

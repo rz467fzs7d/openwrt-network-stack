@@ -1,0 +1,42 @@
+proxies:
+  - {name: 🇭🇰 香港 01, server: DIRECT.ascwqw.org, port: 1113, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇭🇰 香港 02, server: 111.222, port: 1112, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇭🇰 香港 03, server: 111.222, port: 1110, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇸🇬 新加坡 01, server: 111.222, port: 1123, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇸🇬 新加坡 02, server: 111.222, port: 1127, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇸🇬 新加坡 03, server: 111.222, port: 1124, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇨🇳 台湾 01, server: 111.222, port: 1109, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇨🇳 台湾 02, server: 111.222, port: 1111, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇨🇳 台湾 03, server: 111.222, port: 1136, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇺🇸 美国 01, server: 111.222, port: 1122, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇺🇸 美国 02, server: 111.222, port: 1116, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇺🇸 美国 03, server: 111.222, port: 1131, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇯🇵 日本 01, server: 111.222, port: 1118, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇯🇵 日本 02, server: 111.222, port: 1138, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇯🇵 日本 03, server: 111.222, port: 1114, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇭🇰 IPLC(UDPN) 香港HKT家宽, server: oneinlink.ascwqw.org, port: 13001, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇸🇬 IPLC(UDPN) 新加坡家宽, server: oneinlink.ascwqw.org, port: 13004, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇯🇵 IPLC(UDPN) 日本Sonet家宽, server: oneinlink.ascwqw.org, port: 13002, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇺🇸 IPLC(UDPN) 美国ATT家宽, server: oneinlink.ascwqw.org, port: 13006, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇨🇳 IPLC(UDPN) 台湾Hinet家宽, server: oneinlink.ascwqw.org, port: 13009, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇰🇷 Base 韩国家宽, server: 111.222, port: 1115, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇺🇸 Base 美国家宽, server: 111.222, port: 1157, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇩🇪 Base 德国家宽, server: 111.222, port: 1146, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇲🇾 Base 马来西亚TMNet家宽, server: 111.222, port: 1156, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇲🇾 Base 马来西亚, server: 111.222, port: 1143, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇹🇭 Base 泰国, server: 111.222, port: 1128, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇻🇳 Base 越南, server: 111.222, port: 1147, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇮🇩 Base 印度尼西亚, server: 111.222, port: 1139, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇦🇺 Base 澳大利亚 悉尼, server: 111.222, port: 1132, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇵🇭 Base 菲律宾 02, server: 111.222, port: 1135, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇮🇳 Base 印度, server: 111.222, port: 1145, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇸🇬 Base 新西兰, server: 111.222, port: 1144, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇦🇷 Base 阿根廷家宽, server: 111.222, port: 1120, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇳🇬 Base 尼日利亚家宽, server: 111.222, port: 1148, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇸🇪 Base 瑞典, server: 111.222, port: 1149, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇧🇷 Base 巴西, server: 111.222, port: 1133, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇬🇧 Base 英国家宽, server: 111.222, port: 1117, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇹🇷 Base 土耳其, server: 111.222, port: 1121, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇩🇪 Base 德国, server: 111.222, port: 1130, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇧🇩 Base 孟加拉国, server: 111.222, port: 1150, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
+  - {name: 🇨🇦 Base 加拿大家宽, server: 111.222, port: 1141, type: ss, cipher: chacha20-ietf-poly1305, password: abc, tfo: false}
