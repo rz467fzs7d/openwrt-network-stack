@@ -1,0 +1,5 @@
+payload:
+  - DOMAIN,v4.plex.tv
+  - DOMAIN,clients.plex.tv
+  - DOMAIN-KEYWORD,direct
+  - DOMAIN-KEYWORD,checkip

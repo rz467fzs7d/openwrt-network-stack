@@ -1,0 +1,626 @@
+# region YAML 锚点（可复用模板）
+# ============================================================
+# YAML 锚点（可复用模板）- 集中管理
+# ============================================================
+
+# ------------------------------------------------------------
+# 扩展：节点筛选关键词定义
+# x- 前缀表示用户自定义扩展（非 Mihomo 原生配置）
+# ------------------------------------------------------------
+x-keywords:
+  hong-kong: &HONG_KONG_KEYWORDS "香港|HK|hongkong|hong kong"
+  taiwan: &TAIWAN_KEYWORDS "台��|TW|taiwan"
+  japan: &JAPAN_KEYWORDS "日本|JP|japan"
+  united-states: &UNITED_STATES_KEYWORDS "美国|US|unitedstates|united states"
+  singapore: &SINGAPORE_KEYWORDS "新加坡|SG|singapore"
+  iplc: &IPLC_KEYWORDS "IPLC"
+  game: &GAME_KEYWORDS "game|Game|游戏"
+  # 其他地区排除：仅排除主要地区和特殊用途节点
+  other-regions-exclude: &OTHER_REGIONS_EXCLUDE_KEYWORDS "香港|HK|台湾|TW|日本|JP|美国|US|新加坡|SG|IPLC|game|Game|游戏"
+
+# ------------------------------------------------------------
+# 扩展：代理组模板定义
+# x- 前缀表示用户自定义扩展（非 Mihomo 原生配置）
+# ------------------------------------------------------------
+x-templates:
+  # 健康检查通用常量
+  health-check-url: &HEALTH_CHECK_URL "https://www.gstatic.com/generate_204"
+  expected-status: &EXPECTED_STATUS 204
+
+  # 代理组基础模板
+  proxy-group: &PROXY_GROUP_BASE
+    type: select
+    interval: 60
+    lazy: true
+    include-all: true
+    exclude-type: direct
+    hidden: false
+    tolerance: 20
+    disable-udp: false
+    timeout: 300
+
+  # Fallback 组模板（自动故障转移）
+  fallback-group: &FALLBACK_GROUP_BASE
+    <<: *PROXY_GROUP_BASE
+    type: fallback
+    fallback-filter:
+      retry: 2
+      timeout: 300
+      health-check:
+        enable: true
+        interval: 60
+        unhealthy_threshold: 2
+        healthy_threshold: 2
+        dns:
+          - "https://8.8.8.8/dns-query"
+          - "https://dns.alidns.com/dns-query"
+        http:
+          - url: *HEALTH_CHECK_URL
+            method: GET
+            expected-status: *EXPECTED_STATUS
+            timeout: 300
+
+  # URL Test 组模板（基于延迟自动选择）
+  url-test-group: &URL_TEST_GROUP_BASE
+    <<: *PROXY_GROUP_BASE
+    type: url-test
+    url: *HEALTH_CHECK_URL
+    interval: 60
+    tolerance: 50
+    timeout: 300
+    expected-status: *EXPECTED_STATUS
+
+  # Smart 组模板
+  smart-group: &SMART_GROUP_BASE
+    type: smart
+    proxies: []
+    policy-priority: ""
+    prefer-asn: true
+    uselightgbm: true
+    collectdata: true
+
+  # 代理订阅提供者模板
+  proxy-provider: &PROXY_PROVIDER_BASE
+    type: http
+    interval: 600
+    proxy: DIRECT
+    health-check:
+      enable: true
+      url: *HEALTH_CHECK_URL
+      interval: 300
+      timeout: 300
+      expected-status: *EXPECTED_STATUS
+
+  # 应用策略模板（Smart 优先）
+  application-policy: &APPLICATION_POLICY_BASE
+    type: select
+    hidden: false
+    proxies:
+      - Smart
+      - Hong Kong
+      - Taiwan
+      - Japan
+      - United States
+      - Singapore
+      - Others
+      - IPLC
+      - Game
+      - Select
+      - DIRECT
+
+  # 应用策略模板（DIRECT 优先）
+  application-policy-direct-first: &APPLICATION_POLICY_DIRECT_FIRST
+    type: select
+    hidden: false
+    proxies:
+      - DIRECT
+      - Smart
+      - Hong Kong
+      - Taiwan
+      - Japan
+      - United States
+      - Singapore
+      - Others
+      - IPLC
+      - Game
+      - Select
+
+# ------------------------------------------------------------
+# 扩展：规则提供者模板
+# x- 前缀表示用户自定义扩展（非 Mihomo 原生配置）
+# ------------------------------------------------------------
+x-rule-provider-base: &RULE_PROVIDER_BASE
+  behavior: "classical" # 规则行为类型
+  type: http # 通过 HTTP 获取规则
+  interval: 86400 # 更新间隔：24 小时
+# endregion
+
+# region 核心配置
+# ============================================================
+# 核心配置
+# ============================================================
+
+# ------------------------------------------------------------
+# 端口和网络设置
+# ------------------------------------------------------------
+mixed-port: 7890
+allow-lan: true
+ipv6: true
+unified-delay: false
+tcp-concurrent: true
+keep-alive-interval: 30
+external-controller: 127.0.0.1:9090
+external-ui: ui
+external-ui-url: "https://github.com/MetaCubeX/metacubexd/archive/refs/heads/gh-pages.zip"
+
+# ------------------------------------------------------------
+# 系统设置
+# ------------------------------------------------------------
+find-process-mode: strict
+global-client-fingerprint: chrome
+
+# ------------------------------------------------------------
+# 配置文件持久化设置
+# ------------------------------------------------------------
+profile:
+  store-selected: true
+  store-fake-ip: true
+  store-smart-data: true
+# endregion
+
+# region DNS 配置
+# ------------------------------------------------------------
+# DNS 配置
+# ------------------------------------------------------------
+dns:
+  enable: true
+  ipv6: true
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.0/16
+  respect-rules: true
+
+  # 引导 DNS（解析 DoH 服务器域名）
+  default-nameserver:
+    - 223.5.5.5
+    - 223.6.6.6
+    - 119.29.29.29
+
+  # 代理服务器域名解析专用 DNS
+  proxy-server-nameserver:
+    - https://dns.alidns.com/dns-query
+    - https://1.12.12.12/dns-query
+    - https://doh.pub/dns-query
+
+  # 主 DNS 服务器
+  nameserver:
+    - https://dns.alidns.com/dns-query
+    - https://1.12.12.12/dns-query
+    - https://doh.pub/dns-query
+
+  # 域名级 DNS 策略
+  nameserver-policy:
+    "+.adguard-dns.com": 223.5.5.5
+    "+.dns.adguard.com": 223.5.5.5
+
+  # fake-ip 过滤（这些域名返回真实 IP）
+  fake-ip-filter:
+    - "+.lan"
+    - "+.local"
+    - "+.srv.nintendo.net"
+    - "+.stun.playstation.net"
+    - "xbox.*.*.microsoft.com"
+    - "*.*.xboxlive.com"
+    - "+.battlenet.com.cn"
+    - "+.wotgame.cn"
+    - "stun.*.*"
+    - "stun.*.*.*"
+    - "+.music.163.com"
+    - "+.music.126.net"
+    - "+.spotify.com"
+    - "+.pandora.com"
+    - "localhost.ptlogin2.qq.com"
+    - "+.126.net"
+    - "+.127.net"
+    - "+.mail.com"
+    - "+.market.xiaomi.com"
+    - "dlg.io.mi.com"
+    - "+.pool.ntp.org"
+    - "time.*.com"
+    - "ntp.*.com"
+    - "+.ntp.org.cn"
+
+  # 备用 DNS（DNS 污染检测）
+  fallback:
+    - https://8.8.8.8/dns-query
+
+  # 备用 DNS 触发条件
+  fallback-filter:
+    geoip: true
+    geoip-code: CN
+    geosite:
+      - gfw
+    ipcidr:
+      - 240.0.0.0/4
+      - 0.0.0.0/32
+    domain:
+      - "+.google.com"
+      - "+.facebook.com"
+      - "+.twitter.com"
+      - "+.youtube.com"
+# endregion
+
+# region TUN/TAP 和流量嗅探
+# ------------------------------------------------------------
+# TUN/TAP 虚拟网卡配置
+# ------------------------------------------------------------
+tun:
+  enable: true
+  stack: mixed
+  dns-hijack:
+    - "any:53"
+    - "tcp://any:53"
+  auto-route: true
+  auto-redirect: true
+  auto-detect-interface: true
+
+# ------------------------------------------------------------
+# 流量嗅探配置
+# ------------------------------------------------------------
+sniffer:
+  enable: true
+  force-dns-mapping: true
+  parse-pure-ip: true
+
+  # 协议嗅探配置
+  sniff:
+    QUIC:
+      ports: [443]
+    TLS:
+      ports: [443, 8443]
+    HTTP:
+      ports: [80, 8080-8880]
+      override-destination: true
+
+  # 强制嗅探的域名
+  force-domain:
+    - "+.netflix.com"
+    - "+.nflxvideo.net"
+    - "+.amazonaws.com"
+    - "+.media.dssott.com"
+
+  # 跳过嗅探的域名
+  skip-domain:
+    - "+.apple.com"
+    - "+.push.apple.com"
+    - "Mijia Cloud"
+    - "dlg.io.mi.com"
+    - "+.oray.com"
+    - "+.sunlogin.net"
+# endregion
+
+# region GeoIP/GeoSite 数据源
+# ------------------------------------------------------------
+# GeoIP/GeoSite 数据源
+# ------------------------------------------------------------
+geodata-mode: true
+geox-url:
+  geoip: "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip-lite.dat"
+  geosite: "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat"
+  mmdb: "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/country-lite.mmdb"
+  asn: "https://cdn.jsdelivr.net/gh/xishang0128/geoip@release/GeoLite2-ASN.mmdb"
+# endregion
+
+# region 代理配置
+# ============================================================
+# 代理配置
+# ============================================================
+
+# ------------------------------------------------------------
+# 代理订阅提供者
+# ------------------------------------------------------------
+proxy-providers:
+  Provider1:
+    <<: *PROXY_PROVIDER_BASE
+    url: "http://127.0.0.1:3001/backend/download/Sub%2001"
+    subscription-userinfo: true
+    path: ./proxy-providers/provider1.yaml
+    override:
+      additional-prefix: "[Provider1] "
+
+  Provider2:
+    <<: *PROXY_PROVIDER_BASE
+    url: "http://127.0.0.1:3001/backend/download/Sub%2002"
+    path: ./proxy-providers/provider2.yaml
+    override:
+      additional-prefix: "[Provider2] "
+
+  LocalNodes:
+    <<: *PROXY_PROVIDER_BASE
+    url: "http://127.0.0.1:3001/backend/download/Local%20Nodes"
+    path: ./proxy-providers/local-nodes.yaml
+
+# ------------------------------------------------------------
+# 代理组配置
+# ------------------------------------------------------------
+proxy-groups:
+  # ==================== 核心代理组 ====================
+  - { name: PROXY, <<: *APPLICATION_POLICY_BASE, type: select }
+  - { name: FINAL, <<: *APPLICATION_POLICY_DIRECT_FIRST, type: select }
+
+  # 智能选择（从地区组智能选择）
+  # https://wiki.metacubex.one/config/proxy-groups/smart/
+  - name: Smart
+    <<: *SMART_GROUP_BASE
+    proxies:
+      [
+        Hong Kong,
+        Taiwan,
+        Japan,
+        United States,
+        Singapore,
+        Others,
+      ]
+    policy-priority: "Hong Kong:1.5;Others:0.5"
+
+  # 手动选择（从地区组智能选择）
+  - { name: Select, <<: *PROXY_GROUP_BASE }
+
+  # ==================== 应用专用代理组 ====================
+  # 搜索和生产力工具
+  - { name: Google, <<: *APPLICATION_POLICY_BASE }
+  - { name: Duckduckgo, <<: *APPLICATION_POLICY_BASE }
+
+  # 社交媒体和通信
+  - { name: Telegram, <<: *APPLICATION_POLICY_BASE }
+  - { name: Twitter, <<: *APPLICATION_POLICY_BASE }
+
+  # 开发和技术
+  - { name: Docker, <<: *APPLICATION_POLICY_BASE }
+  - { name: Github, <<: *APPLICATION_POLICY_BASE }
+  - { name: SourceForge, <<: *APPLICATION_POLICY_BASE }
+
+  # 流媒体和娱乐
+  - { name: YouTube, <<: *APPLICATION_POLICY_BASE }
+  - { name: Netflix, <<: *APPLICATION_POLICY_BASE, hidden: true }
+  - { name: Spotify, <<: *APPLICATION_POLICY_BASE }
+  - { name: Plex, <<: *APPLICATION_POLICY_BASE }
+  - { name: MetaTube, <<: *APPLICATION_POLICY_BASE }
+
+  # AI 服务
+  - { name: AI Services, <<: *APPLICATION_POLICY_BASE }
+
+  # Apple 生态
+  - { name: Apple Services, <<: *APPLICATION_POLICY_DIRECT_FIRST }
+
+  # ==================== 地区节点组 ====================
+  - {
+      name: Hong Kong,
+      <<: *URL_TEST_GROUP_BASE,
+      filter: *HONG_KONG_KEYWORDS,
+    }
+  - { name: Taiwan, <<: *URL_TEST_GROUP_BASE, filter: *TAIWAN_KEYWORDS }
+  - { name: Japan, <<: *URL_TEST_GROUP_BASE, filter: *JAPAN_KEYWORDS }
+  - {
+      name: United States,
+      <<: *URL_TEST_GROUP_BASE,
+      filter: *UNITED_STATES_KEYWORDS,
+    }
+  - {
+      name: Singapore,
+      <<: *URL_TEST_GROUP_BASE,
+      filter: *SINGAPORE_KEYWORDS,
+    }
+  - {
+      name: Others,
+      <<: *URL_TEST_GROUP_BASE,
+      exclude-filter: *OTHER_REGIONS_EXCLUDE_KEYWORDS,
+    }
+
+  # ==================== 特殊用途组 ====================
+  - { name: IPLC, <<: *FALLBACK_GROUP_BASE, filter: *IPLC_KEYWORDS }
+  - {
+      name: Game,
+      <<: *PROXY_GROUP_BASE,
+      hidden: true,
+      filter: *GAME_KEYWORDS,
+    }
+# endregion
+
+# region 路由规则
+# ============================================================
+# 路由规则
+# ============================================================
+
+# ------------------------------------------------------------
+# 规则提供者
+# ------------------------------------------------------------
+rule-providers:
+  # 自定义规则（修改为你自己的规则仓库）
+  CUSTOM-DIRECT:
+    <<: *RULE_PROVIDER_BASE
+    url: "https://cdn.jsdelivr.net/gh/YOUR_USERNAME/YOUR_REPO@main/clash/rules/direct.yaml"
+    path: ./rule-providers/custom-direct.yaml
+
+  CUSTOM-PROXY:
+    <<: *RULE_PROVIDER_BASE
+    url: "https://cdn.jsdelivr.net/gh/YOUR_USERNAME/YOUR_REPO@main/clash/rules/proxy.yaml"
+    path: ./rule-providers/custom-proxy.yaml
+
+  # 开发和生产力工具
+  Docker:
+    <<: *RULE_PROVIDER_BASE
+    url: "https://fastly.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/Docker/Docker.yaml"
+    path: ./rule-providers/docker.yaml
+
+  Duckduckgo:
+    <<: *RULE_PROVIDER_BASE
+    url: "https://fastly.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/Duckduckgo/Duckduckgo.yaml"
+    path: ./rule-providers/duckduckgo.yaml
+
+  SourceForge:
+    <<: *RULE_PROVIDER_BASE
+    url: "https://fastly.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/SourceForge/SourceForge.yaml"
+    path: ./rule-providers/sourceforge.yaml
+
+  # AI 服务
+  OpenAI:
+    <<: *RULE_PROVIDER_BASE
+    url: "https://fastly.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/OpenAI/OpenAI.yaml"
+    path: ./rule-providers/open-ai.yaml
+
+  BardAI:
+    <<: *RULE_PROVIDER_BASE
+    url: "https://fastly.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/BardAI/BardAI.yaml"
+    path: ./rule-providers/bard-ai.yaml
+
+  Claude:
+    <<: *RULE_PROVIDER_BASE
+    url: "https://fastly.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/Claude/Claude.yaml"
+    path: ./rule-providers/claude.yaml
+
+  Gemini:
+    <<: *RULE_PROVIDER_BASE
+    url: "https://fastly.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/Gemini/Gemini.yaml"
+    path: ./rule-providers/gemini.yaml
+
+  # 通信工具
+  Telegram:
+    <<: *RULE_PROVIDER_BASE
+    url: "https://fastly.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/Telegram/Telegram.yaml"
+    path: ./rule-providers/telegram.yaml
+
+  # 地理 IP 列表
+  ChinaIPs:
+    <<: *RULE_PROVIDER_BASE
+    url: "https://fastly.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/ChinaIPs/ChinaIPs_IP.yaml"
+    path: ./rule-providers/china-ips.yaml
+
+  ChinaDomains:
+    <<: *RULE_PROVIDER_BASE
+    url: "https://fastly.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/China/China_Domain.yaml"
+    path: ./rule-providers/china-domains.yaml
+
+  # 媒体元数据服务
+  TMDB:
+    <<: *RULE_PROVIDER_BASE
+    url: "https://fastly.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/Tmdb/Tmdb.yaml"
+    path: ./rule-providers/tmdb.yaml
+
+  IMDB:
+    <<: *RULE_PROVIDER_BASE
+    url: "https://fastly.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/IMDB/IMDB.yaml"
+    path: ./rule-providers/imdb.yaml
+
+  MetaTube:
+    <<: *RULE_PROVIDER_BASE
+    url: "https://cdn.jsdelivr.net/gh/pakjoeng/clash-rules@main/clash-rule-metatube.yaml"
+    path: ./rule-providers/metatube.yaml
+
+  # Apple 服务
+  AppStore:
+    <<: *RULE_PROVIDER_BASE
+    url: "https://fastly.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/AppStore/AppStore.yaml"
+    path: ./rule-providers/app-store.yaml
+
+  Apple:
+    <<: *RULE_PROVIDER_BASE
+    url: "https://fastly.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/Apple/Apple.yaml"
+    path: ./rule-providers/apple.yaml
+
+  iCloud:
+    <<: *RULE_PROVIDER_BASE
+    url: "https://fastly.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/iCloud/iCloud.yaml"
+    path: ./rule-providers/icloud.yaml
+
+# ------------------------------------------------------------
+# 路由规则（从上到下优先级）
+# ------------------------------------------------------------
+rules:
+  # ==================== 网络基础 ====================
+  # 本地网络 - 始终直连
+  - GEOIP,lan,DIRECT,no-resolve
+  - GEOIP,private,DIRECT,no-resolve
+
+  # ==================== 国内服务 ====================
+  # 中国特定服务（Microsoft、Apple、Steam、游戏）- 直连
+  - GEOSITE,microsoft@cn,DIRECT
+  - GEOSITE,apple-cn,DIRECT
+  - GEOSITE,steam@cn,DIRECT
+  - GEOSITE,category-games@cn,DIRECT
+
+  # AdGuard DNS（必须使用代理才能进行广告拦截）
+  # 匹配：family.adguard-dns.com（DoH 服务器）
+  - DOMAIN-SUFFIX,adguard-dns.com,PROXY
+  # 匹配：sb.dns.adguard.com、pc.dns.adguard.com（TXT 记录）
+  #       standard-block.dns.adguard.com、family-block.dns.adguard.com（拦截主机）
+  - DOMAIN-SUFFIX,dns.adguard.com,PROXY
+
+  # ==================== 自定义规则 ====================
+  - RULE-SET,CUSTOM-DIRECT,DIRECT
+  - RULE-SET,CUSTOM-PROXY,PROXY
+
+  # ==================== 媒体元数据服务 ====================
+  - RULE-SET,TMDB,Plex
+  - RULE-SET,IMDB,Plex
+
+  # ==================== AI 服务 ====================
+  - RULE-SET,OpenAI,AI Services
+  - RULE-SET,BardAI,AI Services
+  - RULE-SET,Gemini,AI Services
+  - RULE-SET,Claude,AI Services
+
+  # ==================== 开发工具 ====================
+  - RULE-SET,Docker,Docker
+  - RULE-SET,SourceForge,SourceForge
+  - GEOSITE,github,Github
+
+  # ==================== 搜索引擎 ====================
+  - GEOSITE,google,Google
+  - RULE-SET,Duckduckgo,Duckduckgo
+
+  # ==================== 社交媒体和通信 ====================
+  - RULE-SET,Telegram,Telegram
+  - GEOSITE,twitter,Twitter
+  - GEOSITE,facebook,PROXY
+  - GEOSITE,instagram,PROXY
+  - GEOSITE,reddit,PROXY
+  - GEOSITE,discord,PROXY
+  - GEOSITE,whatsapp,PROXY
+  - GEOSITE,tiktok,PROXY
+
+  # ==================== 流媒体服务 ====================
+  - RULE-SET,MetaTube,MetaTube
+  - GEOSITE,youtube,YouTube
+  - GEOSITE,netflix,Netflix
+  - GEOSITE,spotify,Spotify
+  - GEOSITE,disney,PROXY
+  - GEOSITE,hbo,PROXY
+  - GEOSITE,twitch,PROXY
+
+  # ==================== Apple 服务 ====================
+  - RULE-SET,Apple,Apple Services
+  - RULE-SET,AppStore,Apple Services
+  - RULE-SET,iCloud,Apple Services
+
+  # ==================== 中国路由 ====================
+  # 所有中国流量使用直连（不走代理）
+  - RULE-SET,ChinaDomains,DIRECT
+  - RULE-SET,ChinaIPs,DIRECT
+  - GEOSITE,CN,DIRECT
+
+  # ==================== 国际路由 ====================
+  # 非中国地区使用智能路由
+  - GEOSITE,geolocation-!cn,Smart
+
+  # ==================== GeoIP 路由 ====================
+  - GEOIP,google,Google
+  - GEOIP,netflix,Netflix
+  - GEOIP,telegram,Telegram
+  - GEOIP,twitter,Twitter
+  - GEOIP,facebook,PROXY
+  - GEOIP,CN,DIRECT
+
+  # ==================== 最终兜底规则 ====================
+  # 未匹配的流量进入 FINAL 组
+  - MATCH,FINAL
+# endregion

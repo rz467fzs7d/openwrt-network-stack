@@ -1,0 +1,25 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary files
+*.tmp
+*.bak
+*.log
+
+# Mihomo runtime files
+proxy-providers/
+rule-providers/
+*.mmdb
+*.dat
+
+# Sub Store data
+data/
