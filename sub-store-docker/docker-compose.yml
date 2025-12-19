@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  sub-store:
+    image: rz467fzs7d/sub-store:latest
+    container_name: sub-store
+    restart: unless-stopped
+
+    # Ports
+    ports:
+      - "3001:3001"  # Web interface
+      - "3000:3000"  # Backend API (optional, usually accessed via 3001)
+
+    # Volumes
+    volumes:
+      - ./data:/opt/app/data
+
+    # Environment variables
+    environment:
+      - SUB_STORE_FRONTEND_BACKEND_PATH=/backend
+      - TZ=Asia/Shanghai
+
+    # Optional: Custom DNS
+    # dns:
+    #   - 192.168.1.1
+    #   - 8.8.8.8
+
+    # Optional: Network mode
+    # network_mode: host
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/"]
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
+
+    # Resource limits (optional)
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '1.0'
+    #       memory: 512M
+    #     reservations:
+    #       cpus: '0.5'
+    #       memory: 256M
