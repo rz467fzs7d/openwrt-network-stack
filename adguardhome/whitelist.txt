@@ -1,8 +1,18 @@
 # AdGuard Home 白名单（允许列表）
 # 基于实际部署配置
 
-# ==================== 当前生效的白名单规则 ====================
-# 以下规则已在实际部署中配置
+# ==================== 白名单过滤列表 ====================
+# 以下列表已在 DNS Allowlists 中启用
+
+# Whitelist: popular apps and services
+https://raw.githubusercontent.com/swetoast/adguardhome-lists/main/whitelist.txt
+# 说明：包含常见应用和服务的白名单（正则表达式格式）
+# 规则数：72 条
+# 内容：Google APIs, NTP Pools, Flightradar24, API calls, OCSP 等
+# 状态：已启用 | 最后更新：2025-12-19
+
+# ==================== 自定义白名单规则 ====================
+# 以下规则在 Custom filtering rules 中配置
 
 # 个推服务（仅对特定设备生效）
 @@||sdk.open.talk.getui.com^$client='Admin'\''s iPhone'
@@ -19,31 +29,39 @@
 # @@||domain.com^         - 允许该域名及其所有子域名
 # @@||domain.com^$client='设备名' - 仅对特定客户端生效
 # @@||domain.com^$important - 高优先级规则（覆盖黑名单）
+# /^pattern$/             - 正则表达式匹配（用于白名单列表）
 
 # ==================== 添加白名单规则 ====================
-# 方法 1: Web 界面
+# 方法 1: 添加白名单列表（DNS Allowlists）
 #   1. 进入 过滤器 → DNS 白名单
-#   2. 点击 添加白名单 → 添加自定义规则
-#   3. 输入规则（如 @@||example.com^）
-#   4. 点击 保存
+#   2. 点击 Add allowlist → Add a custom list
+#   3. 输入列表 URL 和名称
+#   4. 点击 Save
 
-# 方法 2: 查询日志快速添加
+# 方法 2: 添加自定义规则（Custom filtering rules）
+#   1. 进入 过滤器 → DNS 白名单
+#   2. 在文本框中输入规则（如 @@||example.com^）
+#   3. 点击 Apply
+
+# 方法 3: 查询日志快速添加
 #   1. 进入 查询日志
 #   2. 找到被误拦截的域名（红色标记）
 #   3. 点击域名旁的 "+" 按钮
 #   4. 选择 添加到白名单
 
-# 方法 3: 修改配置文件（不推荐）
+# 方法 4: 修改配置文件（不推荐）
 #   编辑 /etc/AdGuardHome.yaml
-#   在 user_rules 部分添加规则
+#   whitelist_filters 部分添加列表
+#   user_rules 部分添加自定义规则
 #   重启 AdGuard Home
 
 # ==================== 注意事项 ====================
 # 1. 白名单优先级高于黑名单
-# 2. 使用 $client 参数可以针对特定设备放行
-# 3. 使用 $important 可以确保规则不被覆盖
-# 4. 定期审查白名单，移除不再需要的域名
-# 5. 通过查询日志找到被误拦截的域名后再添加白名单
+# 2. 白名单列表支持正则表达式格式
+# 3. 使用 $client 参数可以针对特定设备放行
+# 4. 使用 $important 可以确保规则不被覆盖
+# 5. 定期审查白名单，移除不再需要的域名
+# 6. 通过查询日志找到被误拦截的域名后再添加白名单
 
 # 最后更新：2025-12-20
 # 基于配置：OpenWrt + AdGuard Home v0.107.x
