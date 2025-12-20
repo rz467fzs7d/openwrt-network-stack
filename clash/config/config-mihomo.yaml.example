@@ -6,17 +6,22 @@
 # ------------------------------------------------------------
 # 扩展：节点筛选关键词定义
 # x- 前缀表示用户自定义扩展（非 Mihomo 原生配置）
+#
+# 配合 Sub-Store node-renamer.js 使用
+# 节点格式: {countryCode} {index:2d} {iplc} {otherTags}
+# 示例: HK 01, TW 02 IPLC, JP 03 Home, US 01 IPLC ATT
 # ------------------------------------------------------------
 x-keywords:
-  hong-kong: &HONG_KONG_KEYWORDS "香港|HK|hongkong|hong kong"
-  taiwan: &TAIWAN_KEYWORDS "台��|TW|taiwan"
-  japan: &JAPAN_KEYWORDS "日本|JP|japan"
-  united-states: &UNITED_STATES_KEYWORDS "美国|US|unitedstates|united states"
-  singapore: &SINGAPORE_KEYWORDS "新加坡|SG|singapore"
+  hong-kong: &HONG_KONG_KEYWORDS "HK"
+  taiwan: &TAIWAN_KEYWORDS "TW"
+  japan: &JAPAN_KEYWORDS "JP"
+  united-states: &UNITED_STATES_KEYWORDS "US"
+  singapore: &SINGAPORE_KEYWORDS "SG"
   iplc: &IPLC_KEYWORDS "IPLC"
-  game: &GAME_KEYWORDS "game|Game|游戏"
+  game: &GAME_KEYWORDS "Game"
+  office: &OFFICE_KEYWORDS "Office"
   # 其他地区排除：仅排除主要地区和特殊用途节点
-  other-regions-exclude: &OTHER_REGIONS_EXCLUDE_KEYWORDS "香港|HK|台湾|TW|日本|JP|美国|US|新加坡|SG|IPLC|game|Game|游戏"
+  other-regions-exclude: &OTHER_REGIONS_EXCLUDE_KEYWORDS "HK|TW|JP|US|SG|IPLC|Game|Office"
 
 # ------------------------------------------------------------
 # 扩展：代理组模板定义
