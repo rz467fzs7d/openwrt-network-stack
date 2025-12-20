@@ -1,6 +1,8 @@
 # OpenWrt Network Stack
 
-OpenWrt 网络栈配置合集，包含 Clash/Mihomo 代理配置、Sub Store 脚本、AdGuardHome 规则等资源。
+OpenWrt 网络栈完整方案：从 DNS 解析到代理流量，再到订阅管理的全链路配置。
+
+> 🚀 **完整部署指南**: 查看 [DEPLOYMENT-GUIDE.md](DEPLOYMENT-GUIDE.md) 了解从 AdGuardHome → OpenClash → Sub-Store 的完整架构和部署步骤。
 
 ## 📦 项目结构
 
