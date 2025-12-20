@@ -146,7 +146,13 @@ filters:
 
 ## 白名单规则
 
-### 当前生效的白名单
+### 白名单过滤列表
+
+| 名称 | URL | 规则数 | 说明 |
+|------|-----|--------|------|
+| Whitelist: popular apps and services | https://raw.githubusercontent.com/swetoast/adguardhome-lists/main/whitelist.txt | 72 | 正则表达式格式，包含 Google APIs, NTP Pools, Flightradar24, API calls, OCSP 等常见服务 |
+
+### 自定义白名单规则
 
 ```
 @@||sdk.open.talk.getui.com^$client='Admin's iPhone'
