@@ -32,7 +32,7 @@ sub-store-docker/
 ### 2. 初始化并推送代码
 
 ```bash
-cd /Users/pgu/Library/CloudStorage/SynologyDrive-Workspace/homelab-helper/sub-store-docker
+cd /path/to/sub-store-docker  # 替换为你的项目路径
 
 # 初始化 Git 仓库
 git init
