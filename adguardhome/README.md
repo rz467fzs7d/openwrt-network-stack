@@ -142,11 +142,6 @@ filters:
     id: 11  # 使用下一个可用 ID
 ```
 
-**推荐的额外列表**：
-- **anti-AD**: https://anti-ad.net/easylist.txt（中国优化）
-- **HalfLife DNS Adblock**: https://cdn.jsdelivr.net/gh/o0HalfLife0o/list@master/ad.txt（中国大陆）
-- **EasyPrivacy**: https://easylist-downloads.adblockplus.org/easyprivacy.txt（隐私保护）
-
 ---
 
 ## 白名单规则
@@ -317,7 +312,7 @@ filtering:
 - 不受 Safe Search 影响
 - 不受服务拦截影响
 
-### 配置家庭控制的最佳实践
+### 家庭控制配置说明
 
 #### 1. 使用标签（Tags）组织客户端
 
@@ -344,19 +339,19 @@ tags:
 | 用户类型 | 广告过滤 | Safe Search | 服务拦截 | 安全浏览 |
 |---------|---------|-------------|---------|---------|
 | 儿童 | ✓ | ✓ | ✓ | ✓ |
-| 成人 | ✓ | ✓ | ✓ | ✓（可选） |
+| 成人 | ✓ | ✓ | ✓ | ✓ |
 | 管理员 | ✓ | ✓ | ✓ | ✓ |
 | 基础设施 | ✗ | ✗ | ✗ | ✗ |
 
 #### 3. 客户端识别方式
 
 **支持的标识符**：
-- **IP 地址**（推荐）: `192.168.0.100`
+- **IP 地址**: `192.168.0.100`
 - **MAC 地址**: `26:a0:3c:07:8f:4f`
 - **客户端 ID**: `01959375-c1f2-76b2-b284-1624fd386541`
 - **主机名**: `localhost`
 
-**最佳实践**：
+**配置说明**：
 - 为关键设备配置静态 IP（通过主路由 DHCP 保留）
 - 移动设备使用 IP + MAC 双重识别
 - 基础设施设备使用多 IP（普通 + Zerotier）
@@ -818,46 +813,6 @@ AdGuard Home 日志显示 "Failed to update filter"
 - [OpenClash Wiki](https://github.com/vernesong/OpenClash/wiki)
 - [DNS 过滤规则语法](https://adguard-dns.io/kb/general/dns-filtering-syntax/)
 - [StevenBlack Hosts](https://github.com/StevenBlack/hosts)
-
----
-
-## 最佳实践总结
-
-### DNS 配置
-- 使用非标准端口（5553）避免与主路由冲突
-- 配置多个 Bootstrap DNS 提高稳定性
-- 启用 DNS 缓存和乐观缓存
-
-### 过滤列表
-- 启用 3-8 个高质量列表即可
-- 包含综合列表 + 区域优化列表
-- 定期更新（默认 24 小时）
-
-### 家庭控制
-- 全局启用 Safe Search
-- 针对儿童设备启用所有保护
-- 针对管理员设备启用安全浏览
-- 基础设施设备关闭过滤
-
-### 白名单管理
-- 通过查询日志快速添加
-- 使用客户端特定规则精细控制
-- 定期审查白名单，移除不需要的规则
-
-### 客户端配置
-- 使用静态 IP 标识客户端
-- 为设备添加有意义的标签
-- 区分用户角色（管理员、儿童、访客）
-
-### 集成 OpenClash
-- 单向 DNS 转发，避免循环
-- 为 AdGuard DNS 域名配置专用解析
-- 使用 fake-ip 模式提高性能
-
-### 故障排查
-- 优先检查查询日志
-- 使用临时禁用测试问题
-- 保持配置备份
 
 ---
 
