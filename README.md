@@ -12,9 +12,13 @@ openwrt-network-stack/
 │   └── rules/          # 自定义路由规则
 │       ├── direct.yaml # 直连规则
 │       └── proxy.yaml  # 代理规则
-├── sub-store/          # Sub Store 脚本集合
+├── sub-store/          # Sub Store 完整方案
+│   ├── docker/         # Docker 部署文件
+│   │   ├── Dockerfile
+│   │   ├── docker-compose.yml
+│   │   └── OPENWRT-GUIDE.md
 │   ├── scripts/        # 节点处理脚本
-│   │   └── node-renamer.js  # 智能节点重命名脚本（推荐）
+│   │   └── node-renamer.js  # 智能节点重命名脚本
 │   └── test/           # 测试和基准测试
 ├── adguardhome/        # AdGuardHome 配置和规则
 └── docs/               # 文档和教程
@@ -49,14 +53,17 @@ openwrt-network-stack/
 
 Sub Store 用于管理代理订阅和处理节点信息，建议先部署。
 
-#### 使用优化的 Docker 镜像（推荐）
+本仓库已集成优化的 Sub Store Docker 部署文件（镜像体积减小 37.5%，集成 mihomo 和通知功能）。
 
-使用 [sub-store-docker](https://github.com/rz467fzs7d/sub-store-docker) 项目，镜像体积减小 37.5%，集成 mihomo 和通知功能。
-
-**Docker Compose 部署**：
+**Docker Compose 部署（推荐）**：
 
 ```bash
-# 在 OpenWrt 上
+# 方式1: 使用本仓库（已集成）
+git clone https://github.com/rz467fzs7d/openwrt-network-stack.git
+cd openwrt-network-stack/sub-store/docker
+docker-compose up -d
+
+# 方式2: 使用独立项目
 git clone https://github.com/rz467fzs7d/sub-store-docker.git
 cd sub-store-docker
 docker-compose up -d
@@ -78,7 +85,7 @@ docker run -d \
 **OpenWrt 注意事项**：
 - 配置 DNS 和防火墙规则
 - 确保 3001 端口可访问
-- 参考 [sub-store-docker 文档](https://github.com/rz467fzs7d/sub-store-docker#openwrt-specific-setup)
+- 详细部署指南参见 [sub-store/docker/OPENWRT-GUIDE.md](sub-store/docker/OPENWRT-GUIDE.md)
 
 ### Clash/Mihomo 配置
 
