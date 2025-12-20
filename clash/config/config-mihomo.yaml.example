@@ -35,14 +35,14 @@ x-templates:
   # 代理组基础模板
   proxy-group: &PROXY_GROUP_BASE
     type: select
-    interval: 60
+    interval: 120
     lazy: true
     include-all: true
     exclude-type: direct
     hidden: false
     tolerance: 20
     disable-udp: false
-    timeout: 300
+    timeout: 500
 
   # Fallback 组模板（自动故障转移）
   fallback-group: &FALLBACK_GROUP_BASE
@@ -50,10 +50,10 @@ x-templates:
     type: fallback
     fallback-filter:
       retry: 2
-      timeout: 300
+      timeout: 500
       health-check:
         enable: true
-        interval: 60
+        interval: 120
         unhealthy_threshold: 2
         healthy_threshold: 2
         dns:
@@ -63,16 +63,16 @@ x-templates:
           - url: *HEALTH_CHECK_URL
             method: GET
             expected-status: *EXPECTED_STATUS
-            timeout: 300
+            timeout: 500
 
   # URL Test 组模板（基于延迟自动选择）
   url-test-group: &URL_TEST_GROUP_BASE
     <<: *PROXY_GROUP_BASE
     type: url-test
     url: *HEALTH_CHECK_URL
-    interval: 60
+    interval: 120
     tolerance: 50
-    timeout: 300
+    timeout: 500
     expected-status: *EXPECTED_STATUS
 
   # Smart 组模板
@@ -92,8 +92,8 @@ x-templates:
     health-check:
       enable: true
       url: *HEALTH_CHECK_URL
-      interval: 300
-      timeout: 300
+      interval: 120
+      timeout: 1000
       expected-status: *EXPECTED_STATUS
 
   # 应用策略模板（Smart 优先）
@@ -356,15 +356,7 @@ proxy-groups:
   # https://wiki.metacubex.one/config/proxy-groups/smart/
   - name: Smart
     <<: *SMART_GROUP_BASE
-    proxies:
-      [
-        Hong Kong,
-        Taiwan,
-        Japan,
-        United States,
-        Singapore,
-        Others,
-      ]
+    proxies: [Hong Kong, Taiwan, Japan, United States, Singapore, Others]
     policy-priority: "Hong Kong:1.5;Others:0.5"
 
   # 手动选择（从地区组智能选择）

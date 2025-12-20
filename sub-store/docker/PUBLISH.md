@@ -8,7 +8,7 @@ sub-store-docker/
 │   └── workflows/
 │       └── docker-build.yml      # GitHub Actions 自动构建
 ├── examples/
-│   └── docker-compose.build.yml  # 本地���建示例
+│   └── docker-compose.build.yml  # 本地构建示例
 ├── .dockerignore                 # Docker 构建忽略文件
 ├── .gitignore                    # Git 忽略文件
 ├── Dockerfile                    # 优化的 Dockerfile

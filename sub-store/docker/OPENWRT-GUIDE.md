@@ -250,7 +250,7 @@ docker exec sub-store ping www.google.com
 docker exec sub-store cat /etc/resolv.conf
 
 # 如果 DNS 不正确，修改 docker-compose.yml 添加 dns 配置
-# 然���重启容器
+# 然后重启容器
 docker-compose down && docker-compose up -d
 ```
 
