@@ -96,7 +96,7 @@ iptables -t nat -A POSTROUTING -s 172.17.0.0/16 ! -o docker0 -j MASQUERADE
 
 ```bash
 # SSH 登录 OpenWrt
-ssh root@192.168.3.80
+ssh root@192.168.1.1  # 替换为你的 OpenWrt IP
 
 # 添加 iptables 规则
 iptables -t nat -A POSTROUTING -s 172.17.0.0/16 ! -o docker0 -j MASQUERADE
@@ -111,7 +111,7 @@ iptables -t nat -L POSTROUTING -n -v | grep 172.17
 
 ```bash
 # SSH 登录 OpenWrt
-ssh root@192.168.3.80
+ssh root@192.168.1.1  # 替换为你的 OpenWrt IP
 
 # 编辑防火墙自定义规则
 vi /etc/firewall.user
@@ -211,7 +211,7 @@ services:
 
 ```bash
 # 1. 配置防火墙（一次性操作）
-ssh root@192.168.3.80
+ssh root@192.168.1.1  # 替换为你的 OpenWrt IP
 echo 'iptables -t nat -A POSTROUTING -s 172.17.0.0/16 ! -o docker0 -j MASQUERADE' >> /etc/firewall.user
 /etc/init.d/firewall restart
 
@@ -281,7 +281,7 @@ iptables -t nat -A POSTROUTING -s 172.17.0.0/16 ! -o docker0 -j MASQUERADE
 
 **症状**：
 - 在 OpenWrt 上可以访问 `http://localhost:3001`
-- 在局域网其他设备无法访问 `http://192.168.3.80:3001`
+- 在局域网其他设备无法访问 `http://192.168.1.1:3001`（假设 OpenWrt IP 是 192.168.1.1）
 
 **解决方案**：
 ```bash

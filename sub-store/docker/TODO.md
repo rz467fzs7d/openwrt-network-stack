@@ -24,7 +24,7 @@
 ### 3. 测试自动构建
 - [ ] 方法1：推送一个小改动触发 workflow
   ```bash
-  cd /Users/pgu/Library/CloudStorage/SynologyDrive-Workspace/homelab-helper/sub-store-docker
+  cd /path/to/sub-store-docker  # 替换为你的项目路径
   echo "# Test commit" >> README.md
   git add README.md
   git commit -m "test: trigger GitHub Actions"
@@ -44,7 +44,7 @@
 ### 4. 创建 GitHub Release v1.0.0
 - [ ] 打标签
   ```bash
-  cd /Users/pgu/Library/CloudStorage/SynologyDrive-Workspace/homelab-helper/sub-store-docker
+  cd /path/to/sub-store-docker  # 替换为你的项目路径
   git tag -a v1.0.0 -m "Release v1.0.0: Initial optimized image (165MB)"
   git push origin v1.0.0
   ```
@@ -94,7 +94,7 @@
 - **GitHub 仓库**: https://github.com/rz467fzs7d/sub-store-docker
 - **Docker Hub 用户**: rz467fzs7d
 - **Docker Hub 仓库**: https://hub.docker.com/r/rz467fzs7d/sub-store (待创建)
-- **项目路径**: `/Users/pgu/Library/CloudStorage/SynologyDrive-Workspace/homelab-helper/sub-store-docker/`
+- **项目路径**: `/path/to/sub-store-docker/` (替换为你的实际路径)
 - **优化成果**: 264MB → 165MB (-37.5%, -99MB)
 
 ---
