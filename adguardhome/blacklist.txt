@@ -4,46 +4,46 @@
 # ==================== 当前启用的过滤列表 ====================
 # 以下列表已在实际部署中启用并验证有效
 
-# 1. AdGuard Simplified Domain Names filter (推荐)
+# 1. AdGuard Simplified Domain Names filter
 https://adguardteam.github.io/AdGuardSDNSFilter/Filters/filter.txt
 # 说明：AdGuard 官方维护，涵盖广告、跟踪器、恶意软件
-# 优先级：高 | 更新频率：每日
+# 状态：已启用 | 更新频率：每日
 
 # 2. StevenBlack - Basic
 http://sbc.io/hosts/hosts
 # 说明：整合多个来源的 hosts 文件，包含广告和恶意软件域名
-# 优先级：高 | 更新频率：每周
+# 状态：已启用 | 更新频率：每周
 
 # 3. StevenBlack - Fakenews
 http://sbc.io/hosts/alternates/fakenews-only/hosts
 # 说明：拦截虚假新闻和误导性信息网站
-# 优先级：中 | 更新频率：每周
+# 状态：已启用 | 更新频率：每周
 
 # 4. StevenBlack - Gambling
 http://sbc.io/hosts/alternates/gambling-only/hosts
 # 说明：拦截在线赌博和博彩网站
-# 优先级：中 | 更新频率：每周
+# 状态：已启用 | 更新频率：每周
 
 # 5. StevenBlack - Social
 http://sbc.io/hosts/alternates/social-only/hosts
 # 说明：拦截主流社交媒体平台（Facebook, Twitter, Instagram 等）
-# 优先级：中 | 更新频率：每周
+# 状态：已启用 | 更新频率：每周
 # 注意：如需使用社交媒体，请禁用此列表或添加白名单
 
-# 6. Easylist China (中国优化)
+# 6. Easylist China
 https://easylist-downloads.adblockplus.org/easylistchina.txt
 # 说明：专门针对中文网站广告优化，包含国内主流网站的广告规则
-# 优先级：高（中国用户） | 更新频率：每周
+# 状态：已启用 | 更新频率：每周
 
-# 7. Easylist (国际)
+# 7. Easylist
 https://easylist-downloads.adblockplus.org/easylist.txt
 # 说明：最流行的国际广告拦截列表，涵盖全球主流网站
-# 优先级：高 | 更新频率：每周
+# 状态：已启用 | 更新频率：每周
 
 # 8. TV Box filter
 https://raw.githubusercontent.com/vokins/yhosts/master/data/tvbox.txt
 # 说明：专门针对智能电视和电视盒子广告（小米盒子、乐视等）
-# 优先级：中 | 更新频率：不定期
+# 状态：已启用 | 更新频率：不定期
 
 # ==================== 已禁用的过滤列表 ====================
 # 以下列表在配置中存在但未启用
@@ -51,37 +51,18 @@ https://raw.githubusercontent.com/vokins/yhosts/master/data/tvbox.txt
 # StevenBlack - Porn (成人内容)
 # http://sbc.io/hosts/alternates/porn-only/hosts
 # 说明：拦截成人内容网站
-# 注意：已禁用，通过全局 Safe Search 控制
+# 状态：已禁用 | 原因：通过全局 Safe Search 控制
 
 # AWAvenue Ads Rule
 # https://gcore.jsdelivr.net/gh/TG-Twilight/AWAvenue-Ads-Rule@main/AWAvenue-Ads-Rule.txt
 # 说明：综合广告拦截规则
-# 注意：已禁用，避免过滤列表过多
-
-# ==================== 推荐的额外过滤列表 ====================
-# 可根据需要添加以下列表
-
-# anti-AD（中国优化）
-# https://anti-ad.net/easylist.txt
-# 说明：专门针对中文广告优化，维护积极
-
-# HalfLife DNS Adblock List（中国优化）
-# https://cdn.jsdelivr.net/gh/o0HalfLife0o/list@master/ad.txt
-# 说明：针对中国大陆广告
-
-# EasyPrivacy（隐私保护）
-# https://easylist-downloads.adblockplus.org/easyprivacy.txt
-# 说明：专注于隐私保护，拦截跟踪器
-
-# AdAway Default Blocklist（移动设备）
-# https://adaway.org/hosts.txt
-# 说明：开源社区维护的移动广告拦截列表
+# 状态：已禁用 | 原因：避免过滤列表过多
 
 # ==================== 拦截规则语法 ====================
-# ||domain.com^     - 拦截该域名及其所有子域名
-# @@||domain.com^   - 白名单（见 whitelist.txt）
-# |domain.com^      - 拦截精确匹配的域名
-# ||example.com/ads/* - 拦截特定路径
+# ||domain.com^           - 拦截该域名及其所有子域名
+# @@||domain.com^         - 白名单（见 whitelist.txt）
+# |domain.com^            - 拦截精确匹配的域名
+# ||example.com/ads/*     - 拦截特定路径
 # ||example.com^$third-party - 拦截第三方请求
 
 # ==================== 添加方式 ====================
@@ -98,28 +79,10 @@ https://raw.githubusercontent.com/vokins/yhosts/master/data/tvbox.txt
 
 # ==================== 注意事项 ====================
 # 1. 过多的过滤列表会增加 DNS 查询延迟
-# 2. 建议启用 5-8 个高质量列表即可
-# 3. 自定义规则优先级高于上游列表
-# 4. 使用白名单解决误拦截问题
-# 5. AdGuard Home 会自动更新过滤列表（默认 24 小时）
-# 6. 定期检查查询日志，优化过滤规则
-
-# ==================== 推荐配置（家庭网络）====================
-# 必选列表：
-#   - AdGuard Simplified Domain Names filter
-#   - StevenBlack - Basic
-#   - Easylist China（中国用户）
-#   - Easylist
-#
-# 可选列表（根据需求）：
-#   - StevenBlack - Fakenews（防范虚假信息）
-#   - StevenBlack - Gambling（家庭保护）
-#   - StevenBlack - Social（工作/学习环境）
-#   - TV Box filter（智能电视用户）
-#
-# 不推荐：
-#   - 同时启用过多 StevenBlack 系列列表（有重复规则）
-#   - 启用 10 个以上过滤列表（影响性能）
+# 2. 自定义规则优先级高于上游列表
+# 3. 使用白名单解决误拦截问题
+# 4. AdGuard Home 会自动更新过滤列表（默认 24 小时）
+# 5. 定期检查查询日志，优化过滤规则
 
 # ==================== 相关文档 ====================
 # - AdGuard Home 过滤规则语法: https://adguard-dns.io/kb/general/dns-filtering-syntax/

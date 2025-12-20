@@ -15,234 +15,35 @@
 # 说明：允许 iCloud 指标数据上报
 # 作用范围：全局生效，标记为重要（高优先级）
 
-# ==================== 常见误拦截域名（参考）====================
-# 以下是常见的需要添加白名单的域名
-# 根据实际需求选择添加到 AdGuard Home → 过滤器 → DNS 白名单
+# ==================== 白名单规则语法 ====================
+# @@||domain.com^         - 允许该域名及其所有子域名
+# @@||domain.com^$client='设备名' - 仅对特定客户端生效
+# @@||domain.com^$important - 高优先级规则（覆盖黑名单）
 
-# -------------------- 中国服务 --------------------
+# ==================== 添加白名单规则 ====================
+# 方法 1: Web 界面
+#   1. 进入 过滤器 → DNS 白名单
+#   2. 点击 添加白名单 → 添加自定义规则
+#   3. 输入规则（如 @@||example.com^）
+#   4. 点击 保存
 
-# 微信相关
-@@||wechat.com^
-@@||weixin.qq.com^
-@@||wx.qq.com^
-@@||servicewechat.com^
+# 方法 2: 查询日志快速添加
+#   1. 进入 查询日志
+#   2. 找到被误拦截的域名（红色标记）
+#   3. 点击域名旁的 "+" 按钮
+#   4. 选择 添加到白名单
 
-# 支付宝
-@@||alipay.com^
-@@||alipayobjects.com^
-
-# 淘宝/天猫
-@@||taobao.com^
-@@||tmall.com^
-@@||alicdn.com^
-
-# 京东
-@@||jd.com^
-@@||360buyimg.com^
-
-# 百度（某些服务依赖）
-@@||baidu.com^
-@@||bdstatic.com^
-@@||bcebos.com^
-
-# 腾讯云 CDN
-@@||myqcloud.com^
-@@||qcloud.com^
-
-# 阿里云 CDN
-@@||aliyuncs.com^
-
-# -------------------- 国际服务 --------------------
-
-# Microsoft 服务
-@@||microsoft.com^
-@@||microsoftonline.com^
-@@||live.com^
-@@||outlook.com^
-@@||office.com^
-@@||office365.com^
-@@||windows.com^
-@@||windowsupdate.com^
-@@||download.windowsupdate.com^
-
-# Apple 服务
-@@||apple.com^
-@@||icloud.com^
-@@||apple-cloudkit.com^
-@@||push.apple.com^
-@@||itunes.apple.com^
-@@||mzstatic.com^
-
-# Google 核心服务
-@@||google.com^
-@@||gstatic.com^
-@@||googleapis.com^
-@@||gvt1.com^
-
-# GitHub
-@@||github.com^
-@@||githubusercontent.com^
-@@||github.io^
-@@||githubassets.com^
-
-# Amazon AWS
-@@||amazonaws.com^
-@@||cloudfront.net^
-
-# -------------------- CDN 和云服务 --------------------
-
-# Cloudflare
-@@||cloudflare.com^
-@@||cloudflarestream.com^
-@@||cloudflare-dns.com^
-
-# jsDelivr CDN
-@@||jsdelivr.net^
-@@||cdn.jsdelivr.net^
-
-# Fastly CDN
-@@||fastly.net^
-
-# -------------------- 开发和工具 --------------------
-
-# NPM
-@@||npmjs.org^
-@@||npmjs.com^
-@@||registry.npmjs.org^
-
-# Docker Hub
-@@||docker.com^
-@@||docker.io^
-
-# GitLab
-@@||gitlab.com^
-
-# Stack Overflow
-@@||stackoverflow.com^
-@@||stackexchange.com^
-
-# -------------------- 游戏平台 --------------------
-
-# Steam
-@@||steampowered.com^
-@@||steamcommunity.com^
-@@||steamstatic.com^
-
-# PlayStation Network
-@@||playstation.com^
-@@||playstation.net^
-@@||psn.com^
-
-# Xbox Live
-@@||xbox.com^
-@@||xboxlive.com^
-
-# Nintendo
-@@||nintendo.com^
-@@||nintendo.net^
-
-# Epic Games
-@@||epicgames.com^
-@@||unrealengine.com^
-
-# -------------------- 流媒体服务 --------------------
-
-# Netflix
-@@||netflix.com^
-@@||nflxvideo.net^
-@@||nflxext.com^
-@@||nflximg.net^
-@@||nflxso.net^
-
-# YouTube
-@@||youtube.com^
-@@||youtubei.googleapis.com^
-@@||ytimg.com^
-@@||ggpht.com^
-
-# Spotify
-@@||spotify.com^
-@@||scdn.co^
-
-# Disney+
-@@||disneyplus.com^
-@@||disney.com^
-
-# Twitch
-@@||twitch.tv^
-@@||twitchcdn.net^
-
-# -------------------- IoT 和智能家居 --------------------
-
-# 小米
-@@||xiaomi.com^
-@@||mi.com^
-@@||miui.com^
-
-# 华为
-@@||huawei.com^
-@@||hicloud.com^
-
-# 海康威视
-@@||hik-online.com^
-@@||hikvision.com^
-
-# -------------------- DNS 和网络 --------------------
-
-# AdGuard DNS
-@@||adguard-dns.com^
-@@||adguard-dns.io^
-@@||dns.adguard.com^
-@@||dns.adguard-dns.com^
-
-# -------------------- 证书和安全 --------------------
-
-# Let's Encrypt
-@@||letsencrypt.org^
-@@||acme-v02.api.letsencrypt.org^
-
-# DigiCert
-@@||digicert.com^
-@@||ocsp.digicert.com^
-
-# -------------------- 应用分析（可选）--------------------
-
-# 如果应用无法正常工作，可以考虑放行这些分析服务
-# 注意：这会允许应用收集分析数据
-
-# Google Analytics（仅在必要时放行）
-# @@||google-analytics.com^
-
-# Firebase（某些应用依赖）
-@@||firebase.google.com^
-@@||firebaseio.com^
-
-# Crashlytics（崩溃报告）
-@@||fabric.io^
-@@||crashlytics.com^
-
-# ==================== 白名单规则说明 ====================
-# @@||domain.com^  - 允许该域名及其所有子域名
-# 白名单优先级高于黑名单
-
-# ==================== 添加方式 ====================
-# 1. 通过 Web 界面:
-#    设置 → 过滤器 → DNS 白名单 → 添加白名单 → 添加自定义规则
-#
-# 2. 或者一次性添加:
-#    设置 → 过滤器 → DNS 白名单 → 添加白名单 → 从文件导入
-#    选择本文件上传
+# 方法 3: 修改配置文件（不推荐）
+#   编辑 /etc/AdGuardHome.yaml
+#   在 user_rules 部分添加规则
+#   重启 AdGuard Home
 
 # ==================== 注意事项 ====================
-# 1. 遇到网站或应用无法访问，先检查 AdGuard Home 查询日志
-# 2. 找到被拦截的域名，添加到白名单
-# 3. 不要盲目添加，确认域名确实需要后再添加
+# 1. 白名单优先级高于黑名单
+# 2. 使用 $client 参数可以针对特定设备放行
+# 3. 使用 $important 可以确保规则不被覆盖
 # 4. 定期审查白名单，移除不再需要的域名
+# 5. 通过查询日志找到被误拦截的域名后再添加白名单
 
-# ==================== 调试技巧 ====================
-# 如果某个服务不工作:
-# 1. 在 AdGuard Home → 查询日志 中搜索相关域名
-# 2. 找到被拦截（红色）的域名
-# 3. 点击域名旁的 "+" 号，选择 "添加到白名单"
-# 4. 或者手动添加: @@||domain.com^
-# 5. 清空浏览器缓存或重启应用测试
+# 最后更新：2025-12-20
+# 基于配置：OpenWrt + AdGuard Home v0.107.x
