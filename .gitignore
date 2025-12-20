@@ -23,3 +23,6 @@ rule-providers/
 
 # Sub Store data
 data/
+
+# Sub Store Test Scripts
+test/

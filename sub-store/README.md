@@ -1,530 +1,120 @@
-# Sub Store 脚本
+# Sub Store 完整方案
 
-Sub Store 节点处理脚本，用于格式化节点地区信息和节点名称。
+本目录包含 Sub Store 的完整解决方案，从部署到脚本使用。
 
-## 📁 脚本列表
+## 📁 目录结构
 
-### region-name-formatter.js
-
-**高效的地区识别和格式化脚本**，通过节点名称匹配识别地区，并支持自定义名称格式化。
-
-#### 特点
-
-- ⚡ **极速**：< 0.1 秒处理 100 个节点
-- 🌍 **广泛支持**：覆盖 40+ 国家/地区
-- 🏷️ **多格式识别**：支持 emoji、中文、英文、城市名
-- 🔌 **零依赖**：无需网络请求，完全本地处理
-- 🎨 **灵活格式化**：支持自定义节点名称模板
-- 📝 **自动设置属性**：自动设置 code 和 region 属性用于 Mihomo 筛选
-- 🆔 **智能识别**：自动识别 IPLC 和运营商标识
-
-#### 核心功能
-
-1. **地区识别**：从节点名称中识别地区信息
-2. **属性设置**：自动设置标准化的 `code` 和 `region` 属性
-3. **IPLC/运营商识别**：识别 IPLC 标识和运营商标识
-4. **名称格式化**：使用模板自定义节点名称格式（可选）
-
-#### 使用参数
-
-| 参数 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `format` | string | null | 节点名称格式模板（可选，不设置则保留原名称） |
-| `connector` | string | " " | 占位符之间的连接符（可选） |
-
-**说明**：脚本会自动为所有节点设置 `code` 和 `region` 属性（`region` 固定为英文名称）
-
-#### format 模板占位符
-
-| 占位符 | 说明 | 示例值 |
-|--------|------|--------|
-| `{countryFlag}` | emoji 国旗 | 🇭🇰 |
-| `{countryCode}` | 国家代码 | HK |
-| `{countryNameCN}` | 国家中文名称 | 香港 |
-| `{countryName}` | 国家英文名称 | Hong Kong |
-| `{index}` | 地区内序号（从 1 开始） | 1, 2, 3... |
-| `{index:02d}` | 地区内序号（补零到 2 位） | 01, 02, 03... |
-| `{iplc}` | IPLC 标识（存在时） | IPLC |
-| `{ispCode}` | 运营商代码 | ATT, SONET, HINET |
-| `{original}` | 原始节点名（去除地区信息） | Premium |
-
-**支持的运营商**：
-- ATT, Sonet, Hinet, NTT, Softbank, KT, SK
-- Singtel, Starhub, CMCC, CU, CT, TMNet
-
-## 📋 使用场景
-
-### 场景 1：仅添加地区属性（不改变节点名称）
-
-**适用情况**：
-- 节点没有 region/code 属性
-- 需要为 Mihomo 筛选添加属性
-- 保持原有节点名称不变
-
-**配置**：
-```json
-{}
 ```
-或不配置任何参数
-
-**效果**：
-
-输入节点：
-```json
-{
-  "name": "ssSingapore IPLC(UDPN) 新加坡家宽"
-}
+sub-store/
+├── docker/          # Docker 部署文件
+│   ├── Dockerfile
+│   ├── docker-compose.yml
+│   ├── OPENWRT-GUIDE.md      # OpenWrt 部署指南
+│   └── README.md             # Docker 镜像说明
+├── scripts/         # 节点处理脚本
+│   ├── node-renamer.js       # 智能节点重命名脚本
+│   └── README.md             # 脚本详细文档
+└── test/           # 测试和基准测试
+    ├── benchmark-dataset.js  # 标准测试数据集
+    ├── run-benchmark.js      # 自动化测试运行器
+    └── README.md             # 测试说明
 ```
 
-输出节点：
-```json
-{
-  "name": "IPLC 家宽",
-  "code": "SG",
-  "region": "Singapore"
-}
+## 🚀 快速开始
+
+### 1. 部署 Sub Store
+
+使用 Docker 部署 Sub Store 服务（优化镜像，体积减小 37.5%）：
+
+```bash
+cd sub-store/docker
+docker-compose up -d
 ```
 
-### 场景 2：提取 IPLC 和运营商信息
+详细部署说明请参见：[docker/README.md](docker/README.md)
+OpenWrt 特定配置请参见：[docker/OPENWRT-GUIDE.md](docker/OPENWRT-GUIDE.md)
 
-**适用情况**：
-- 节点名称包含 IPLC 和运营商信息
-- 需要统一格式化输出
+### 2. 使用节点重命名脚本
 
-**配置**：
-```json
-{
-  "format": "{countryName} {iplc} {ispCode} {index}"
-}
+在 Sub Store 中配置操作器，使用智能节点重命名脚本：
+
+**CDN URL**：
+```
+https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/sub-store/scripts/node-renamer.js
 ```
 
-**效果**：
+**功能特性**：
+- ✅ 支持 42 个国家/地区识别
+- ✅ 识别 20+ 运营商（ATT、Hinet、TMNet 等）
+- ✅ 识别 IPLC 专线和网络标签
+- ✅ 自动设置 `code` 和 `region` 属性
+- ✅ 完全自定义格式化模板
+- ✅ 高性能处理（< 0.1s / 100节点）
 
-| 输入 | 输出 | code | region |
-|------|------|------|--------|
-| ssSingapore IPLC(UDPN) 新加坡家宽 | Singapore IPLC 1 | SG | Singapore |
-| IPLC(UDPN) 新加坡家宽 | Singapore IPLC 2 | SG | Singapore |
-| ssJapan IPLC(UDPN) 日本Sonet家宽 | Japan IPLC SONET 1 | JP | Japan |
-| ssUnited States IPLC(UDPN) 美国ATT家宽 | United States IPLC ATT 1 | US | United States |
-| ssTaiwan IPLC(UDPN) 台湾Hinet家宽 | Taiwan IPLC HINET 1 | TW | Taiwan |
+详细使用说明请参见：[scripts/README.md](scripts/README.md)
 
-### 场景 3：紧凑格式（无空格）
+## 📖 文档索引
 
-**适用情况**：
-- 需要简洁的节点名称
-- 使用自定义连接符
+| 文档 | 说明 |
+|------|------|
+| [docker/README.md](docker/README.md) | Docker 镜像和部署说明 |
+| [docker/OPENWRT-GUIDE.md](docker/OPENWRT-GUIDE.md) | OpenWrt 部署完整指南 |
+| [scripts/README.md](scripts/README.md) | 节点重命名脚本详细文档 |
+| [test/README.md](test/README.md) | 测试和基准测试说明 |
 
-**配置**：
-```json
-{
-  "format": "{countryName}{iplc}{ispCode}{index:02d}",
-  "connector": ""
-}
+## 🎯 使用场景
+
+### 场景 1: 为节点添加地区属性
+
+如果你的节点没有 `code` 和 `region` 属性，用于 Mihomo 的规则筛选：
+
+1. 部署 Sub Store
+2. 添加订阅，配置操作器
+3. 使用 node-renamer.js，参数留空或 `{}`
+4. 节点将自动获得 `code` 和 `region` 属性
+
+### 场景 2: 格式化节点名称
+
+如果你想统一节点命名格式，提取 IPLC、运营商等信息：
+
+1. 使用 node-renamer.js
+2. 配置 format 参数：
+   ```json
+   {
+     "format": "{countryName} {iplc} {ispCode} {index:2d}",
+     "connector": " "
+   }
+   ```
+3. 节点名称将被格式化为：`Hong Kong IPLC ATT 01`
+
+### 场景 3: 本地测试和验证
+
+在部署前测试脚本功能：
+
+```bash
+cd test
+node run-benchmark.js
 ```
 
-**效果**：
-```
-SingaporeIPLC01
-JapanIPLCSONET01
-UnitedStatesIPLCATT01
-```
+运行基准测试，验证 41 个节点的识别准确率和性能。
 
-### 场景 4：仅保留原始名称（去除地区信息）
+## 🔗 相关链接
 
-**适用情况**：
-- 节点名称格式混乱
-- 只需要清理名称
+- **主仓库**: [openwrt-network-stack](https://github.com/rz467fzs7d/openwrt-network-stack)
+- **独立 Docker 项目**: [sub-store-docker](https://github.com/rz467fzs7d/sub-store-docker)
+- **Sub Store 官方**: [Sub-Store](https://github.com/sub-store-org/Sub-Store)
 
-**配置**：
-```json
-{
-  "format": "{original}"
-}
-```
+## 📝 更新日志
 
-**效果**：
-```
-IPLC(UDPN) 新加坡家宽 → IPLC 家宽
-ssJapan IPLC(UDPN) 日本Sonet家宽 → IPLC Sonet 家宽
-```
+### 2025-12-20
+- 🎉 整合 Docker 部署文件到 sub-store/docker/
+- 📚 重组目录结构，提供完整的 Sub Store 方案
 
-### 场景 5：使用分隔符
-
-**适用情况**：
-- 需要清晰的分隔
-- 便于阅读
-
-**配置**：
-```json
-{
-  "format": "{countryName}|{iplc}|{ispCode}|{index}",
-  "connector": "-"
-}
-```
-
-**效果**：
-```
-Singapore-IPLC-1
-Japan-IPLC-SONET-1
-United States-IPLC-ATT-1
-```
-
-### 场景 6：仅代码格式
-
-**适用情况**：
-- 极简风格
-- 减少名称长度
-
-**配置**：
-```json
-{
-  "format": "{countryCode}-{iplc}-{ispCode}-{index}"
-}
-```
-
-**效果**：
-```
-SG-IPLC-1
-JP-IPLC-SONET-1
-US-IPLC-ATT-1
-```
-
-### 场景 7：按地区自动编号
-
-**适用情况**：
-- 多个相同地区节点需要编号
-- 希望节点名称简洁统一
-- 便于快速识别节点顺序
-
-**配置**：
-```json
-{
-  "format": "{countryName} {index}"
-}
-```
-
-**效果**：
-
-| 输入 | 输出名称 | code | region |
-|------|----------|------|--------|
-| 🇭🇰 香港 IPLC-01 | Hong Kong 1 | HK | Hong Kong |
-| 🇭🇰 HK Premium | Hong Kong 2 | HK | Hong Kong |
-| 🇯🇵 Tokyo-A | Japan 1 | JP | Japan |
-| 🇯🇵 Osaka-B | Japan 2 | JP | Japan |
-
-**说明**：`{index}` 按地区分组计数，每个地区从 1 开始独立编号
-
-## 🛠️ 在 Sub Store 中配置
-
-### 步骤
-
-1. 打开 Sub Store Web 界面：http://127.0.0.1:3001
-2. 进入订阅编辑页面
-3. 点击"操作器" → "添加操作器"
-4. 选择"脚本操作器"
-5. 上传 `scripts/region-name-formatter.js`
-6. 配置参数（JSON 格式）
-
-### 常用配置示例
-
-**推荐配置（提取 IPLC 和运营商）**：
-```json
-{
-  "format": "{countryName} {iplc} {ispCode} {index}"
-}
-```
-
-**紧凑格式**：
-```json
-{
-  "format": "{countryName}{ispCode}{index:02d}",
-  "connector": ""
-}
-```
-
-**仅设置属性（不改名）**：
-```json
-{}
-```
-或不配置任何参数
-
-**极简格式**：
-```json
-{
-  "format": "{original}"
-}
-```
-
-## 🎯 与 Mihomo 配合使用
-
-### 通过 code 筛选节点
-
-脚本设置的 `code` 属性可用于精确筛选：
-
-```yaml
-proxy-groups:
-  - name: Hong Kong
-    type: url-test
-    filter: "HK"  # 匹配 code: HK
-    url: https://www.gstatic.com/generate_204
-    interval: 300
-
-  - name: Japan
-    type: url-test
-    filter: "JP"  # 匹配 code: JP
-    url: https://www.gstatic.com/generate_204
-    interval: 300
-```
-
-### 通过 region 筛选节点
-
-```yaml
-proxy-groups:
-  - name: Hong Kong Nodes
-    type: select
-    filter: "Hong Kong"  # 匹配 region: Hong Kong
-```
-
-### 通过节点名称筛选
-
-如果使用了 format，可以通过格式化后的名称筛选：
-
-```yaml
-# 假设 format: "{countryName} {iplc} {ispCode} {index}"
-proxy-groups:
-  - name: All Hong Kong IPLC
-    type: select
-    filter: "^Hong Kong IPLC"  # 匹配以 "Hong Kong IPLC" 开头的节点
-```
-
-## 📖 支持的地区
-
-脚本内置 40+ 个国家/地区的映射信息：
-
-| 地区 | code | flag | name_cn | name_en | 识别关键词 |
-|------|------|------|---------|---------|-----------| |香港 | HK | 🇭🇰 | 香港 | Hong Kong | 🇭🇰、香港、hong kong、hk |
-| 台湾 | TW | 🇹🇼 | 台湾 | Taiwan | 🇹🇼、🏝️、台湾、taiwan、tw |
-| 日本 | JP | 🇯🇵 | 日本 | Japan | 🇯🇵、日本、japan、tokyo、osaka |
-| 美国 | US | 🇺🇸 | 美国 | United States | 🇺🇸、美国、us、seattle |
-| 新加坡 | SG | 🇸🇬 | 新加坡 | Singapore | 🇸🇬、新加坡、singapore、sg |
-| 韩国 | KR | 🇰🇷 | 韩国 | Korea | 🇰🇷、韩国、korea、seoul |
-| ... | ... | ... | ... | ... | ... |
-
-*查看脚本源码获取完整列表*
-
-## 🔍 故障排查
-
-### 问题：节点未识别地区
-
-**原因**：节点名称不包含任何地区关键词
-
-**检查**：
-1. 查看 Sub Store 日志：`未能识别地区: xxx`
-2. 确认节点名称是否包含地区信息
-
-**解决**：
-- 在 `REGION_MAP` 中添加自定义关键词
-- 或手动为节点添加地区标识
-
-### 问题：format 模板不生效
-
-**原因**：可能 format 参数格式错误
-
-**检查**：
-1. 确认 JSON 格式正确
-2. 确认占位符拼写正确（区分大小写）
-3. 使用双引号而非单引号
-
-**正确示例**：
-```json
-{
-  "format": "{countryName} {iplc} {ispCode}"
-}
-```
-
-**错误示例**：
-```json
-{
-  format: '{countryName} {iplc}'  // 错误：缺少双引号
-}
-```
-
-### 问题：运营商未识别
-
-**原因**：运营商名称不在 ISP_MAP 中
-
-**解决**：
-- 编辑脚本，在 ISP_MAP 中添加新的运营商
-- 或使用 `{original}` 保留原始信息
-
-### 问题：{original} 为空
-
-**原因**：节点名称全部是地区信息，没有其他内容
-
-**示例**：
-- 输入：`🇭🇰 Hong Kong`
-- `{original}` = ""（空）
-
-**解决**：
-- 使用不包含 `{original}` 的 format
-- 例如：`"{countryFlag} {countryCode}"`
-
-## 🎨 高级用法
-
-### 自定义运营商
-
-编辑脚本中的 ISP_MAP：
-
-```javascript
-const ISP_MAP = {
-    'ATT': { keywords: ['att', 'at&t'], code: 'ATT' },
-    'Sonet': { keywords: ['sonet'], code: 'SONET' },
-    'Hinet': { keywords: ['hinet'], code: 'HINET' },
-    // 添加新运营商
-    'MyISP': { keywords: ['myisp', 'my-isp'], code: 'MYISP' },
-};
-```
-
-### 组合使用占位符
-
-**场景**：有 IPLC 时显示 IPLC，没有时不显示
-
-```json
-{
-  "format": "{countryName} {iplc} {ispCode} {index}"
-}
-```
-
-如果节点没有 IPLC，`{iplc}` 会被替换为空字符串。
-
-### 条件格式（通过多个订阅实现）
-
-为不同订阅使用不同格式：
-
-**订阅 1（IPLC 线路）**：
-```json
-{
-  "format": "{countryName} {iplc} {ispCode} {index}"
-}
-```
-
-**订阅 2（普通线路）**：
-```json
-{
-  "format": "{countryName} {index}"
-}
-```
-
-## 🛠️ 自定义开发
-
-### 添加新地区
-
-编辑脚本中的 `REGION_MAP`：
-
-```javascript
-const REGION_MAP = {
-    // 现有映射...
-
-    // 添加新地区
-    'BR': {
-        keywords: ['🇧🇷', '巴西', 'brazil', 'br', 'sao paulo'],
-        flag: '🇧🇷',
-        code: 'BR',
-        name_cn: '巴西',
-        name_en: 'Brazil',
-        name: 'Brazil'
-    },
-};
-```
-
-### 添加新运营商
-
-编辑脚本中的 `ISP_MAP`：
-
-```javascript
-const ISP_MAP = {
-    // 现有映射...
-
-    // 添加新运营商
-    'MyISP': {
-        keywords: ['myisp', 'my-isp', '我的运营商'],
-        code: 'MYISP'
-    },
-};
-```
-
-### 修改关键词优先级
-
-地区匹配按 `REGION_MAP` 的顺序进行，调整顺序可改变优先级：
-
-```javascript
-const REGION_MAP = {
-    // 将常用地区放在前面，提高匹配速度
-    'HK': { /* ... */ },
-    'JP': { /* ... */ },
-    'US': { /* ... */ },
-    // 其他地区...
-};
-```
-
-## 📚 API 参考
-
-### 脚本输入
-
-```javascript
-// 节点对象
-{
-  name: "ssSingapore IPLC(UDPN) 新加坡家宽",
-  server: "oneinlink.ascwqw.org",
-  port: 13004,
-  // ... 其他代理配置
-}
-```
-
-### 脚本输出
-
-```javascript
-// 处理后的节点对象（使用 format: "{countryName} {iplc} {ispCode} {index}"）
-{
-  name: "Singapore IPLC 1",        // 格式化后的名称
-  server: "oneinlink.ascwqw.org",
-  port: 13004,
-  code: "SG",                       // 新增：地区代码
-  region: "Singapore",              // 新增：地区名称（固定英文）
-  // ... 其他配置保持不变
-}
-```
-
-### Sub Store API
-
-脚本使用的 Sub Store API：
-
-```javascript
-const $ = $substore;
-
-// 日志
-$.info('信息日志');
-$.warn('警告日志');
-$.error('错误日志');
-
-// 参数
-const { format, connector } = $arguments;
-```
-
-## 🤝 贡献
-
-欢迎提交 Pull Request！
-
-- 添加新的地区映射
-- 添加新的运营商标识
-- 改进地区识别算法
-- 优化名称清理逻辑
+### 2025-12-19
+- ✅ 添加 node-renamer.js（支持 42 个国家/地区）
+- ✅ 添加完整的测试和基准测试套件
+- ✅ 提供详细的使用文档
 
 ## 📄 许可证
 
 MIT License
-
-## 🔗 相关链接
-
-- [Sub Store 官方文档](https://github.com/sub-store-org/Sub-Store)
-- [Mihomo 配置文档](../clash/README.md)
