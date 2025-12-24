@@ -188,7 +188,7 @@ rules:
 
 **原因**：Plex 验证服务器（plex.tv）必须通过真实 IP 访问
 
-**��决**：添加 Plex 相关域名到 `direct.yaml`
+**解决**：添加 Plex 相关域名到 `direct.yaml`
 
 ```yaml
 payload:
@@ -288,3 +288,205 @@ git push
 2. **成人内容**：如不需要，可从 `proxy.yaml` 中删除相关规则
 3. **更新频率**：规则变化不频繁时，`interval` 可设为更大值（如 604800 = 7天）
 4. **规则顺序**：自定义规则应放在通用规则之前，以覆盖默认行为
+
+---
+
+## 🔐 OpenClash 绕过黑名单（Bypass Blacklist）
+
+### 概述
+
+**用途**：在启用 OpenClash "绕过中国大陆" 功能后，指定哪些域名/IP 必须进入 Clash 内核进行规则匹配。
+
+**应用场景**：
+1. **Google Play 更新** - 绕过大陆后 Google Play 无法更新
+2. **企业内网访问** - 内网域名需要通过 VPN/ZeroTier 访问
+3. **特殊服务路由** - 某些服务需要精细分流而非简单绕过
+4. **AdGuard DNS** - 必须通过代理才能进行广告拦截
+
+### 📍 部署位置
+
+OpenWrt 路径：`/etc/openclash/custom/openclash_custom_chnroute_pass.list`
+
+### 🏗️ 工作原理
+
+**两层路由架构**：
+
+```
+Layer 1: Bypass Blacklist（绕过控制）
+         ↓
+         强制域名进入 Clash 内核
+         ↓
+Layer 2: Rules（规则精细分流）
+         ↓
+         DOMAIN/DOMAIN-KEYWORD/IP-CIDR 匹配到策略组
+```
+
+**流程示例**：
+
+```
+用户请求 git.company.internal
+  ↓
+检查 Bypass Blacklist → 在名单中 ✓
+  ↓
+进入 Clash 内核（不被绕过）
+  ↓
+DNS 解析（可能使用 nameserver-policy 指定内网 DNS）
+  ↓
+匹配规则 → IP-CIDR,192.168.10.0/24,Office
+  ↓
+通过 Office 策略组（ZeroTier/VPN）访问
+```
+
+### 🎯 常见场景配置
+
+#### 场景 A：内网域名（公网 DNS 无法解析）
+
+**特征**：企业内网域名，公网 DNS 查询返回 NXDOMAIN
+
+**配置**：
+
+1. **Bypass Blacklist** (`/etc/openclash/custom/openclash_custom_chnroute_pass.list`)：
+   ```
+   company.internal
+   company.local
+   ```
+
+2. **Clash 配置** (`nameserver-policy`)：
+   ```yaml
+   nameserver-policy:
+     "+.company.internal": 192.168.10.53  # 内网 DNS
+     "+.company.local": 192.168.10.53
+   ```
+
+3. **Clash 规则**：
+   ```yaml
+   rules:
+     # 内网 DNS 服务器走 Office 策略
+     - IP-CIDR,192.168.10.0/24,Office,no-resolve
+   ```
+
+#### 场景 B：内网域名（公网 DNS 返回内网 IP）
+
+**特征**：公网 DNS 可以解析，但返回内网 IP（如 192.168.x.x）
+
+**配置**：
+
+1. **Bypass Blacklist**：
+   ```
+   git.company.com
+   gitlab.company.com
+   ```
+
+2. **Clash 规则**：
+   ```yaml
+   rules:
+     # 内网 IP 段走 Office 策略
+     - IP-CIDR,192.168.10.0/24,Office,no-resolve
+   ```
+
+3. **不需要 nameserver-policy**（公网 DNS 已能正确解析）
+
+#### 场景 C：公网域名需要特殊路由
+
+**特征**：公网可访问的域名，但需要通过特定策略组访问
+
+**配置**：
+
+1. **Bypass Blacklist**：
+   ```
+   api-service.company.com
+   internal-api.company.com
+   stage-api.company.com
+   ```
+
+2. **Clash 规则**（使用关键词匹配）：
+   ```yaml
+   rules:
+     # 关键词匹配（覆盖多个子域名）
+     - DOMAIN-KEYWORD,api-service,Office
+     - DOMAIN-KEYWORD,internal-api,Office
+   ```
+
+### 📝 格式说明
+
+**支持的格式**：
+- ✅ 完整域名：`example.com`（自动包含 `*.example.com`）
+- ✅ 精确子域名：`git.example.com`
+- ✅ IP 段（CIDR）：`192.168.0.0/24`
+
+**不支持的格式**：
+- ❌ 通配符：不要写 `*.example.com`
+- ❌ 关键词：不支持 `DOMAIN-KEYWORD` 语法
+- ❌ 正则表达式
+
+### 🚀 部署方法
+
+#### 方式一：OpenWrt 界面（推荐）
+
+1. 登录 OpenWrt
+2. 进入 `OpenClash → 全局设置 → 流量控制`
+3. 找到 `绕过指定区域 IPv4 黑名单`
+4. 逐行添加域名（每行一个）
+5. 保存并重启 OpenClash
+
+#### 方式二：SSH 直接编辑
+
+```bash
+# 1. 通过 SSH 连接到 OpenWrt
+ssh root@192.168.1.1
+
+# 2. 编辑黑名单文件
+vi /etc/openclash/custom/openclash_custom_chnroute_pass.list
+
+# 3. 重启 OpenClash
+/etc/init.d/openclash restart
+```
+
+### 🔍 验证配置
+
+#### 1. 检查域名是否被绕过
+
+```bash
+# 在 OpenWrt 上查看日志
+logread | grep -i "your-domain"
+```
+
+如果日志中出现规则匹配信息，说明域名没有被绕过 ✓
+
+#### 2. 测试内网访问
+
+```bash
+# 测试 DNS 解析
+nslookup git.company.internal
+
+# 测试连通性
+ping git.company.internal
+curl -I http://git.company.internal
+```
+
+#### 3. 查看 Clash 面板
+
+访问 OpenClash Dashboard，检查流量是否通过预期的策略组（如 Office）。
+
+### ⚠️ 注意事项
+
+1. **修改后需重启**
+   修改 Bypass Blacklist 后，必须重启 OpenClash 才能生效：
+   ```bash
+   /etc/init.d/openclash restart
+   ```
+
+2. **避免过度添加**
+   只添加真正需要特殊路由的域名，过多域名会增加内核负担
+
+3. **配合规则使用**
+   Bypass Blacklist 只是强制流量进入内核，还需要在 `rules` 中配置对应规则
+
+4. **IP-CIDR 规则优先级**
+   IP-CIDR 规则匹配优先于 DOMAIN 规则，内网 IP 会被 IP-CIDR 规则先匹配
+
+### 📚 参考资料
+
+- [OpenClash Wiki - 绕过中国大陆](https://github.com/vernesong/OpenClash/wiki/绕过中国大陆)
+- [Mihomo DNS 配置](https://wiki.metacubex.one/config/dns/)
+- [本项目配置示例](../config/config-mihomo.yaml.example)

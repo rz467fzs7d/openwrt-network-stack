@@ -197,6 +197,52 @@ opkg install luci-app-openclash
    /etc/init.d/openclash restart
    ```
 
+#### 2.3 配置绕过黑名单（可选）
+
+如果启用了 OpenClash **"绕过中国大陆"** 功能，某些域名需要配置绕过黑名单以确保进入 Clash 内核进行规则匹配。
+
+**适用场景**：
+- Google Play 更新（绕过大陆后无法更新）
+- 内网域名访问（需要通过 VPN/ZeroTier）
+- AdGuard DNS（必须通过代理进行广告拦截）
+
+**配置方法**：
+
+1. 通过 OpenWrt UI 配置（推荐）：
+   - 登录 OpenWrt
+   - 进入 `OpenClash → 全局设置 → 流量控制`
+   - 找到 `绕过指定区域 IPv4 黑名单`
+   - 逐行添加域名（每行一个）
+   - 保存并重启 OpenClash
+
+2. 或通过 SSH 直接编辑：
+   ```bash
+   vi /etc/openclash/custom/openclash_custom_chnroute_pass.list
+
+   # 重启 OpenClash 生效
+   /etc/init.d/openclash restart
+   ```
+
+**示例配置**：
+```
+# Google Play 更新
+services.googleapis.cn
+googleapis.cn
+
+# 内网办公域名（示例）
+company.internal
+git.company.com
+192.168.x.0/24
+
+# AdGuard DNS
+adguard-dns.com
+dns.adguard.com
+```
+
+**详细文档**: [OpenClash 绕过黑名单](clash/rules/README.md#-openclash-绕过黑名单bypass-blacklist)
+
+---
+
 **详细文档**: [clash/README.md](clash/README.md)
 
 ---

@@ -204,8 +204,28 @@ dns:
 
   # 域名级 DNS 策略
   nameserver-policy:
+    # AdGuard DNS 域名直接解析（避免循环：规则走代理，但解析时还没有 IP）
     "+.adguard-dns.com": 223.5.5.5
     "+.dns.adguard.com": 223.5.5.5
+
+    # 内网私有域名使用内网 DNS 解析（公网 DNS 无法解析的情况）
+    # 场景：企业内网域名（如 git.company.internal），公网 DNS 无法解析
+    # 配置方式：
+    #   1. 指定内网 DNS 服务器（如 192.168.x.x）
+    #   2. 确保内网 DNS 可访问（需配合 IP-CIDR 规则）
+    #   3. 内网 DNS 的流量会通过 IP-CIDR 规则路由到特定策略组（如 Office/VPN）
+    #
+    # 示例 1：内网主域名（所有子域名都使用内网 DNS）
+    #   "+.internal.company.com": 192.168.10.53
+    #
+    # 示例 2：特定内网服务（精确匹配）
+    #   "git.company.internal": 192.168.10.53
+    #   "gitlab.company.internal": 192.168.10.53
+    #
+    # 注意：
+    #   - 内网 DNS 服务器 IP（如 192.168.10.53）需要在规则中配置走特定策略
+    #   - 规则示例：IP-CIDR,192.168.10.0/24,Office,no-resolve
+    #   - 这样 DNS 查询会通过 Office 策略组（如 ZeroTier/VPN）访问内网 DNS
 
   # fake-ip 过滤（这些域名返回真实 IP）
   fake-ip-filter:

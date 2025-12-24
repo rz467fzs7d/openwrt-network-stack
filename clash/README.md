@@ -75,7 +75,7 @@ proxy-groups:
 
 按应用类型分组，精细控制流量走向：
 
-| 代理组 | 默认策略 | 适用场�� |
+| 代理组 | 默认策略 | 适用场景 |
 |--------|---------|---------|
 | AI Services | Smart 优先 | OpenAI、Claude、Gemini 等 |
 | YouTube | Smart 优先 | YouTube 流媒体 |
@@ -208,6 +208,50 @@ rule-providers:
 ```
 
 规则文件说明参见 [rules/README.md](rules/README.md)
+
+#### （5）OpenClash 绕过黑名单（可选）
+
+**适用场景**：
+
+如果启用了 OpenClash "绕过中国大陆" 功能，需要配置绕过黑名单以确保以下域名进入 Clash 内核：
+- Google Play 更新域名（绕过大陆后无法更新）
+- 内网办公域名（需要通过特定策略组访问）
+- AdGuard DNS（必须通过代理进行广告拦截）
+
+**配置方法**：
+
+1. 通过 OpenWrt UI 配置（推荐）：
+   - 登录 OpenWrt
+   - 进入 `OpenClash → 全局设置 → 流量控制`
+   - 找到 `绕过指定区域 IPv4 黑名单`
+   - 逐行添加域名（每行一个）
+   - 保存并重启 OpenClash
+
+2. 或通过 SSH 直接编辑：
+   ```bash
+   vi /etc/openclash/custom/openclash_custom_chnroute_pass.list
+
+   # 重启 OpenClash
+   /etc/init.d/openclash restart
+   ```
+
+**示例配置**：
+```
+# Google Play 更新
+services.googleapis.cn
+googleapis.cn
+
+# 内网办公域名（示例）
+company.internal
+git.company.com
+192.168.x.0/24
+
+# AdGuard DNS
+adguard-dns.com
+dns.adguard.com
+```
+
+**详细文档**: [OpenClash 绕过黑名单](rules/README.md#-openclash-绕过黑名单bypass-blacklist)
 
 ### 4. 验证配置
 
