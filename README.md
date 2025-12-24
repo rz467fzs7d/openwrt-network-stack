@@ -13,7 +13,8 @@ openwrt-network-stack/
 │   │   └── config-mihomo.yaml.example  # Mihomo 配置模板
 │   └── rules/          # 自定义路由规则
 │       ├── direct.yaml # 直连规则
-│       └── proxy.yaml  # 代理规则
+│       ├── proxy.yaml  # 代理规则
+│       └── README.md   # 规则使用说明（包含 OpenClash 绕过黑名单配置）
 ├── sub-store/          # Sub Store 完整方案
 │   ├── docker/         # Docker 部署文件
 │   │   ├── Dockerfile
@@ -36,6 +37,7 @@ openwrt-network-stack/
 - ✅ 分应用代理策略（AI 服务、流媒体、开发工具等）
 - ✅ 完善的中国路由和 DNS 配置
 - ✅ 自定义路由规则（direct/proxy）
+- ✅ OpenClash 绕过黑名单配置（内网访问、Google Play 等）
 
 ### Sub Store 脚本
 - ✅ 智能地区识别（支持 42 个国家/地区）
@@ -235,9 +237,23 @@ rules:
 # 3. 跳过内网域名的嗅探
 sniffer:
   skip-domain:
-    - "company.internal"
-    - "intranet.company.com"
+    - "+.company.internal"
+    - "+.intranet.company.com"
 ```
+
+**OpenClash 绕过黑名单**：
+
+如果启用了 OpenClash "绕过中国大陆" 功能，需要配置绕过黑名单以确保内网域名进入 Clash 内核：
+
+```bash
+# 将内网域名添加到绕过黑名单
+# 路径：/etc/openclash/custom/openclash_custom_chnroute_pass.list
+company.internal
+git.company.com
+192.168.x.0/24
+```
+
+详细配置说明参见 [OpenClash 绕过黑名单文档](clash/rules/README.md#-openclash-绕过黑名单bypass-blacklist)
 
 ## 🤝 贡献
 
