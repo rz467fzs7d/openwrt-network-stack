@@ -183,11 +183,12 @@ proxy-groups:
   - { name: Singapore, <<: *URL_TEST_GROUP_BASE, filter: *SINGAPORE_KEYWORDS }
   - name: Others
     <<: *PROXY_GROUP_BASE
-    type: select
     exclude-filter: *OTHER_REGIONS_EXCLUDE_KEYWORDS
 
   # ==================== 特殊用途组 ====================
-  - { name: IPLC, <<: *URL_TEST_GROUP_BASE, filter: *IPLC_KEYWORDS }
+  - name: IPLC
+    <<: *PROXY_GROUP_BASE
+    filter: *IPLC_KEYWORDS
   - { name: Game, <<: *PROXY_GROUP_BASE, hidden: true, filter: *GAME_KEYWORDS }
 # endregion
 
