@@ -296,10 +296,10 @@ sniffer:
 # ------------------------------------------------------------
 geodata-mode: true
 geox-url:
-  geoip: "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip-lite.dat"
-  geosite: "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat"
-  mmdb: "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/country-lite.mmdb"
-  asn: "https://cdn.jsdelivr.net/gh/xishang0128/geoip@release/GeoLite2-ASN.mmdb"
+  geoip: "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip-lite.dat"
+  geosite: "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat"
+  mmdb: "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/country-lite.mmdb"
+  asn: "https://fastly.jsdelivr.net/gh/xishang0128/geoip@release/GeoLite2-ASN.mmdb"
 # endregion
 
 # region 代理配置
@@ -474,17 +474,17 @@ rule-providers:
   # ACL4SSR 规则提供者（为实现 ACL4SSR 功能）
   BanAD:
     <<: *RULE_PROVIDER_BASE
-    url: "https://testingcf.jsdelivr.net/gh/ACL4SSR/ACL4SSR@master/Clash/BanAD.list"
+    url: "https://fastly.jsdelivr.net/gh/ACL4SSR/ACL4SSR@master/Clash/BanAD.list"
     path: ./ruleset/ban-ad.list
 
   BanProgramAD:
     <<: *RULE_PROVIDER_BASE
-    url: "https://testingcf.jsdelivr.net/gh/ACL4SSR/ACL4SSR@master/Clash/BanProgramAD.list"
+    url: "https://fastly.jsdelivr.net/gh/ACL4SSR/ACL4SSR@master/Clash/BanProgramAD.list"
     path: ./ruleset/ban-program-ad.list
 
   ProxyGFWlist:
     <<: *RULE_PROVIDER_BASE
-    url: "https://testingcf.jsdelivr.net/gh/ACL4SSR/ACL4SSR@master/Clash/ProxyGFWlist.list"
+    url: "https://fastly.jsdelivr.net/gh/ACL4SSR/ACL4SSR@master/Clash/ProxyGFWlist.list"
     path: ./ruleset/proxy-gfw-list.list
 
 # ------------------------------------------------------------\n# 路由规则（从上到下优先级）
