@@ -182,37 +182,12 @@ proxy-groups:
     }
   - { name: Singapore, <<: *URL_TEST_GROUP_BASE, filter: *SINGAPORE_KEYWORDS }
   - name: Others
-    type: url-test
-    url: "https://www.gstatic.com/generate_204"
-    interval: 120
-    tolerance: 50
-    timeout: 500
-    expected-status: 204
-    exclude-filter: "HK|TW|JP|US|SG|IPLC|Game"
-    include-all: true
+    <<: *PROXY_GROUP_BASE
+    type: select
+    exclude-filter: *OTHER_REGIONS_EXCLUDE_KEYWORDS
 
   # ==================== 特殊用途组 ====================
-  - name: IPLC
-    type: fallback
-    url: "https://www.gstatic.com/generate_204"
-    interval: 120
-    timeout: 500
-    expected-status: 204
-    filter: "IPLC"
-    include-all: true
-    fallback-filter:
-      retry: 2
-      timeout: 500
-      health-check:
-        enable: true
-        interval: 120
-        unhealthy_threshold: 2
-        healthy_threshold: 2
-        http:
-          - url: "https://www.gstatic.com/generate_204"
-            method: GET
-            expected-status: 204
-            timeout: 500
+  - { name: IPLC, <<: *URL_TEST_GROUP_BASE, filter: *IPLC_KEYWORDS }
   - { name: Game, <<: *PROXY_GROUP_BASE, hidden: true, filter: *GAME_KEYWORDS }
 # endregion
 
