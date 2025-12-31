@@ -24,16 +24,11 @@ x-keywords:
   game: &GAME_KEYWORDS "Game"
   # 其他地区排除：仅排除主要地区和特殊用途节点
   other-regions-exclude: &OTHER_REGIONS_EXCLUDE_KEYWORDS "HK|TW|JP|US|SG|IPLC|Game"
-  netflix: &NETFLIX_KEYWORDS "NF"
 
 # ------------------------------------------------------------\n# 扩展：代理组模板定义
 # x- 前缀表示用户自定义扩展（非 Mihomo 原生配置）
 # ------------------------------------------------------------
 x-templates:
-  # 健康检查通用常量
-  health-check-url: &HEALTH_CHECK_URL "https://www.gstatic.com/generate_204"
-  expected-status: &EXPECTED_STATUS 204
-
   # 代理组基础模板
   proxy-group: &PROXY_GROUP_BASE
     type: select
@@ -62,20 +57,20 @@ x-templates:
           - "https://8.8.8.8/dns-query"
           - "https://dns.alidns.com/dns-query"
         http:
-          - url: *HEALTH_CHECK_URL
+          - url: "https://www.gstatic.com/generate_204"
             method: GET
-            expected-status: *EXPECTED_STATUS
+            expected-status: 204
             timeout: 500
 
   # URL Test 组模板（基于延迟自动选择）
   url-test-group: &URL_TEST_GROUP_BASE
     <<: *PROXY_GROUP_BASE
     type: url-test
-    url: *HEALTH_CHECK_URL
+    url: "https://www.gstatic.com/generate_204"
     interval: 120
     tolerance: 50
     timeout: 500
-    expected-status: *EXPECTED_STATUS
+    expected-status: 204
 
   # 应用策略模板（Smart 优先）
   application-policy: &APPLICATION_POLICY_BASE
@@ -130,178 +125,6 @@ x-rule-provider-base: &RULE_PROVIDER_BASE
   interval: 86400 # 更新间隔：24 小时
 # endregion
 
-# region 核心配置
-# ============================================================
-# 核心配置
-# ============================================================
-
-# ------------------------------------------------------------\n# 端口和网络设置
-# ------------------------------------------------------------
-mixed-port: 7890
-allow-lan: true
-ipv6: true
-unified-delay: false
-tcp-concurrent: true
-keep-alive-interval: 30
-external-controller: 127.0.0.1:9090
-external-ui: ui
-external-ui-url: "https://github.com/MetaCubeX/metacubexd/archive/refs/heads/gh-pages.zip"
-
-# ------------------------------------------------------------\n# 系统设置
-# ------------------------------------------------------------
-find-process-mode: strict
-global-client-fingerprint: chrome
-
-# ------------------------------------------------------------\n# 配置文件持久化设置
-# ------------------------------------------------------------
-profile:
-  store-selected: true
-  store-fake-ip: true
-# endregion
-
-# region DNS 配置
-# ============================================================
-# DNS 配置
-# ============================================================
-dns:
-  enable: true
-  ipv6: true
-  enhanced-mode: fake-ip
-  fake-ip-range: 198.18.0.0/16
-  respect-rules: true
-
-  # 引导 DNS（解析 DoH 服务器域名）
-  default-nameserver:
-    - 223.5.5.5
-    - 223.6.6.6
-    - 119.29.29.29
-
-  # 代理服务器域名解析专用 DNS
-  proxy-server-nameserver:
-    - https://dns.alidns.com/dns-query
-    - https://1.12.12.12/dns-query
-    - https://doh.pub/dns-query
-
-  # 主 DNS 服务器
-  nameserver:
-    - https://dns.alidns.com/dns-query
-    - https://1.12.12.12/dns-query
-    - https://doh.pub/dns-query
-
-  # 域名级 DNS 策略
-  nameserver-policy:
-    # AdGuard DNS 域名直接解析（避免循环：规则走代理，但解析时还没有 IP）
-    "+.adguard-dns.com": 223.5.5.5
-    "+.dns.adguard.com": 223.5.5.5
-
-  # fake-ip 过滤（这些域名返回真实 IP）
-  fake-ip-filter:
-    - "+.lan"
-    - "+.local"
-    - "+.srv.nintendo.net"
-    - "+.stun.playstation.net"
-    - "xbox.*.*.microsoft.com"
-    - "*.*.xboxlive.com"
-    - "+.battlenet.com.cn"
-    - "+.wotgame.cn"
-    - "stun.*.*"
-    - "stun.*.*.*"
-    - "+.music.163.com"
-    - "+.music.126.net"
-    - "+.spotify.com"
-    - "+.pandora.com"
-    - "localhost.ptlogin2.qq.com"
-    - "+.126.net"
-    - "+.127.net"
-    - "+.mail.com"
-    - "+.market.xiaomi.com"
-    - "dlg.io.mi.com"
-    - "+.pool.ntp.org"
-    - "time.*.com"
-    - "ntp.*.com"
-    - "+.ntp.org.cn"
-
-  # 备用 DNS（DNS 污染检测）
-  fallback:
-    - https://8.8.8.8/dns-query
-
-  # 备用 DNS 触发条件
-  fallback-filter:
-    geoip: true
-    geoip-code: CN
-    geosite:
-      - gfw
-    ipcidr:
-      - 240.0.0.0/4
-      - 0.0.0.0/32
-    domain:
-      - "+.google.com"
-      - "+.facebook.com"
-      - "+.twitter.com"
-      - "+.youtube.com"
-# endregion
-
-# region TUN/TAP 和流量嗅探
-# ============================================================
-# TUN/TAP 虚拟网卡配置
-# ------------------------------------------------------------
-tun:
-  enable: true
-  stack: mixed
-  dns-hijack:
-    - "any:53"
-    - "tcp://any:53"
-  auto-route: true
-  auto-redirect: true
-  auto-detect-interface: true
-
-# ------------------------------------------------------------\n# 流量嗅探配置
-# ------------------------------------------------------------
-sniffer:
-  enable: true
-  force-dns-mapping: true
-  parse-pure-ip: true
-
-  # 协议嗅探配置
-  sniff:
-    QUIC:
-      ports: [443]
-    TLS:
-      ports: [443, 8443]
-      override-destination: true
-    HTTP:
-      ports: [80, 8080-8880]
-      override-destination: true
-
-  # 强制嗅探的域名
-  force-domain:
-    - "+.netflix.com"
-    - "+.nflxvideo.net"
-    - "+.amazonaws.com"
-    - "+.media.dssott.com"
-
-  # 跳过嗅探的域名
-  skip-domain:
-    - "+.apple.com"
-    - "+.push.apple.com"
-    - "Mijia Cloud"
-    - "dlg.io.mi.com"
-    - "+.oray.com"
-    - "+.sunlogin.net"
-# endregion
-
-# region GeoIP/GeoSite 数据源
-# ============================================================
-# GeoIP/GeoSite 数据源
-# ------------------------------------------------------------
-geodata-mode: true
-geox-url:
-  geoip: "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip-lite.dat"
-  geosite: "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat"
-  mmdb: "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/country-lite.mmdb"
-  asn: "https://fastly.jsdelivr.net/gh/xishang0128/geoip@release/GeoLite2-ASN.mmdb"
-# endregion
-
 # region 代理配置
 # ============================================================
 # 代理配置
@@ -316,21 +139,8 @@ proxy-groups:
 
   # 智能选择（从地区组自动故障转移）
   - name: Smart
-    type: fallback
+    <<: *FALLBACK_GROUP_BASE
     proxies: [Hong Kong, Taiwan, Japan, United States, Singapore, Others]
-    fallback-filter:
-      retry: 2
-      timeout: 500
-      health-check:
-        enable: true
-        interval: 120
-        unhealthy_threshold: 2
-        healthy_threshold: 2
-        http:
-          - url: *HEALTH_CHECK_URL
-            method: GET
-            expected-status: *EXPECTED_STATUS
-            timeout: 500
 
   # 手动选择
   - { name: Select, <<: *PROXY_GROUP_BASE }
