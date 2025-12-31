@@ -181,15 +181,46 @@ proxy-groups:
       filter: *UNITED_STATES_KEYWORDS,
     }
   - { name: Singapore, <<: *URL_TEST_GROUP_BASE, filter: *SINGAPORE_KEYWORDS }
-  - {
-      name: Others,
-      <<: *URL_TEST_GROUP_BASE,
-      exclude-filter: *OTHER_REGIONS_EXCLUDE_KEYWORDS,
-    }
+  - name: Others
+    type: url-test
+    url: "https://www.gstatic.com/generate_204"
+    interval: 120
+    tolerance: 50
+    timeout: 500
+    expected-status: 204
+    exclude-filter: *OTHER_REGIONS_EXCLUDE_KEYWORDS
+    include-all: true
 
   # ==================== 特殊用途组 ====================
-  - { name: IPLC, <<: *FALLBACK_GROUP_BASE, filter: *IPLC_KEYWORDS }
-  - { name: Game, <<: *PROXY_GROUP_BASE, hidden: true, filter: *GAME_KEYWORDS }
+  - name: IPLC
+    type: fallback
+    url: "https://www.gstatic.com/generate_204"
+    interval: 120
+    timeout: 500
+    expected-status: 204
+    filter: *IPLC_KEYWORDS
+    include-all: true
+    fallback-filter:
+      retry: 2
+      timeout: 500
+      health-check:
+        enable: true
+        interval: 120
+        unhealthy_threshold: 2
+        healthy_threshold: 2
+        dns:
+          - "https://8.8.8.8/dns-query"
+          - "https://dns.alidns.com/dns-query"
+        http:
+          - url: "https://www.gstatic.com/generate_204"
+            method: GET
+            expected-status: 204
+            timeout: 500
+  - name: Game
+    type: select
+    hidden: true
+    filter: *GAME_KEYWORDS
+    include-all: true
 # endregion
 
 # region 路由规则
