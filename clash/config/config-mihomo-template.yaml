@@ -64,13 +64,13 @@ x-templates:
 
   # URL Test 组模板（基于延迟自动选择）
   url-test-group: &URL_TEST_GROUP_BASE
-    <<: *PROXY_GROUP_BASE
     type: url-test
     url: "https://www.gstatic.com/generate_204"
     interval: 120
     tolerance: 50
     timeout: 500
     expected-status: 204
+    include-all: true
 
   # 应用策略模板（Smart 优先）
   application-policy: &APPLICATION_POLICY_BASE
@@ -188,7 +188,7 @@ proxy-groups:
     tolerance: 50
     timeout: 500
     expected-status: 204
-    exclude-filter: *OTHER_REGIONS_EXCLUDE_KEYWORDS
+    exclude-filter: "HK|TW|JP|US|SG|IPLC|Game"
     include-all: true
 
   # ==================== 特殊用途组 ====================
@@ -198,7 +198,7 @@ proxy-groups:
     interval: 120
     timeout: 500
     expected-status: 204
-    filter: *IPLC_KEYWORDS
+    filter: "IPLC"
     include-all: true
     fallback-filter:
       retry: 2
@@ -208,19 +208,12 @@ proxy-groups:
         interval: 120
         unhealthy_threshold: 2
         healthy_threshold: 2
-        dns:
-          - "https://8.8.8.8/dns-query"
-          - "https://dns.alidns.com/dns-query"
         http:
           - url: "https://www.gstatic.com/generate_204"
             method: GET
             expected-status: 204
             timeout: 500
-  - name: Game
-    type: select
-    hidden: true
-    filter: *GAME_KEYWORDS
-    include-all: true
+  - { name: Game, <<: *PROXY_GROUP_BASE, hidden: true, filter: *GAME_KEYWORDS }
 # endregion
 
 # region 路由规则
