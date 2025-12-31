@@ -813,8 +813,26 @@ AdGuard Home 日志显示 "Failed to update filter"
 
 ---
 
+## 高级配置
+
+### 启用"绕过中国大陆 IP"功能
+
+如果你需要进一步优化国内流量性能，可以通过添加 dnsmasq 中间层来启用 OpenClash 的"绕过中国大陆 IP"功能。
+
+**⚠️ 注意**：此为高级配置，适合追求极致性能的用户。对于大多数场景，当前的两层架构已经足够高效。
+
+**详细配置指南**：[BYPASS-CHINA-WITH-DNSMASQ.md](BYPASS-CHINA-WITH-DNSMASQ.md)
+
+**架构对比**：
+- **当前架构（两层）**：AdGuard Home → OpenClash（简单，推荐）
+- **三层架构**：AdGuard Home → dnsmasq → OpenClash（复杂，极致性能）
+
+---
+
 ## 相关文档
 
+- [DNSMASQ-REPLACEMENT-GUIDE.md](DNSMASQ-REPLACEMENT-GUIDE.md) - AdGuard Home 替代 dnsmasq 配置指南
+- [BYPASS-CHINA-WITH-DNSMASQ.md](BYPASS-CHINA-WITH-DNSMASQ.md) - 启用"绕过中国大陆 IP"功能配置指南
 - [AdGuard Home 官方文档](https://github.com/AdguardTeam/AdGuardHome/wiki)
 - [OpenClash Wiki](https://github.com/vernesong/OpenClash/wiki)
 - [DNS 过滤规则语法](https://adguard-dns.io/kb/general/dns-filtering-syntax/)
