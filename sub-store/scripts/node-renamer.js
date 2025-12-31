@@ -225,52 +225,39 @@ function recursiveFormat(originalName, format, regionInfo, index, connector) {
         }
     }
 
-    // 智能组装：过滤掉连续的空格文本
-    const assembledParts = [];
-    for (let i = 0; i < resultParts.length; i++) {
-        const part = resultParts[i];
+    // 组装结果：智能逻辑
+    // 检查format是否包含非空格静态文本（{}之外有除空格外的内容）
+    const staticContent = format.replace(/{[^}]+}/g, '').replace(/\s+/g, '');
+    const hasNonSpaceStatic = staticContent !== '';
 
-        // 如果是空格，检查前后是否有内容
-        if (part === ' ' || part === '') {
-            // 跳过空字符串
-            if (part === '') continue;
-
-            // 检查是否需要这个空格
-            const prev = assembledParts[assembledParts.length - 1];
-            const next = resultParts[i + 1];
-
-            // 如果前一个和后一个都是有效内容，保留空格
-            if (prev && next && prev !== ' ' && next !== ' ') {
-                assembledParts.push(part);
-            }
-        } else {
-            assembledParts.push(part);
-        }
-    }
-
-    // 用连接符组装，但处理特殊情况
     let result = '';
-    for (let i = 0; i < assembledParts.length; i++) {
-        const current = assembledParts[i];
 
-        if (i === 0) {
-            result = current;
-        } else {
-            const prev = assembledParts[i - 1];
+    if (hasNonSpaceStatic) {
+        // 包含非空格静态文本（如 -、_、/ 等）：直接拼接，忽略connector
+        for (const part of resultParts) {
+            if (part !== '') {
+                result += part;
+            }
+        }
+    } else {
+        // 只有空格或纯占位符：过滤掉所有空格，使用connector连接非空值
+        const filteredParts = resultParts.filter(part => {
+            if (part === '') return false;
+            if (part.trim() === '') return false; // 过滤所有纯空格
+            return true;
+        });
 
-            // 如果当前或前一个是纯符号（非字母数字），直接连接
-            const isSymbol = (str) => str.length === 1 && !/[a-zA-Z0-9\u4e00-\u9fa5]/.test(str);
-
-            if (isSymbol(prev) || isSymbol(current)) {
-                result += current;
+        for (let i = 0; i < filteredParts.length; i++) {
+            if (i === 0) {
+                result = filteredParts[i];
             } else {
-                result += connector + current;
+                result += connector + filteredParts[i];
             }
         }
     }
 
-    // 清理多余空格
-    result = result.replace(/\s+/g, ' ').trim();
+    // 清理：移除首尾空格
+    result = result.trim();
 
 
     return result;
