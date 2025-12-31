@@ -40,50 +40,82 @@ const OTHER_TAGS_MAP = {
 };
 
 const REGION_MAP = {
-    'HK': { keywords: ['🇭🇰', '香港', 'hong kong', 'hk'], flag: '🇭🇰', code: 'HK', name_cn: '香港', name_en: 'Hong Kong' },
-    'TW': { keywords: ['🇹🇼', '台湾', 'taiwan', 'tw'], flag: '🇹🇼', code: 'TW', name_cn: '台湾', name_en: 'Taiwan' },
-    'JP': { keywords: ['🇯🇵', '日本', 'japan', 'jp'], flag: '🇯🇵', code: 'JP', name_cn: '日本', name_en: 'Japan' },
-    'US': { keywords: ['🇺🇸', '美国', 'united states', 'us'], flag: '🇺🇸', code: 'US', name_cn: '美国', name_en: 'United States' },
-    'SG': { keywords: ['🇸🇬', '新加坡', 'singapore', 'sg'], flag: '🇸🇬', code: 'SG', name_cn: '新加坡', name_en: 'Singapore' },
-    'KR': { keywords: ['🇰🇷', '韩国', 'korea', 'kr'], flag: '🇰🇷', code: 'KR', name_cn: '韩国', name_en: 'Korea' },
-    'UK': { keywords: ['🇬🇧', '英国', 'united kingdom', 'uk'], flag: '🇬🇧', code: 'UK', name_cn: '英国', name_en: 'United Kingdom' },
-    'DE': { keywords: ['🇩🇪', '德国', 'germany', 'de'], flag: '🇩🇪', code: 'DE', name_cn: '德国', name_en: 'Germany' },
-    'FR': { keywords: ['🇫🇷', '法国', 'france', 'fr'], flag: '🇫🇷', code: 'FR', name_cn: '法国', name_en: 'France' },
-    'CA': { keywords: ['🇨🇦', '加拿大', 'canada', 'ca'], flag: '🇨🇦', code: 'CA', name_cn: '加拿大', name_en: 'Canada' },
-    'AU': { keywords: ['🇦🇺', '澳大利亚', 'australia', 'au'], flag: '🇦🇺', code: 'AU', name_cn: '澳大利亚', name_en: 'Australia' },
-    'NL': { keywords: ['🇳🇱', '荷兰', 'netherlands', 'nl'], flag: '🇳🇱', code: 'NL', name_cn: '荷兰', name_en: 'Netherlands' },
-    'IN': { keywords: ['🇮🇳', '印度', 'india', 'in'], flag: '🇮🇳', code: 'IN', name_cn: '印度', name_en: 'India' },
-    'RU': { keywords: ['🇷🇺', '俄罗斯', 'russia', 'ru'], flag: '🇷🇺', code: 'RU', name_cn: '俄罗斯', name_en: 'Russia' },
-    'BR': { keywords: ['🇧🇷', '巴西', 'brazil', 'br'], flag: '🇧🇷', code: 'BR', name_cn: '巴西', name_en: 'Brazil' },
-    'IT': { keywords: ['🇮🇹', '意大利', 'italy', 'it'], flag: '🇮🇹', code: 'IT', name_cn: '意大利', name_en: 'Italy' },
-    'ES': { keywords: ['🇪🇸', '西班牙', 'spain', 'es'], flag: '🇪🇸', code: 'ES', name_cn: '西班牙', name_en: 'Spain' },
-    'SE': { keywords: ['🇸🇪', '瑞典', 'sweden', 'se'], flag: '🇸🇪', code: 'SE', name_cn: '瑞典', name_en: 'Sweden' },
-    'CH': { keywords: ['🇨🇭', '瑞士', 'switzerland', 'ch'], flag: '🇨🇭', code: 'CH', name_cn: '瑞士', name_en: 'Switzerland' },
-    'NO': { keywords: ['🇳🇴', '挪威', 'norway', 'no'], flag: '🇳🇴', code: 'NO', name_cn: '挪威', name_en: 'Norway' },
-    'FI': { keywords: ['🇫🇮', '芬兰', 'finland', 'fi'], flag: '🇫🇮', code: 'FI', name_cn: '芬兰', name_en: 'Finland' },
-    'DK': { keywords: ['🇩🇰', '丹麦', 'denmark', 'dk'], flag: '🇩🇰', code: 'DK', name_cn: '丹麦', name_en: 'Denmark' },
-    'PL': { keywords: ['🇵🇱', '波兰', 'poland', 'pl'], flag: '🇵🇱', code: 'PL', name_cn: '波兰', name_en: 'Poland' },
-    'AT': { keywords: ['🇦🇹', 'austria', 'at'], flag: '🇦🇹', code: 'AT', name_cn: '奥地利', name_en: 'Austria' },
-    'BE': { keywords: ['🇧🇪', 'belgium', 'be'], flag: '🇧🇪', code: 'BE', name_cn: '比利时', name_en: 'Belgium' },
-    'CZ': { keywords: ['🇨🇿', 'czech', 'cz'], flag: '🇨🇿', code: 'CZ', name_cn: '捷克', name_en: 'Czech' },
-    'PT': { keywords: ['🇵🇹', 'portugal', 'pt'], flag: '🇵🇹', code: 'PT', name_cn: '葡萄牙', name_en: 'Portugal' },
-    'GR': { keywords: ['🇬🇷', 'greece', 'gr'], flag: '🇬🇷', code: 'GR', name_cn: '希腊', name_en: 'Greece' },
-    'HU': { keywords: ['🇭🇺', 'hungary', 'hu'], flag: '🇭🇺', code: 'HU', name_cn: '匈牙利', name_en: 'Hungary' },
-    'IE': { keywords: ['🇮🇪', 'ireland', 'ie'], flag: '🇮🇪', code: 'IE', name_cn: '爱尔兰', name_en: 'Ireland' },
-    'NZ': { keywords: ['🇳🇿', 'new zealand', 'nz'], flag: '🇳🇿', code: 'NZ', name_cn: '新西兰', name_en: 'New Zealand' },
-    'ZA': { keywords: ['🇿🇦', 'south africa', 'za'], flag: '🇿🇦', code: 'ZA', name_cn: '南非', name_en: 'South Africa' },
-    'TR': { keywords: ['🇹🇷', 'turkey', 'tr'], flag: '🇹🇷', code: 'TR', name_cn: '土耳其', name_en: 'Turkey' },
-    'MX': { keywords: ['🇲🇽', 'mexico', 'mx'], flag: '🇲🇽', code: 'MX', name_cn: '墨西哥', name_en: 'Mexico' },
-    'AR': { keywords: ['🇦🇷', 'argentina', 'ar'], flag: '🇦🇷', code: 'AR', name_cn: '阿根廷', name_en: 'Argentina' },
-    'CL': { keywords: ['🇨🇱', 'chile', 'cl'], flag: '🇨🇱', code: 'CL', name_cn: '智利', name_en: 'Chile' },
-    'TH': { keywords: ['🇹🇭', 'thailand', 'th'], flag: '🇹🇭', code: 'TH', name_cn: '泰国', name_en: 'Thailand' },
-    'MY': { keywords: ['🇲🇾', 'malaysia', 'my', '马来西亚'], flag: '🇲🇾', code: 'MY', name_cn: '马来西亚', name_en: 'Malaysia' },
-    'ID': { keywords: ['🇮🇩', 'indonesia', 'id'], flag: '🇮🇩', code: 'ID', name_cn: '印度尼西亚', name_en: 'Indonesia' },
-    'PH': { keywords: ['🇵🇭', 'philippines', 'ph'], flag: '🇵🇭', code: 'PH', name_cn: '菲律宾', name_en: 'Philippines' },
-    'VN': { keywords: ['🇻🇳', 'vietnam', 'vn'], flag: '🇻🇳', code: 'VN', name_cn: '越南', name_en: 'Vietnam' },
-    'NG': { keywords: ['🇳🇬', 'nigeria', 'ng'], flag: '🇳🇬', code: 'NG', name_cn: '尼日利亚', name_en: 'Nigeria' },
-    'BD': { keywords: ['🇧🇩', 'bangladesh', 'bd'], flag: '🇧🇩', code: 'BD', name_cn: '孟加拉国', name_en: 'Bangladesh' },
+    'HK': { alias: ['香港', 'hong kong', 'hk'], flag: '🇭🇰', code: 'HK', name_cn: '香港', name_en: 'Hong Kong' },
+    'TW': { alias: ['台湾', 'taiwan', 'tw'], flag: '🇹🇼', code: 'TW', name_cn: '台湾', name_en: 'Taiwan' },
+    'JP': { alias: ['日本', 'japan', 'jp'], flag: '🇯🇵', code: 'JP', name_cn: '日本', name_en: 'Japan' },
+    'US': { alias: ['美国', 'united states', 'us'], flag: '🇺🇸', code: 'US', name_cn: '美国', name_en: 'United States' },
+    'SG': { alias: ['新加坡', 'singapore', 'sg'], flag: '🇸🇬', code: 'SG', name_cn: '新加坡', name_en: 'Singapore' },
+    'KR': { alias: ['韩国', 'korea', 'kr'], flag: '🇰🇷', code: 'KR', name_cn: '韩国', name_en: 'Korea' },
+    'UK': { alias: ['英国', 'united kingdom', 'uk'], flag: '🇬🇧', code: 'UK', name_cn: '英国', name_en: 'United Kingdom' },
+    'DE': { alias: ['德国', 'germany', 'de'], flag: '🇩🇪', code: 'DE', name_cn: '德国', name_en: 'Germany' },
+    'FR': { alias: ['法国', 'france', 'fr'], flag: '🇫🇷', code: 'FR', name_cn: '法国', name_en: 'France' },
+    'CA': { alias: ['加拿大', 'canada', 'ca'], flag: '🇨🇦', code: 'CA', name_cn: '加拿大', name_en: 'Canada' },
+    'AU': { alias: ['澳大利亚', 'australia', 'au'], flag: '🇦🇺', code: 'AU', name_cn: '澳大利亚', name_en: 'Australia' },
+    'NL': { alias: ['荷兰', 'netherlands', 'nl'], flag: '🇳🇱', code: 'NL', name_cn: '荷兰', name_en: 'Netherlands' },
+    'IN': { alias: ['印度', 'india', 'in'], flag: '🇮🇳', code: 'IN', name_cn: '印度', name_en: 'India' },
+    'RU': { alias: ['俄罗斯', 'russia', 'ru'], flag: '🇷🇺', code: 'RU', name_cn: '俄罗斯', name_en: 'Russia' },
+    'BR': { alias: ['巴西', 'brazil', 'br'], flag: '🇧🇷', code: 'BR', name_cn: '巴西', name_en: 'Brazil' },
+    'IT': { alias: ['意大利', 'italy', 'it'], flag: '🇮🇹', code: 'IT', name_cn: '意大利', name_en: 'Italy' },
+    'ES': { alias: ['西班牙', 'spain', 'es'], flag: '🇪🇸', code: 'ES', name_cn: '西班牙', name_en: 'Spain' },
+    'SE': { alias: ['瑞典', 'sweden', 'se'], flag: '🇸🇪', code: 'SE', name_cn: '瑞典', name_en: 'Sweden' },
+    'CH': { alias: ['瑞士', 'switzerland', 'ch'], flag: '🇨🇭', code: 'CH', name_cn: '瑞士', name_en: 'Switzerland' },
+    'NO': { alias: ['挪威', 'norway', 'no'], flag: '🇳🇴', code: 'NO', name_cn: '挪威', name_en: 'Norway' },
+    'FI': { alias: ['芬兰', 'finland', 'fi'], flag: '🇫🇮', code: 'FI', name_cn: '芬兰', name_en: 'Finland' },
+    'DK': { alias: ['丹麦', 'denmark', 'dk'], flag: '🇩🇰', code: 'DK', name_cn: '丹麦', name_en: 'Denmark' },
+    'PL': { alias: ['波兰', 'poland', 'pl'], flag: '🇵🇱', code: 'PL', name_cn: '波兰', name_en: 'Poland' },
+    'AT': { alias: ['奥地利', 'austria', 'at'], flag: '🇦🇹', code: 'AT', name_cn: '奥地利', name_en: 'Austria' },
+    'BE': { alias: ['比利时', 'belgium', 'be'], flag: '🇧🇪', code: 'BE', name_cn: '比利时', name_en: 'Belgium' },
+    'CZ': { alias: ['捷克', 'czech', 'cz'], flag: '🇨🇿', code: 'CZ', name_cn: '捷克', name_en: 'Czech' },
+    'PT': { alias: ['葡萄牙', 'portugal', 'pt'], flag: '🇵🇹', code: 'PT', name_cn: '葡萄牙', name_en: 'Portugal' },
+    'GR': { alias: ['希腊', 'greece', 'gr'], flag: '🇬🇷', code: 'GR', name_cn: '希腊', name_en: 'Greece' },
+    'HU': { alias: ['匈牙利', 'hungary', 'hu'], flag: '🇭🇺', code: 'HU', name_cn: '匈牙利', name_en: 'Hungary' },
+    'IE': { alias: ['爱尔兰', 'ireland', 'ie'], flag: '🇮🇪', code: 'IE', name_cn: '爱尔兰', name_en: 'Ireland' },
+    'NZ': { alias: ['新西兰', 'new zealand', 'nz'], flag: '🇳🇿', code: 'NZ', name_cn: '新西兰', name_en: 'New Zealand' },
+    'ZA': { alias: ['南非', 'south africa', 'za'], flag: '🇿🇦', code: 'ZA', name_cn: '南非', name_en: 'South Africa' },
+    'TR': { alias: ['土耳其', 'turkey', 'tr'], flag: '🇹🇷', code: 'TR', name_cn: '土耳其', name_en: 'Turkey' },
+    'MX': { alias: ['墨西哥', 'mexico', 'mx'], flag: '🇲🇽', code: 'MX', name_cn: '墨西哥', name_en: 'Mexico' },
+    'AR': { alias: ['阿根廷', 'argentina', 'ar'], flag: '🇦🇷', code: 'AR', name_cn: '阿根廷', name_en: 'Argentina' },
+    'CL': { alias: ['智利', 'chile', 'cl'], flag: '🇨🇱', code: 'CL', name_cn: '智利', name_en: 'Chile' },
+    'TH': { alias: ['泰国', 'thailand', 'th'], flag: '🇹🇭', code: 'TH', name_cn: '泰国', name_en: 'Thailand' },
+    'MY': { alias: ['马来西亚', 'malaysia', 'my'], flag: '🇲🇾', code: 'MY', name_cn: '马来西亚', name_en: 'Malaysia' },
+    'ID': { alias: ['印度尼西亚', 'indonesia', 'id'], flag: '🇮🇩', code: 'ID', name_cn: '印度尼西亚', name_en: 'Indonesia' },
+    'PH': { alias: ['菲律宾', 'philippines', 'ph'], flag: '🇵🇭', code: 'PH', name_cn: '菲律宾', name_en: 'Philippines' },
+    'VN': { alias: ['越南', 'vietnam', 'vn'], flag: '🇻🇳', code: 'VN', name_cn: '越南', name_en: 'Vietnam' },
+    'NG': { alias: ['尼日利亚', 'nigeria', 'ng'], flag: '🇳🇬', code: 'NG', name_cn: '尼日利亚', name_en: 'Nigeria' },
+    'BD': { alias: ['孟加拉国', 'bangladesh', 'bd'], flag: '🇧🇩', code: 'BD', name_cn: '孟加拉国', name_en: 'Bangladesh' },
 };
+
+// 获取区域的所有关键词（动态组装）
+function getRegionKeywords(regionInfo) {
+    const keywords = [];
+
+    // 添加flag
+    if (regionInfo.flag) {
+        keywords.push(regionInfo.flag);
+    }
+
+    // 添加code
+    if (regionInfo.code) {
+        keywords.push(regionInfo.code);
+    }
+
+    // 添加中文名
+    if (regionInfo.name_cn) {
+        keywords.push(regionInfo.name_cn);
+    }
+
+    // 添加英文名
+    if (regionInfo.name_en) {
+        keywords.push(regionInfo.name_en);
+    }
+
+    // 添加别名
+    if (regionInfo.alias && Array.isArray(regionInfo.alias)) {
+        keywords.push(...regionInfo.alias);
+    }
+
+    return keywords;
+}
 
 // 简单关键词匹配
 function matchKeyword(text, keyword) {
@@ -216,6 +248,10 @@ function recursiveFormat(originalName, format, regionInfo, index, connector) {
                 } else {
                     value = String(index);
                 }
+            } else if (placeholder === 'tag') {
+                // 检测第一个标签（IPLC, HOME, UDPN, BASE 或动态标签）
+                const tags = detectTags(originalName);
+                value = tags.length > 0 ? tags[0] : '';
             } else if (placeholder === 'otherTags') {
                 value = ''; // 简化处理
             } else if (placeholder === 'original') {
@@ -279,7 +315,8 @@ function removeRegionInfo(str, regionInfo) {
 
     // 移除关键词
     if (regionInfo) {
-        for (const keyword of regionInfo.keywords) {
+        const keywords = getRegionKeywords(regionInfo);
+        for (const keyword of keywords) {
             if (!keyword.match(/[\uD83C-\uDBFF]/)) { // 不处理emoji
                 result = simpleRemove(result, keyword);
             }
@@ -733,7 +770,8 @@ function operator(proxies) {
         let regionInfo = null;
 
         for (const [key, info] of Object.entries(REGION_MAP)) {
-            for (const keyword of info.keywords) {
+            const keywords = getRegionKeywords(info);
+            for (const keyword of keywords) {
                 if (matchKeyword(lowerName, keyword)) {
                     regionInfo = info;
                     matched = true;
