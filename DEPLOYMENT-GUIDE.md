@@ -249,6 +249,17 @@ dns.adguard.com
 
 ### 第三步：配置 AdGuard Home
 
+> ⚠️ **关于 OpenClash "绕过中国大陆 IP" 功能的说明**：
+>
+> OpenClash 的"绕过中国大陆 IP"功能依赖 **dnsmasq + ipset + iptables** 三者配合实现：
+> 1. **Dnsmasq** - 拦截国内域名查询，使用国内 DNS 解析，将解析结果动态添加到 ipset 集合 `China_ip_route_pass`
+> 2. **IPset** - 维护大陆 IP 段集合 (`China_ip_route`) 和动态解析 IP 集合 (`China_ip_route_pass`)
+> 3. **Iptables** - 防火墙规则检查目标 IP 是否在这两个集合中，如果是则绕过 Clash 内核直接走原始路由
+>
+> **本方案使用 AdGuard Home 替代了 dnsmasq 作为主 DNS 服务器，因此无法使用该功能**（无法动态维护 `China_ip_route_pass` ipset 集合）。
+>
+> 本方案的国内外分流完全依赖 **OpenClash/Mihomo 内核的规则集**（GeoIP、GeoSite 等）实现，所有流量都进入 Clash 内核，由内核根据规则决定直连或代理。
+
 #### 3.1 安装 AdGuard Home
 
 ```bash

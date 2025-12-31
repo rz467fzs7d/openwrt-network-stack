@@ -2,6 +2,16 @@
 
 本指南详细说明如何在 OpenWrt 旁路由上使用 AdGuard Home 替代或配合 Dnsmasq 进行 DNS 管理。
 
+> ⚠️ **重要提示 - 关于 OpenClash "绕过中国大陆 IP" 功能**：
+>
+> OpenClash 的"绕过中国大陆 IP"功能依赖 **dnsmasq + ipset + iptables** 三者配合实现：
+> - **Dnsmasq** 拦截国内域名查询，将解析结果动态添加到 ipset 集合 `China_ip_route_pass`
+> - **Iptables** 根据 ipset 集合规则让流量绕过 Clash 内核直接走原始路由
+>
+> **如果使用 AdGuard Home 替代 dnsmasq（方案二、方案三），将无法使用"绕过中国大陆 IP"功能**。
+>
+> 此时国内外分流需要完全依赖 **Clash 内核的规则集**（GeoIP、GeoSite）实现，所有流量进入 Clash 内核由其决定直连或代理。
+
 ## 目录
 
 - [为什么要替代 Dnsmasq](#为什么要替代-dnsmasq)
