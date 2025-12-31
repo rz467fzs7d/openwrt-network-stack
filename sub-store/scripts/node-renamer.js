@@ -23,6 +23,12 @@ const ISP_MAP = {
     'ATT': { keywords: ['att', 'at&t'], code: 'ATT', name: 'AT&T' },
     'Hinet': { keywords: ['hinet'], code: 'HINET', name: 'Hinet' },
     'NTT': { keywords: ['ntt'], code: 'NTT', name: 'NTT' },
+    'Softbank': { keywords: ['softbank'], code: 'SOFTBANK', name: 'SoftBank' },
+    'KT': { keywords: ['kt'], code: 'KT', name: 'KT' },
+    'SK': { keywords: ['sk'], code: 'SK', name: 'SK' },
+    'Singtel': { keywords: ['singtel'], code: 'SINGTEL', name: 'Singtel' },
+    'Starhub': { keywords: ['starhub'], code: 'STARHUB', name: 'Starhub' },
+    'TMNet': { keywords: ['tmnet'], code: 'TMNET', name: 'TMNet' },
     'CMCC': { keywords: ['cmcc', '中国移动'], code: 'CMCC', name: 'China Mobile' },
     'CU': { keywords: ['cu', '中国联通'], code: 'CU', name: 'China Unicom' },
     'CT': { keywords: ['ct', '中国电信'], code: 'CT', name: 'China Telecom' },
@@ -30,7 +36,7 @@ const ISP_MAP = {
 
 const OTHER_TAGS_MAP = {
     'IPLC': { keywords: ['iplc', '专线'], output: 'IPLC' },
-    '家宽': { keywords: ['家宽', 'home'], output: 'Home' },
+    'Home': { keywords: ['家宽', 'home'], output: 'Home' },
 };
 
 const REGION_MAP = {
@@ -71,7 +77,7 @@ const REGION_MAP = {
     'AR': { keywords: ['🇦🇷', 'argentina', 'ar'], flag: '🇦🇷', code: 'AR', name_cn: '阿根廷', name_en: 'Argentina' },
     'CL': { keywords: ['🇨🇱', 'chile', 'cl'], flag: '🇨🇱', code: 'CL', name_cn: '智利', name_en: 'Chile' },
     'TH': { keywords: ['🇹🇭', 'thailand', 'th'], flag: '🇹🇭', code: 'TH', name_cn: '泰国', name_en: 'Thailand' },
-    'MY': { keywords: ['🇲🇾', 'malaysia', 'my'], flag: '🇲🇾', code: 'MY', name_cn: '马来西亚', name_en: 'Malaysia' },
+    'MY': { keywords: ['🇲🇾', 'malaysia', 'my', '马来西亚'], flag: '🇲🇾', code: 'MY', name_cn: '马来西亚', name_en: 'Malaysia' },
     'ID': { keywords: ['🇮🇩', 'indonesia', 'id'], flag: '🇮🇩', code: 'ID', name_cn: '印度尼西亚', name_en: 'Indonesia' },
     'PH': { keywords: ['🇵🇭', 'philippines', 'ph'], flag: '🇵🇭', code: 'PH', name_cn: '菲律宾', name_en: 'Philippines' },
     'VN': { keywords: ['🇻🇳', 'vietnam', 'vn'], flag: '🇻🇳', code: 'VN', name_cn: '越南', name_en: 'Vietnam' },
