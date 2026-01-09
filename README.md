@@ -1,259 +1,153 @@
 # OpenWrt Network Stack
 
-OpenWrt 网络栈完整方案：从 DNS 解析到代理流量，再到订阅管理的全链路配置。
+基于 OpenWrt 的完整网络解决方案：AdGuard Home (广告拦截) + OpenClash (智能分流) + Sub-Store (订阅管理)。
 
-> 🚀 **完整部署指南**: 查看 [DEPLOYMENT-GUIDE.md](DEPLOYMENT-GUIDE.md) 了解从 AdGuardHome → OpenClash → Sub-Store 的完整架构和部署步骤。
+> 🚀 **完整部署指南**: 查看 [DEPLOYMENT-GUIDE.md](DEPLOYMENT-GUIDE.md) 了解详细的部署步骤和配置说明。
+
+## 📐 网络架构
+
+### 拓扑结构
+
+```
+                    互联网
+                      ↑
+                      │
+              ┌───────┴────────┐
+              │  主路由设备     │
+              │  192.168.0.1   │
+              │  (DHCP 服务器) │
+              └───────┬────────┘
+                      │
+              ┌───────┴────────┐
+              │  OpenWrt       │ (旁路由/Docker 宿主机)
+              │  192.168.0.2   │
+              │                │
+              │  ┌──────────────────────────────┐
+              │  │ 1️⃣ AdGuard Home              │
+              │  │    - 端口: 53 (DNS)          │
+              │  │    - 广告拦截 + DNS 缓存      │
+              │  │    - 上游: 127.0.0.1:7874    │
+              │  └─────────┬────────────────────┘
+              │            ↓
+              │  ┌──────────────────────────────┐
+              │  │ 2️⃣ OpenClash / Mihomo        │
+              │  │    - 端口: 7874 (DNS)        │
+              │  │    - Fake-IP 分流            │
+              │  │    - 智能代理路由             │
+              │  └─────────┬────────────────────┘
+              │            ↓
+              │  ┌──────────────────────────────┐
+              │  │ 3️⃣ Sub-Store (容器)          │
+              │  │    - 端口: 3001 (Web UI)     │
+              │  │    - 订阅管理 + 节点格式化    │
+              │  └──────────────────────────────┘
+              └────────────────────────────────────┘
+                      │
+        ┌─────────────┼─────────────┐
+        ↓             ↓             ↓
+   客户端 1       客户端 2       客户端 3
+   192.168.0.101 192.168.0.102 192.168.0.103
+```
+
+### 关键配置
+
+**主路由 (192.168.0.1)**
+- DHCP 服务器配置：
+  - IP 地址池: `192.168.0.101 - 192.168.0.254`
+  - 网关: `192.168.0.1`
+  - **DNS 服务器: `192.168.0.2`** (指向 OpenWrt 的 AdGuard Home)
+
+**OpenWrt (192.168.0.2)**
+- 静态 IP: `192.168.0.2`
+- 运行服务:
+  - AdGuard Home: 监听 `192.168.0.2:53`
+  - OpenClash: DNS 端口 `127.0.0.1:7874`
+  - Sub-Store (Docker): Web UI `192.168.0.2:3001`
+
+### 流量路径
+
+```
+客户端 DNS 查询 (google.com)
+    ↓
+主路由 DHCP 广播的 DNS (192.168.0.2:53)
+    ↓
+AdGuard Home (广告过滤)
+    ↓
+OpenClash DNS (127.0.0.1:7874)
+    ├─ 国内域名 → 真实 IP → 直连
+    └─ 国外域名 → Fake IP → 代理节点
+```
 
 ## 📦 项目结构
 
 ```
 openwrt-network-stack/
-├── clash/              # Clash/Mihomo 配置模板
-│   ├── config/         # 配置文件目录
-│   │   └── config-mihomo.yaml.example  # Mihomo 配置模板
-│   └── rules/          # 自定义路由规则
-│       ├── direct.yaml # 直连规则
-│       ├── proxy.yaml  # 代理规则
-│       └── README.md   # 规则使用说明（包含 OpenClash 绕过黑名单配置）
-├── sub-store/          # Sub Store 完整方案
-│   ├── docker/         # Docker 部署文件
-│   │   ├── Dockerfile
-│   │   ├── docker-compose.yml
-│   │   └── OPENWRT-GUIDE.md
-│   ├── scripts/        # 节点处理脚本
-│   │   └── node-renamer.js  # 智能节点重命名脚本
-│   └── test/           # 测试和基准测试
-├── adguardhome/        # AdGuardHome 配置和规则
-└── docs/               # 文档和教程
+├── clash/              # OpenClash/Mihomo 配置
+│   ├── config/         # 配置模板
+│   └── rules/          # 自定义规则集
+├── sub-store/          # Sub-Store 订阅管理
+│   ├── docker/         # Docker 部署方案
+│   └── scripts/        # 节点处理脚本
+├── adguardhome/        # AdGuard Home 配置
+└── DEPLOYMENT-GUIDE.md # 完整部署文档
 ```
 
-## 🚀 功能特性
+## 🚀 核心功能
 
-### Clash/Mihomo 配置
-- ✅ 完整的 Mihomo (Clash Meta) 配置模板
-- ✅ 使用 YAML 锚点实现模块化管理
-- ✅ 智能路由策略（Smart Group）
-- ✅ 多地区节点自动选择（URL Test、Fallback）
-- ✅ 分应用代理策略（AI 服务、流媒体、开发工具等）
-- ✅ 完善的中国路由和 DNS 配置
-- ✅ 自定义路由规则（direct/proxy）
-- ✅ OpenClash 绕过黑名单配置（内网访问、Google Play 等）
+### AdGuard Home
+- 广告拦截和隐私保护
+- DNS 缓存加速
+- 查询日志和统计
+- 详细配置: [adguardhome/CONFIGURATION.md](adguardhome/CONFIGURATION.md)
 
-### Sub Store 脚本
-- ✅ 智能地区识别（支持 42 个国家/地区）
-- ✅ 运营商识别（20+ 运营商）
-- ✅ IPLC专线和网络标签识别
-- ✅ 节点名称格式化和清理
-- ✅ 自动设置 code 和 region 属性
-- ✅ 高性能处理（< 0.1s 处理 100 个节点）
+### OpenClash / Mihomo
+- 智能分流 (国内直连/国外代理)
+- 多地区节点自动选择
+- 分应用代理策略 (AI、流媒体、开发工具)
+- 自定义路由规则
+- 详细配置: [clash/CONFIGURATION.md](clash/CONFIGURATION.md)
 
-### AdGuardHome
-- 🚧 广告拦截列表（即将添加）
-- 🚧 DNS 过滤规则（即将添加）
+### Sub-Store
+- 订阅托管和转换
+- 智能节点重命名 (42 个国家/地区)
+- 运营商和 IPLC 专线识别
+- Docker 部署方案 (镜像体积减少 37.5%)
+- 详细文档: [sub-store/README.md](sub-store/README.md)
 
 ## 📖 快速开始
 
-### 部署 Sub Store（前置步骤）
+### 1. 主路由 DHCP 配置
 
-Sub Store 用于管理代理订阅和处理节点信息，建议先部署。
-
-本仓库已集成优化的 Sub Store Docker 部署文件（镜像体积减小 37.5%，集成 mihomo 和通知功能）。
-
-**Docker Compose 部署（推荐）**：
+在主路由 (192.168.0.1) 配置 DHCP 选项 6，将 DNS 服务器指向 OpenWrt (192.168.0.2)：
 
 ```bash
-# 方式1: 使用本仓库（已集成）
-git clone https://github.com/rz467fzs7d/openwrt-network-stack.git
-cd openwrt-network-stack/sub-store/docker
-docker-compose up -d
-
-# 方式2: 使用独立项目
-git clone https://github.com/rz467fzs7d/sub-store-docker.git
-cd sub-store-docker
-docker-compose up -d
+# OpenWrt 主路由命令行
+uci set dhcp.lan.dhcp_option="6,192.168.0.2"
+uci commit dhcp
+/etc/init.d/dnsmasq restart
 ```
 
-**Docker CLI 部署**：
+完成后，客户端通过 DHCP 获取的 DNS 将指向 `192.168.0.2`。
 
-```bash
-docker run -d \
-  --name sub-store \
-  -p 3001:3001 \
-  -v /path/to/data:/opt/app/data \
-  --restart unless-stopped \
-  rz467fzs7d/sub-store:latest
-```
+### 2. 按顺序部署三个组件
 
-访问 Sub Store：http://YOUR_OPENWRT_IP:3001
+| 组件 | 部署方式 | 访问地址 | 详细文档 |
+|------|---------|---------|---------|
+| **Sub-Store** | Docker | `http://192.168.0.2:3001` | [sub-store/README.md](sub-store/README.md) |
+| **OpenClash** | opkg | OpenWrt LuCI 界面 | [clash/CONFIGURATION.md](clash/CONFIGURATION.md) |
+| **AdGuard Home** | opkg | `http://192.168.0.2:3000` | [adguardhome/CONFIGURATION.md](adguardhome/CONFIGURATION.md) |
 
-**OpenWrt 注意事项**：
-- 配置 DNS 和防火墙规则
-- 确保 3001 端口可访问
-- 详细部署指南参见 [sub-store/docker/OPENWRT-GUIDE.md](sub-store/docker/OPENWRT-GUIDE.md)
+### 3. 配置关键连接
 
-### Clash/Mihomo 配置
+- **AdGuard Home 上游 DNS**: `127.0.0.1:7874` (指向 OpenClash)
+- **OpenClash 订阅源**: 来自 Sub-Store 的订阅链接
 
-1. 复制配置模板：
-```bash
-cp clash/config/config-mihomo.yaml.example /etc/mihomo/config.yaml
-```
+## 🛠️ 高级配置
 
-2. 修改以下部分：
-   - `proxy-providers`: 修改订阅 URL
-   - 内网 IP 段（如有需要）
-   - 公司内网域名（如有需要）
-
-3. 验证配置：
-```bash
-mihomo -t -d /etc/mihomo
-```
-
-4. 启动服务：
-```bash
-systemctl restart mihomo
-```
-
-### Sub Store 脚本
-
-**node-renamer.js** - 智能节点重命名
-
-特点：
-- 🚀 最快：< 0.1 秒处理 100 个节点
-- 🌍 支持 42 个国家/地区
-- 🏷️ 识别 emoji、中文、英文、城市名
-- 🔌 识别 IPLC 专线和 20+ 运营商
-- 🏠 识别连接类型（家宽、企业）
-- 🌐 识别网络标签（BGP、CN2、5G）
-- 📝 支持完全自定义格式化模板
-- ⚡ 无需网络请求，纯本地处理
-
-使用场景：
-1. **增加节点属性**：为节点添加标准化的 `code` 和 `region` 属性
-2. **批量格式化节点名称**：根据模板重新命名节点（支持 IPLC/运营商/标签识别）
-3. **Mihomo 规则筛选**：自动设置属性用于 Clash Meta 的智能筛选
-
-使用方法：
-1. 在 Sub Store 订阅中添加"操作器"
-2. 选择"脚本操作器"
-3. 使用 CDN URL：
-   ```
-   https://cdn.jsdelivr.net/gh/<username>/openwrt-network-stack@main/sub-store/scripts/node-renamer.js
-   ```
-4. 配置参数（可选）：
-   - 不配置或 `{}`：仅添加地区属性，保留原名称
-   - 完整格式：`{ "format": "{countryName} {iplc} {ispCode} {index:2d} {otherTags}" }`
-   - 简洁格式：`{ "format": "{countryName} {ispCode} {index:2d}" }`
-   - 带国旗：`{ "format": "{countryFlag} {countryNameCN} {ispCode}" }`
-
-详细说明参见 [Sub Store 脚本文档](sub-store/scripts/README.md)
-
-## 📝 配置说明
-
-### Clash 关键配置
-
-**代理组类型**：
-- `select`: 手动选择
-- `url-test`: 基于延迟自动选择
-- `fallback`: 故障自动转移
-- `smart`: 智能选择（基于机器学习）
-
-**节点筛选关键词**：
-```yaml
-x-keywords:
-  hong-kong: &HONG_KONG_KEYWORDS "香港|HK|hongkong|hong kong"
-  taiwan: &TAIWAN_KEYWORDS "台湾|TW|taiwan"
-  japan: &JAPAN_KEYWORDS "日本|JP|japan"
-  # ... 更多地区
-```
-
-**应用策略模板**：
-- `APPLICATION_POLICY_BASE`: Smart 优先（适合国际服务）
-- `APPLICATION_POLICY_DIRECT_FIRST`: DIRECT 优先（适合国内服务）
-
-### 超时参数调优
-
-所有超时参数默认为 300ms，可根据实际网络情况调整：
-
-| 参数位置 | 推荐值 | 说明 |
-|---------|--------|------|
-| Proxy Provider 健康检查 | 3000-5000ms | Sub Store 需要时间获取元数据 |
-| URL Test 超时 | 2000-5000ms | 远距离节点需要更多时间 |
-| Fallback 超时 | 2000-3000ms | 避免频繁切换 |
-
-## 🛠️ 高级用法
-
-### 自定义规则集
-
-本项目提供两个自定义规则文件：
-
-- `clash/rules/direct.yaml` - 强制直连规则（Plex、IP 检测等）
-- `clash/rules/proxy.yaml` - 强制代理规则（AdGuard DNS、媒体服务等）
-
-**在配置中引用**：
-
-```yaml
-rule-providers:
-  CUSTOM-DIRECT:
-    type: http
-    behavior: classical
-    interval: 86400
-    url: "https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/clash/rules/direct.yaml"
-    path: ./rule-providers/custom-direct.yaml
-
-  CUSTOM-PROXY:
-    type: http
-    behavior: classical
-    interval: 86400
-    url: "https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/clash/rules/proxy.yaml"
-    path: ./rule-providers/custom-proxy.yaml
-
-rules:
-  # 在其他规则之前添加
-  - RULE-SET,CUSTOM-DIRECT,DIRECT
-  - RULE-SET,CUSTOM-PROXY,PROXY
-```
-
-**Fork 后自定义**：
-
-1. Fork 本仓库到你的账号
-2. 修改 `clash/rules/*.yaml` 文件
-3. 更新配置中的 URL 为你的仓库地址
-
-详细说明参见 [自定义规则文档](clash/rules/README.md)
-
-### 内网办公网络
-
-如果需要通过特定节点访问公司内网：
-
-```yaml
-# 1. 定义内网 IP 段
-rules:
-  - IP-CIDR,192.168.x.0/24,Office,no-resolve
-
-# 2. 定义内网域名
-  - DOMAIN-SUFFIX,company.internal,Office
-  - DOMAIN-SUFFIX,git.company.com,Office
-
-# 3. 跳过内网域名的嗅探
-sniffer:
-  skip-domain:
-    - "+.company.internal"
-    - "+.intranet.company.com"
-```
-
-**OpenClash 绕过黑名单**：
-
-如果启用了 OpenClash "绕过中国大陆" 功能，需要配置绕过黑名单以确保内网域名进入 Clash 内核：
-
-```bash
-# 将内网域名添加到绕过黑名单
-# 路径：/etc/openclash/custom/openclash_custom_chnroute_pass.list
-company.internal
-git.company.com
-192.168.x.0/24
-```
-
-详细配置说明参见 [OpenClash 绕过黑名单文档](clash/rules/README.md#-openclash-绕过黑名单bypass-blacklist)
+- **自定义路由规则**: [clash/rules/README.md](clash/rules/README.md)
+- **内网办公网络配置**: [clash/rules/README.md#openclash-绕过黑名单](clash/rules/README.md#-openclash-绕过黑名单bypass-blacklist)
+- **节点重命名脚本**: [sub-store/scripts/README.md](sub-store/scripts/README.md)
+- **完整部署指南**: [DEPLOYMENT-GUIDE.md](DEPLOYMENT-GUIDE.md)
 
 ## 🤝 贡献
 
