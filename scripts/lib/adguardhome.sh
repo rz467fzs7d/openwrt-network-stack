@@ -115,43 +115,28 @@ configure_adguardhome_initial() {
         backup_file "${config_file}"
     fi
 
-    # 下载配置模板
-    local template_url="${CDN_BASE_URL}/adguardhome/config/AdGuardHome.yaml.example"
-
-    log_info "下载配置模板..."
-    if ! download_file "${template_url}" "${config_file}" "AdGuard Home 配置模板"; then
-        log_warn "模板下载失败，使用默认配置"
-        generate_adguardhome_config
-    else
-        # 替换配置中的变量
-        sed -i "s/{{OPENWRT_IP}}/${OPENWRT_IP}/g" "${config_file}"
-        sed -i "s/{{AGH_WEB_PORT}}/${AGH_WEB_PORT}/g" "${config_file}"
-        sed -i "s/{{CLASH_DNS_PORT}}/${CLASH_DNS_PORT}/g" "${config_file}"
-    fi
+    # 生成最小化配置，让用户首次访问时通过向导配置
+    generate_adguardhome_config
 
     log_success "配置文件已生成: ${config_file}"
     return 0
 }
 
-# 生成 AdGuard Home 配置（如果模板下载失败）
+# 生成 AdGuard Home 最小化配置
 generate_adguardhome_config() {
     local config_file="/etc/adguardhome.yaml"
 
-    log_info "生成默认配置: ${config_file}"
+    log_info "生成初始配置: ${config_file}"
 
     cat > "${config_file}" <<EOF
 # AdGuard Home 配置文件
 # 自动生成 $(date '+%Y-%m-%d %H:%M:%S')
+# 首次访问 Web 界面时将启动配置向导
 
 bind_host: 0.0.0.0
 bind_port: ${AGH_WEB_PORT}
 
-users:
-  - name: admin
-    password: ""  # 首次访问时设置
-
-auth_attempts: 5
-block_auth_min: 15
+users: []
 
 http_proxy: ""
 language: zh-cn
@@ -162,48 +147,24 @@ dns:
     - 0.0.0.0
   port: ${AGH_DNS_PORT}
 
-  # 上游 DNS 服务器（OpenClash）
+  # 上游 DNS 将在首次配置时设置
   upstream_dns:
-    - 127.0.0.1:${CLASH_DNS_PORT}
+    - 223.5.5.5
+    - 119.29.29.29
 
-  # 备用 DNS
   bootstrap_dns:
     - 223.5.5.5
     - 119.29.29.29
 
-  # 查询缓存
   cache_size: 4194304
   cache_ttl_min: 60
   cache_ttl_max: 86400
   cache_optimistic: true
 
-  # 安全选项
-  enable_dnssec: false
-  edns_client_subnet:
-    enabled: false
-
-  # 速率限制
-  ratelimit: 20
-  ratelimit_subnet_len_ipv4: 24
-  ratelimit_subnet_len_ipv6: 56
-
-  # 并发请求
-  upstream_timeout: 10s
-  max_goroutines: 300
-
 tls:
   enabled: false
 
-filters:
-  - enabled: true
-    url: https://anti-ad.net/easylist.txt
-    name: "anti-AD"
-    id: 1
-
-  - enabled: true
-    url: https://raw.githubusercontent.com/crazy-max/WindowsSpyBlocker/master/data/hosts/spy.txt
-    name: "WindowsSpyBlocker"
-    id: 2
+filters: []
 
 whitelist_filters: []
 
@@ -212,64 +173,57 @@ user_rules: []
 dhcp:
   enabled: false
 
-clients:
-  runtime_sources:
-    whois: true
-    arp: true
-    rdns: true
-    dhcp: true
-    hosts: true
-
 log:
   enabled: true
   file: ""
   max_backups: 0
   max_size: 100
   max_age: 3
-  compress: false
-  local_time: false
-  verbose: false
-
-os:
-  group: ""
-  user: ""
-  rlimit_nofile: 0
 
 schema_version: 28
 EOF
 
-    log_success "默认配置已生成"
+    log_success "初始配置已生成"
 }
 
-# 禁用 dnsmasq DNS 功能
+# 禁用 dnsmasq 服务
 disable_dnsmasq_dns() {
-    log_info "禁用 dnsmasq DNS 功能..."
+    log_info "停止并禁用 dnsmasq 服务..."
 
-    # 备份配置
-    backup_file "/etc/config/dhcp"
+    # 旁路由模式下不需要 DHCP 和 DNS 功能，完全停止 dnsmasq
 
-    # 设置 dnsmasq 端口为 0（禁用 DNS）
-    if uci get dhcp.@dnsmasq[0].port >/dev/null 2>&1; then
-        uci set dhcp.@dnsmasq[0].port=0
-    else
-        uci add dhcp dnsmasq
-        uci set dhcp.@dnsmasq[0].port=0
+    # 停止服务
+    if check_service_status "dnsmasq"; then
+        log_info "停止 dnsmasq 服务..."
+        stop_service "dnsmasq"
     fi
 
-    # 提交配置
-    uci commit dhcp
-
-    # 重启 dnsmasq
-    restart_service "dnsmasq"
+    # 禁用自启动
+    log_info "禁用 dnsmasq 自启动..."
+    /etc/init.d/dnsmasq disable 2>/dev/null || true
 
     # 验证端口是否已释放
     sleep 2
     if netstat -tuln 2>/dev/null | grep -q ":53 .*LISTEN"; then
         log_error "端口 53 仍然被占用"
-        return 1
+        log_info "尝试手动停止占用进程..."
+
+        # 查找占用端口的进程
+        local pid=$(netstat -tulnp 2>/dev/null | grep ":53 " | awk '{print $7}' | cut -d'/' -f1)
+        if [ -n "${pid}" ]; then
+            log_warn "强制停止进程 ${pid}"
+            kill -9 ${pid} 2>/dev/null || true
+            sleep 1
+        fi
+
+        # 再次检查
+        if netstat -tuln 2>/dev/null | grep -q ":53 .*LISTEN"; then
+            log_error "端口 53 仍被占用，请手动处理"
+            return 1
+        fi
     fi
 
-    log_success "dnsmasq DNS 功能已禁用"
+    log_success "dnsmasq 服务已停止并禁用"
     return 0
 }
 
@@ -361,30 +315,19 @@ verify_adguardhome() {
 show_adguardhome_guide() {
     cat <<EOF
 
-${BOLD}${GREEN}AdGuard Home 后续配置步骤${NC}
+${BOLD}${GREEN}AdGuard Home 部署完成${NC}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-${BOLD}1. 访问 Web 界面${NC}
+${BOLD}管理地址:${NC}
    ${CYAN}http://${OPENWRT_IP}:${AGH_WEB_PORT}${NC}
 
-${BOLD}2. 首次设置${NC}
-   - 设置管理员用户名和密码
-   - 确认端口配置 (DNS: ${AGH_DNS_PORT}, Web: ${AGH_WEB_PORT})
-   - 完成初始化向导
+${BOLD}后续步骤:${NC}
+   1. 访问管理界面完成初始化向导
+   2. 设置管理员账号密码
+   3. 配置上游 DNS: ${YELLOW}127.0.0.1:${CLASH_DNS_PORT}${NC} (OpenClash)
+   4. 添加过滤列表（推荐: anti-AD）
 
-${BOLD}3. 配置上游 DNS${NC}
-   设置 → DNS 设置 → 上游 DNS 服务器:
-   ${DIM}127.0.0.1:${CLASH_DNS_PORT}${NC}
-
-${BOLD}4. 配置过滤器${NC}
-   过滤器 → DNS 封锁清单 → 添加拦截列表:
-   - anti-AD: ${DIM}https://anti-ad.net/easylist.txt${NC}
-   - AdGuard DNS filter: ${DIM}https://adguardteam.github.io/HostlistsRegistry/assets/filter_1.txt${NC}
-
-${BOLD}5. 测试 DNS 解析${NC}
-   ${CYAN}nslookup google.com ${OPENWRT_IP}${NC}
-
-${BOLD}详细配置文档:${NC}
+${BOLD}详细文档:${NC}
    ${DIM}https://github.com/${GITHUB_REPO}/blob/${GITHUB_BRANCH}/adguardhome/CONFIGURATION.md${NC}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

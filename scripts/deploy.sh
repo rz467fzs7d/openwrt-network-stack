@@ -151,25 +151,24 @@ ${BOLD}网络配置:${NC}
 
 ${BOLD}将要部署的组件:${NC}
   1. ${GREEN}AdGuard Home${NC}  - DNS 过滤和广告拦截
-     DNS 端口:     ${CYAN}${AGH_DNS_PORT}${NC}
+     DNS 端口:     ${CYAN}${AGH_DNS_PORT}${NC} (代替 dnsmasq)
      Web 端口:     ${CYAN}${AGH_WEB_PORT}${NC}
 
-  2. ${GREEN}Docker${NC}         - 容器运行环境
-     用于运行:     ${CYAN}Sub-Store${NC}
-
-  3. ${GREEN}Sub-Store${NC}      - 订阅管理
-     Web 端口:     ${CYAN}${SUBSTORE_WEB_PORT}${NC}
-     Backend:      ${CYAN}${SUBSTORE_BACKEND_PORT}${NC}
-
-  4. ${GREEN}OpenClash${NC}      - 代理和智能分流
-     DNS 端口:     ${CYAN}${CLASH_DNS_PORT}${NC}
+  2. ${GREEN}OpenClash${NC}      - 代理和智能分流
+     DNS 端口:     ${CYAN}127.0.0.1:${CLASH_DNS_PORT}${NC} (作为 AGH 上游)
+     代理端口:     ${CYAN}${CLASH_PROXY_PORT}${NC}
      ${YELLOW}(需要手动安装)${NC}
 
 ${BOLD}DNS 解析链:${NC}
   客户端 → AdGuard Home(:${AGH_DNS_PORT}) → OpenClash(:${CLASH_DNS_PORT}) → 上游 DNS
 
+${BOLD}注意事项:${NC}
+  - dnsmasq 将被完全停用并禁用自启动
+  - OpenClash 需要手动安装后才能配置
+  - 主路由需要设置 DHCP Option 6 (DNS) 为 ${CYAN}${OPENWRT_IP}${NC}
+
 ${BOLD}预计部署时间:${NC}
-  约 ${CYAN}10-15 分钟${NC} (取决于网络速度)
+  约 ${CYAN}5-10 分钟${NC} (取决于网络速度)
 
 ${BOLD}${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}
 
@@ -199,39 +198,13 @@ main_deployment() {
         fi
     fi
 
-    # Stage 3: 安装 Docker
-    if ! install_docker; then
-        log_error "Docker 安装失败"
-        log_warn "Sub-Store 需要 Docker 环境"
-        if ! ask_yes_no "是否继续部署" "n"; then
-            return 1
-        fi
-    fi
-
-    # 配置 Docker 防火墙规则
-    if ! configure_docker_firewall; then
-        log_warn "Docker 防火墙规则配置失败，容器网络可能受影响"
-    fi
-
-    # Stage 4: 部署 Sub-Store
-    if check_docker_running; then
-        if ! deploy_substore; then
-            log_error "Sub-Store 部署失败"
-            if ! ask_yes_no "是否继续部署" "y"; then
-                return 1
-            fi
-        fi
-    else
-        log_warn "跳过 Sub-Store 部署（Docker 未运行）"
-    fi
-
-    # Stage 5: 配置 OpenClash
+    # Stage 3: 配置 OpenClash
     if ! configure_openclash; then
         log_warn "OpenClash 配置未完成"
         log_info "您可以稍后手动配置 OpenClash"
     fi
 
-    # Stage 6: 配置主路由
+    # Stage 4: 配置主路由
     if ! configure_main_router; then
         log_warn "请记得配置主路由 DHCP 设置"
     fi
@@ -274,12 +247,6 @@ EOF
         echo "  ${RED}✗${NC} AdGuard Home:  ${DIM}未运行${NC}"
     fi
 
-    # Sub-Store
-    if check_container_status "sub-store" 2>/dev/null; then
-        echo "  ${GREEN}✓${NC} Sub-Store:      ${CYAN}http://${OPENWRT_IP}:${SUBSTORE_WEB_PORT}${NC}"
-    else
-        echo "  ${RED}✗${NC} Sub-Store:      ${DIM}未运行${NC}"
-    fi
 
     # OpenClash
     if check_service_status "openclash" 2>/dev/null; then
@@ -299,22 +266,13 @@ ${BOLD}后续步骤:${NC}
      - 配置过滤规则
      - 设置上游 DNS: ${CYAN}127.0.0.1:${CLASH_DNS_PORT}${NC}
 
-  ${BOLD}2. 配置 Sub-Store${NC}
-     访问: ${CYAN}http://${OPENWRT_IP}:${SUBSTORE_WEB_PORT}${NC}
-     - 添加订阅源
-     - 配置节点重命名
-     - 获取订阅链接
 
-  ${BOLD}3. 安装和配置 OpenClash${NC}
-     - 通过 opkg 或 LuCI 安装
-     - 上传配置文件
-     - 添加 Sub-Store 订阅链接
 
-  ${BOLD}4. 配置主路由 DHCP${NC}
+  ${BOLD}2. 配置主路由 DHCP${NC}
      - 设置 DNS 服务器: ${CYAN}${OPENWRT_IP}${NC}
      - 客户端重新获取 IP 地址
 
-  ${BOLD}5. 测试验证${NC}
+  ${BOLD}3. 测试验证${NC}
      ${DIM}nslookup google.com ${OPENWRT_IP}${NC}
 
 ${BOLD}文档和帮助:${NC}
