@@ -78,6 +78,34 @@ OpenClash DNS (127.0.0.1:7874)
     └─ 国外域名 → Fake IP → 代理节点
 ```
 
+## ⚡ 快速开始
+
+### 一键部署（推荐）
+
+使用自动化部署脚本，快速完成所有组件的安装和配置：
+
+```bash
+# 下载部署脚本
+wget https://raw.githubusercontent.com/rz467fzs7d/openwrt-network-stack/main/scripts/deploy.sh
+chmod +x deploy.sh
+
+# 运行部署
+./deploy.sh
+```
+
+脚本将自动完成：
+- ✅ AdGuard Home 安装和配置
+- ✅ Docker 环境安装
+- ✅ Sub-Store 容器部署
+- ✅ OpenClash 配置辅助
+- ✅ 网络配置验证
+
+详细说明: [scripts/README.md](scripts/README.md)
+
+### 手动部署
+
+如需逐步了解每个组件的配置细节，请查看 [DEPLOYMENT-GUIDE.md](DEPLOYMENT-GUIDE.md)。
+
 ## 📦 项目结构
 
 ```
@@ -89,6 +117,10 @@ openwrt-network-stack/
 │   ├── docker/         # Docker 部署方案
 │   └── scripts/        # 节点处理脚本
 ├── adguardhome/        # AdGuard Home 配置
+├── scripts/            # 一键部署脚本
+│   ├── deploy.sh       # 主部署脚本
+│   ├── lib/            # 函数库
+│   └── config/         # 配置文件
 └── DEPLOYMENT-GUIDE.md # 完整部署文档
 ```
 

@@ -1,0 +1,128 @@
+# 自定义配置示例
+# 复制此文件并根据您的需求修改
+
+# ============================================
+# 网络配置
+# ============================================
+
+# OpenWrt 旁路由 IP
+# 默认: 192.168.0.2
+OPENWRT_IP="192.168.0.2"
+
+# 主路由 IP
+# 默认: 192.168.0.1
+MAIN_ROUTER_IP="192.168.0.1"
+
+# 客户端 IP 范围起始
+# 默认: 192.168.0.101
+CLIENT_IP_START="192.168.0.101"
+
+# 客户端 IP 范围结束
+# 默认: 192.168.0.254
+CLIENT_IP_END="192.168.0.254"
+
+# ============================================
+# 组件端口配置
+# ============================================
+
+# AdGuard Home
+# DNS 端口（默认 53，不建议修改）
+AGH_DNS_PORT=53
+# Web 管理端口
+AGH_WEB_PORT=3000
+
+# OpenClash
+# DNS 端口（默认 7874，需与 OpenClash 配置一致）
+CLASH_DNS_PORT=7874
+# 代理端口
+CLASH_PROXY_PORT=7890
+
+# Sub-Store
+# Web 界面端口
+SUBSTORE_WEB_PORT=3001
+# Backend API 端口
+SUBSTORE_BACKEND_PORT=3000
+
+# ============================================
+# 部署配置
+# ============================================
+
+# 工作目录
+WORK_DIR="/root/openwrt-deploy"
+
+# Sub-Store 数据目录
+SUBSTORE_DIR="/root/sub-store"
+
+# 备份目录
+BACKUP_DIR="/root/openwrt-deploy-backup"
+
+# 日志目录
+LOG_DIR="/var/log"
+
+# ============================================
+# 下载源配置
+# ============================================
+
+# GitHub 仓库
+GITHUB_REPO="rz467fzs7d/openwrt-network-stack"
+GITHUB_BRANCH="main"
+
+# CDN 加速源 (jsdelivr)
+# 可选项:
+#   - jsdelivr: https://cdn.jsdelivr.net/gh/${GITHUB_REPO}@${GITHUB_BRANCH}
+#   - GitHub: https://raw.githubusercontent.com/${GITHUB_REPO}/${GITHUB_BRANCH}
+CDN_BASE_URL="https://cdn.jsdelivr.net/gh/${GITHUB_REPO}@${GITHUB_BRANCH}"
+
+# Sub-Store Docker 镜像
+# 可选项:
+#   - Docker Hub: sub-store/sub-store:latest
+#   - 自定义镜像: your-registry.com/sub-store:latest
+SUBSTORE_IMAGE="rz467fzs7d/sub-store:latest"
+
+# ============================================
+# 重试配置
+# ============================================
+
+# 网络操作最大重试次数
+MAX_RETRY=3
+
+# 重试间隔（秒）
+RETRY_INTERVAL=5
+
+# ============================================
+# 时区配置
+# ============================================
+
+# 时区设置
+# 常用选项:
+#   - Asia/Shanghai (中国)
+#   - Asia/Hong_Kong (香港)
+#   - America/New_York (纽约)
+#   - Europe/London (伦敦)
+TIMEZONE="Asia/Shanghai"
+
+# ============================================
+# 高级选项
+# ============================================
+
+# 是否在部署前自动备份现有配置
+# true/false
+AUTO_BACKUP=true
+
+# Docker 容器资源限制（可选）
+# 取消注释以启用
+# DOCKER_CPU_LIMIT="0.5"      # CPU 限制（核心数）
+# DOCKER_MEMORY_LIMIT="256M"  # 内存限制
+
+# ============================================
+# 使用说明
+# ============================================
+
+# 1. 复制此文件:
+#    cp config/custom.conf.example config/custom.conf
+#
+# 2. 编辑配置:
+#    vi config/custom.conf
+#
+# 3. 使用自定义配置部署:
+#    ./deploy.sh -c config/custom.conf
