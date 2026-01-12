@@ -4,6 +4,46 @@
 
 > 💡 **架构说明**: 查看 [README.md](README.md) 了解网络架构和拓扑结构
 
+## 🎯 部署方式选择
+
+### 方式 1: 一键部署脚本（推荐）⚡
+
+**适合**: 新手用户、快速部署、标准配置
+
+使用自动化部署脚本，一键完成所有组件的安装和配置：
+
+```bash
+# 下载部署脚本
+wget https://raw.githubusercontent.com/rz467fzs7d/openwrt-network-stack/main/scripts/deploy.sh
+
+# 添加执行权限
+chmod +x deploy.sh
+
+# 运行部署（交互式）
+./deploy.sh
+
+# 或使用默认配置自动部署
+./deploy.sh -y
+```
+
+**脚本特性**:
+- ✅ 自动安装 AdGuard Home、Docker、Sub-Store
+- ✅ 辅助配置 OpenClash
+- ✅ 交互式配置向导
+- ✅ 完整的错误处理和验证
+- ✅ 支持自定义配置
+- ✅ 约 10-15 分钟完成部署
+
+详细文档: [scripts/README.md](scripts/README.md)
+
+### 方式 2: 手动部署
+
+**适合**: 高级用户、自定义需求、了解每个步骤
+
+按照下方详细步骤手动安装和配置每个组件。
+
+---
+
 ## 📋 前置准备
 
 ### 环境要求
