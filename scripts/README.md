@@ -169,13 +169,19 @@ scripts/
 ├── config/               # 配置文件目录
 │   ├── default.conf      # 默认配置
 │   └── custom.conf       # 自定义配置（可选）
-└── lib/                  # 函数库目录
-    ├── common.sh         # 通用函数（日志、交互、系统检查）
-    ├── network.sh        # 网络配置函数
-    ├── docker.sh         # Docker 管理函数
-    ├── adguardhome.sh    # AdGuard Home 部署函数
-    ├── substore.sh       # Sub-Store 部署函数
-    └── openclash.sh      # OpenClash 配置函数
+├── lib/                  # 函数库目录
+│   ├── common.sh         # 通用函数（日志、交互、系统检查）
+│   ├── network.sh        # 网络配置函数
+│   ├── docker.sh         # Docker 管理函数
+│   ├── adguardhome.sh    # AdGuard Home 部署函数
+│   ├── substore.sh       # Sub-Store 部署函数
+│   └── openclash.sh      # OpenClash 配置函数
+└── dns-benchmark/        # DNS 性能基准测试工具
+    ├── dns_benchmark.sh  # Shell 版本 (OpenWrt 推荐)
+    ├── dns_benchmark.py  # Python 版本 (功能完整)
+    ├── references/       # 参考配置
+    │   └── dns_providers.yaml  # DNS 服务商配置
+    └── README.md         # 工具文档
 ```
 
 ## 日志文件
@@ -274,6 +280,10 @@ nslookup google.com 192.168.0.2
 
 # 测试 OpenClash DNS
 nslookup google.com 127.0.0.1 -port=7874
+
+# 使用 DNS Benchmark 工具测试性能
+cd dns-benchmark
+./dns_benchmark.sh
 ```
 
 ## 卸载
