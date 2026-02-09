@@ -174,29 +174,25 @@ profile:
 # endregion
 
 # region DNS 配置
-# ------------------------------------------------------------
-# DNS 配置
-# ------------------------------------------------------------
+# ============================================================
+# DNS 配置（Redir-Host 模式 + AdGuard Home 上游）
+# ============================================================
 dns:
   enable: true
   ipv6: true
-  enhanced-mode: fake-ip
-  fake-ip-range: 198.18.0.0/16
+  enhanced-mode: redir-host
   respect-rules: true
+  cache: true              # 开启 DNS 缓存
+  cache-size: 4096        # 缓存条数
 
   # 引导 DNS（解析 DoH 服务器域名）
   default-nameserver:
     - 223.5.5.5
-    - 223.6.6.6
     - 119.29.29.29
 
-  # 代理服务器域名解析专用 DNS
-  proxy-server-nameserver:
-    - https://dns.alidns.com/dns-query
-    - https://1.12.12.12/dns-query
-    - https://doh.pub/dns-query
-
   # 主 DNS 服务器
+  # 注意：AdGuard Home 作为上游，会将 DNS 查询转发到这里
+  # nameserver 负责解析国内域名（返回真实 IP）
   nameserver:
     - https://dns.alidns.com/dns-query
     - https://1.12.12.12/dns-query
@@ -204,69 +200,28 @@ dns:
 
   # 域名级 DNS 策略
   nameserver-policy:
-    # AdGuard DNS 域名直接解析（避免循环：规则走代理，但解析时还没有 IP）
-    "+.adguard-dns.com": 223.5.5.5
-    "+.dns.adguard.com": 223.5.5.5
-
-    # 内网私有域名使用内网 DNS 解析（公网 DNS 无法解析的情况）
-    # 场景：企业内网域名（如 git.company.internal），公网 DNS 无法解析
-    # 配置方式：
-    #   1. 指定内网 DNS 服务器（如 192.168.x.x）
-    #   2. 确保内网 DNS 可访问（需配合 IP-CIDR 规则）
-    #   3. 内网 DNS 的流量会通过 IP-CIDR 规则路由到特定策略组（如 Office/VPN）
-    #
-    # 示例 1：内网主域名（所有子域名都使用内网 DNS）
-    #   "+.internal.company.com": 192.168.10.53
-    #
-    # 示例 2：特定内网服务（精确匹配）
-    #   "git.company.internal": 192.168.10.53
-    #   "gitlab.company.internal": 192.168.10.53
-    #
-    # 注意：
-    #   - 内网 DNS 服务器 IP（如 192.168.10.53）需要在规则中配置走特定策略
-    #   - 规则示例：IP-CIDR,192.168.10.0/24,Office,no-resolve
-    #   - 这样 DNS 查询会通过 Office 策略组（如 ZeroTier/VPN）访问内网 DNS
-
-  # fake-ip 过滤（这些域名返回真实 IP）
-  fake-ip-filter:
-    - "+.lan"
-    - "+.local"
-    - "+.srv.nintendo.net"
-    - "+.stun.playstation.net"
-    - "xbox.*.*.microsoft.com"
-    - "*.*.xboxlive.com"
-    - "+.battlenet.com.cn"
-    - "+.wotgame.cn"
-    - "stun.*.*"
-    - "stun.*.*.*"
-    - "+.music.163.com"
-    - "+.music.126.net"
-    - "+.spotify.com"
-    - "+.pandora.com"
-    - "localhost.ptlogin2.qq.com"
-    - "+.126.net"
-    - "+.127.net"
-    - "+.mail.com"
-    - "+.market.xiaomi.com"
-    - "dlg.io.mi.com"
-    - "+.pool.ntp.org"
-    - "time.*.com"
-    - "ntp.*.com"
-    - "+.ntp.org.cn"
+    # AdGuard DNS 域名需要直接解析（避免循环：规则走代理，但解析时还没有 IP）
+    "+.adguard-dns.com": https://dns.alidns.com/dns-query
+    "+.dns.adguard.com": https://dns.alidns.com/dns-query
+    # Docker Hub（必须用海外 DNS，国内 DNS 会污染）
+    "+.docker.io": https://8.8.4.4/dns-query
 
   # 备用 DNS（DNS 污染检测）
+  # 当 nameserver 返回的 IP 不符合 fallback-filter 条件时，使用此 DNS
   fallback:
-    - https://8.8.8.8/dns-query
+    - tls://8.8.4.4:853
+    - https://dns.adguard-dns.com/dns-query
 
   # 备用 DNS 触发条件
   fallback-filter:
-    geoip: true
-    geoip-code: CN
+    geoip: true           # 开启 GeoIP 检测
+    geoip-code: CN       # 期望返回 CN IP，不符合则触发 fallback
     geosite:
-      - gfw
+      - gfw              # GFW 列表域名触发
     ipcidr:
-      - 240.0.0.0/4
-      - 0.0.0.0/32
+      - 240.0.0.0/4     # 保留 IP 段
+      - 0.0.0.0/32      # 特殊 IP
+    # 强制使用 Fallback DNS 的域名（这些域名必须通过海外 DNS 解析）
     domain:
       - "+.google.com"
       - "+.facebook.com"
