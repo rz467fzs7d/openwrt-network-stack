@@ -459,6 +459,191 @@ A: OpenWrt 上：
 - CPU: 空闲 < 1%，转发流量 5-15%
 - 推荐: 至少 256MB RAM
 
+## DNS 配置详解
+
+### DNS 架构设计
+
+```
+设备 → AdGuard Home (192.168.0.1:53) → OpenClash (127.0.0.1:7874) → 上游 DNS
+         ↓
+    广告拦截/过滤
+         ↓
+    转发到 OpenClash
+```
+
+### 核心配置
+
+```yaml
+dns:
+  enable: true
+  ipv6: true
+  enhanced-mode: redir-host
+  respect-rules: true
+  cache: true
+  cache-size: 4096
+
+  # 引导 DNS（解析 DoH 服务器域名）
+  default-nameserver:
+    - 223.5.5.5
+    - 119.29.29.29
+
+  # 主 DNS - 国内域名用国内解析
+  nameserver:
+    - https://dns.alidns.com/dns-query
+    - https://1.12.12.12/dns-query
+    - https://doh.pub/dns-query
+
+  # 域名级策略 - 强制指定 DNS
+  nameserver-policy:
+    "+.adguard-dns.com": https://dns.alidns.com/dns-query
+    "+.dns.adguard.com": https://dns.alidns.com/dns-query
+
+  # Fallback - 海外 DNS（解决污染）
+  fallback:
+    - tls://8.8.4.4:853
+    - https://dns.adguard-dns.com/dns-query
+
+  # Fallback 触发条件
+  fallback-filter:
+    geoip: true           # 开启检测
+    geoip-code: CN        # 期望 CN IP
+    geosite:
+      - gfw              # GFW 列表域名
+    ipcidr:
+      - 240.0.0.0/4
+      - 0.0.0.0/32
+    domain:              # 强制走 Fallback 的域名
+      - "+.google.com"
+      - "+.facebook.com"
+      - "+.twitter.com"
+      - "+.youtube.com"
+      - "+.docker.io"
+```
+
+### nameserver vs nameserver-policy
+
+| 配置 | 作用 | 优先级 |
+|------|------|--------|
+| `nameserver` | 默认 DNS 服务器 | 中 |
+| `nameserver-policy` | 特定域名强制使用指定 DNS | 高 |
+| `fallback` | 备用 DNS（重试时使用） | 低 |
+
+**示例：**
+```yaml
+nameserver:
+  - https://dns.alidns.com/dns-query  # 默认用国内 DNS
+
+nameserver-policy:
+  "+.docker.io": https://8.8.4.4/dns-query  # Docker Hub 强制用海外 DNS
+```
+
+### fallback-filter 详解
+
+```yaml
+fallback-filter:
+  geoip: true           # 检测返回 IP 是否属地 CN
+  geoip-code: CN        # 期望 CN IP（不符合则触发 fallback）
+  geosite:
+    - gfw              # 域名在 GFW 列表时触发
+  ipcidr:
+    - 240.0.0.0/4     # 保留 IP 段
+    - 0.0.0.0/32       # 特殊 IP
+  domain:
+    - "+.example.com" # 特定域名强制触发
+```
+
+**触发条件：**
+
+| 条件 | 说明 | 触发 Fallback？ |
+|------|------|----------------|
+| `geoip: true` | 返回 IP 不属地 CN | ✅ |
+| `geosite: gfw` | 域名在 GFW 列表 | ✅ |
+| `ipcidr: ...` | IP 是保留/特殊地址 | ✅ |
+| `domain: ...` | 特定域名 | ✅ |
+
+### 常见污染域名处理
+
+```yaml
+nameserver-policy:
+  # Docker Hub - 必须用海外 DNS
+  "+.docker.io": https://8.8.4.4/dns-query
+  "+.registry-1.docker.io": https://8.8.4.4/dns-query
+
+  # GitHub - 国内 DNS 可能污染
+  "+.github.com": https://8.8.4.4/dns-query
+  "+.githubusercontent.com": https://8.8.4.4/dns-query
+```
+
+## DNS 故障排查
+
+### 症状：域名解析返回错误 IP
+
+**诊断流程：**
+```bash
+# 1. 测试不同 DNS 服务器
+dig +short registry-1.docker.io @192.168.0.1    # AdGuard
+dig +short registry-1.docker.io @192.168.0.2      # Clash
+dig +short registry-1.docker.io @8.8.4.4         # Google
+
+# 2. 验证 IP 属地
+curl -s ipinfo.io/<IP> | grep country
+
+# 3. 查看 AdGuard QueryLog
+cat /tmp/adguardhome/data/querylog.json | grep docker.io
+
+# 4. 检查 Clash 配置
+grep -A 15 "fallback-filter:" /etc/openclash/config-mihomo-*.yaml
+```
+
+### 症状：Docker Hub 连接超时
+
+**诊断：**
+```bash
+# DNS 解析测试
+dig +short registry-1.docker.io @192.168.0.2
+
+# 应该返回 AWS IP（正确），而不是 Facebook IP（错误）
+
+# 代理节点测试
+curl -s -o /dev/null -w "%{http_code}" https://registry-1.docker.io/v2/
+```
+
+### 症状：规则不生效
+
+**诊断：**
+```bash
+# 检查规则匹配
+logread | grep "match RuleSet"
+
+# 检查规则文件
+cat /etc/openclash/rule-providers/docker.yaml | head -20
+```
+
+## AdGuard Home 配置要点
+
+```yaml
+# /etc/adguardhome.yaml
+dns:
+  bind_hosts:
+    - 0.0.0.0
+  port: 53
+
+  upstream_dns:
+    - 127.0.0.1:7874    # OpenClash DNS 上游
+
+  bootstrap_dns:
+    - 192.168.0.1      # 路由器 IP
+
+  all_servers: true     # 并行查询所有上游
+
+  cache_size: 0        # 禁用缓存，由 Clash 处理
+```
+
+**关键点：**
+- `upstream_dns` 指向 OpenClash (127.0.0.1:7874)
+- `bootstrap_dns` 用于解析 `upstream_dns` 中的 DoH 域名
+- `all_servers: true` 可能导致国内 DNS 先返回（通常更快）
+
 ---
 
-**最后更新**: 2025-01-09
+**最后更新**: 2025-02-08
