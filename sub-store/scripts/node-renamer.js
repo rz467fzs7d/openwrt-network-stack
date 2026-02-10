@@ -17,6 +17,11 @@
 
 const $ = $substore;
 const { format = null, connector = ' ', sort = null } = $arguments;
+// 兼容大小写的参数名
+const args = $arguments;
+const Format = args.Format || args.format || format;
+const Connector = args.Connector || args.connector || connector;
+const Sort = args.Sort || args.sort || sort;
 
 // 常量定义（简化版）
 const ISP_MAP = {
@@ -800,8 +805,8 @@ function operator(proxies) {
             const index = regionCounters[regionInfo.code];
 
             // 格式化
-            if (format) {
-                proxy.name = recursiveFormat(originalName, format, regionInfo, index, $arguments.connector || ' ');
+            if (Format) {
+                proxy.name = recursiveFormat(originalName, Format, regionInfo, index, Connector);
             } else {
                 proxy.name = removeRegionInfo(originalName, regionInfo);
             }
@@ -811,13 +816,13 @@ function operator(proxies) {
     $.info(`地区格式化完成: 成功 ${matchedCount} 个, 未匹配 ${unmatchedCount} 个`);
 
     // 排序
-    if (sort) {
-        const sortRules = parseSortRules(sort);
+    if (Sort) {
+        const sortRules = parseSortRules(Sort);
         if (sortRules.length > 0) {
             proxies = applySort(proxies, sortRules);
 
             // 重新计算索引
-            if (format && (format.includes('{index}') || format.includes('{index:'))) {
+            if (Format && (Format.includes('{index}') || Format.includes('{index:'))) {
                 const newRegionCounters = {};
                 proxies.forEach(proxy => {
                     if (proxy.code) {
@@ -829,7 +834,7 @@ function operator(proxies) {
                         const regionInfo = REGION_MAP[proxy.code];
                         if (regionInfo) {
                             // 重新生成名称，使用原始名称和新的索引
-                            proxy.name = recursiveFormat(proxy.originalName, format, regionInfo, newRegionCounters[proxy.code], $arguments.connector || ' ');
+                            proxy.name = recursiveFormat(proxy.originalName, Format, regionInfo, newRegionCounters[proxy.code], Connector);
                         }
                     }
                 });
