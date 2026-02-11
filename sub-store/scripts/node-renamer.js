@@ -227,6 +227,7 @@ function recursiveFormat(originalName, format, regionInfo, index, connector) {
             } else if (placeholder === 'isp_code') {
                 // ISP 代码
                 for (const [isp, info] of Object.entries(ISP_MAP)) {
+                    if (!info || !info.keywords) continue;
                     for (const keyword of info.keywords) {
                         if (matchKeyword(remaining, keyword)) {
                             value = info.code;
@@ -238,6 +239,7 @@ function recursiveFormat(originalName, format, regionInfo, index, connector) {
             } else if (placeholder === 'isp_name') {
                 // ISP 名称
                 for (const [isp, info] of Object.entries(ISP_MAP)) {
+                    if (!info || !info.keywords) continue;
                     for (const keyword of info.keywords) {
                         if (matchKeyword(remaining, keyword)) {
                             value = info.name;
@@ -499,18 +501,24 @@ function hasTag(proxy, tag) {
 
     // 检查预定义标签
     for (const [tagKey, tagInfo] of Object.entries(OTHER_TAGS_MAP)) {
-        if (tagKey.toUpperCase() === tagUpper || tagInfo.output.toUpperCase() === tagUpper) {
-            for (const keyword of tagInfo.keywords) {
-                if (matchKeyword(lowerName, keyword)) return true;
+        if (!tagInfo) continue;
+        if (tagKey.toUpperCase() === tagUpper || (tagInfo.output && tagInfo.output.toUpperCase() === tagUpper)) {
+            if (tagInfo.keywords && Array.isArray(tagInfo.keywords)) {
+                for (const keyword of tagInfo.keywords) {
+                    if (matchKeyword(lowerName, keyword)) return true;
+                }
             }
         }
     }
 
     // 检查运营商
     for (const [ispKey, ispInfo] of Object.entries(ISP_MAP)) {
-        if (ispKey.toUpperCase() === tagUpper || ispInfo.code.toUpperCase() === tagUpper) {
-            for (const keyword of ispInfo.keywords) {
-                if (matchKeyword(lowerName, keyword)) return true;
+        if (!ispInfo) continue;
+        if (ispKey.toUpperCase() === tagUpper || (ispInfo.code && ispInfo.code.toUpperCase() === tagUpper)) {
+            if (ispInfo.keywords && Array.isArray(ispInfo.keywords)) {
+                for (const keyword of ispInfo.keywords) {
+                    if (matchKeyword(lowerName, keyword)) return true;
+                }
             }
         }
     }
@@ -530,6 +538,7 @@ function detectRegionCode(proxy) {
     const lowerName = name.toLowerCase();
 
     for (const [code, info] of Object.entries(REGION_MAP)) {
+        if (!info || !info.keywords) continue;
         for (const keyword of info.keywords) {
             if (matchKeyword(lowerName, keyword)) return code;
         }
@@ -545,6 +554,7 @@ function detectISP(proxy) {
     const lowerName = name.toLowerCase();
 
     for (const [isp, info] of Object.entries(ISP_MAP)) {
+        if (!info || !info.keywords) continue;
         for (const keyword of info.keywords) {
             if (matchKeyword(lowerName, keyword)) return info.code;
         }
@@ -599,7 +609,7 @@ function applySort(proxies, sortRules) {
                 // 获取 ISP 名称
                 const getISPName = (code) => {
                     for (const [isp, info] of Object.entries(ISP_MAP)) {
-                        if (info.code === code) return info.name;
+                        if (info && info.code === code) return info.name;
                     }
                     return code;
                 };
