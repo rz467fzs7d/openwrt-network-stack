@@ -609,7 +609,7 @@ function applySort(proxies, sortRules) {
                 // 获取 ISP 名称
                 const getISPName = (code) => {
                     for (const [isp, info] of Object.entries(ISP_MAP)) {
-                        if (info && info.code === code) return info.name;
+                        if (info.code === code) return info.name;
                     }
                     return code;
                 };
