@@ -18,3 +18,9 @@ payload:
   - DOMAIN-SUFFIX,lgthinq.com
   - DOMAIN-SUFFIX,rssforever.com
   - DOMAIN-SUFFIX,kr-av.com
+
+  # Sonos
+  - DOMAIN-SUFFIX,sonos.com
+  - DOMAIN-SUFFIX,sonos.net
+  - DOMAIN-SUFFIX,sonos.io
+  - DOMAIN-SUFFIX,sonos.radio
