@@ -1,0 +1,8 @@
+payload:
+  # Sonos
+  - DOMAIN-SUFFIX,sonos.com
+  - DOMAIN-SUFFIX,sonos.net
+  - DOMAIN-SUFFIX,sonos.io
+  - DOMAIN-SUFFIX,sonos.radio
+
+  - DOMAIN-KEYWORD,sonos
