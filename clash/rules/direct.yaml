@@ -3,3 +3,4 @@ payload:
   - DOMAIN,clients.plex.tv
   - DOMAIN-KEYWORD,direct
   - DOMAIN-KEYWORD,checkip
+  - DOMAIN,pgu1.synology.me
