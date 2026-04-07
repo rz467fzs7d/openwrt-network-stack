@@ -3,4 +3,7 @@ payload:
   - DOMAIN,clients.plex.tv
   - DOMAIN-KEYWORD,direct
   - DOMAIN-KEYWORD,checkip
+  - DOMAIN-SUFFIX,5bx6h.net
   - DOMAIN,pgu1.synology.me
+  - DOMAIN-SUFFIX,ascwqw.org
+  - DOMAIN,enetsub.egeturl.com
