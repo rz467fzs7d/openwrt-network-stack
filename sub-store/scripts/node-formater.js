@@ -111,7 +111,7 @@ async function operator(proxies = [], targetPlatform, context) {
     const api_url = $arguments.api || 'http://ip-api.com/json?lang=zh-CN';
     const method = $arguments.method || 'get';
     const concurrency = parseInt($arguments.concurrency || 10);
-    const node_timeout = parseFloat($arguments.timeout || $arguments.t ?? 1000);
+    const node_timeout = parseFloat($arguments.timeout ?? $arguments.t ?? 1000);
     const retries = parseFloat($arguments.retries ?? 1);
     const retry_delay = parseFloat($arguments.retry_delay ?? 1000);
 
