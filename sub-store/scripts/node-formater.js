@@ -5,37 +5,48 @@
  *
  * 功能特性：
  * - HTTP META 探测节点落地 region（国家/ISP）
- * - 单节点超时抛弃
+ * - 单节点超时抛弃（latency > timeout 即丢弃）
  * - 支持 rename 模板（兼容 node-renamer 语法）
- * - 支持高级排序
+ * - 支持高级排序，按 region 分组编号
+ * - 支持限制返回数量
  *
  * HTTP META 参数
- * - [http_meta_protocol] 协议 默认: http
- * - [http_meta_host] 服务地址 默认: 127.0.0.1
- * - [http_meta_port] 端口号 默认: 9876
- * - [http_meta_authorization] Authorization 默认无
- * - [http_meta_start_delay] 初始启动延时(单位: 毫秒) 默认: 3000
- * - [http_meta_proxy_timeout] 每个节点预估耗时(单位: 毫秒) 默认: 10000
+ * - http_meta_protocol    协议            默认: http
+ * - http_meta_host        服务地址        默认: 127.0.0.1
+ * - http_meta_port         端口            默认: 9876
+ * - http_meta_authorization Authorization 默认: 空
+ * - http_meta_start_delay 初始延时(ms)    默认: 3000
+ * - http_meta_proxy_timeout 每节点预估耗时(ms) 默认: 10000
  *
  * 探测参数
- * - [api] 测落地的 API 默认: http://ip-api.com/json?lang=zh-CN
- * - [method] 请求方法 默认: get
- * - [concurrency] 并发数 默认: 10
- * - [timeout] 单节点超时(单位: 毫秒) 默认: 1000，超时视为失败并抛弃
- * - [retries] 重试次数 默认: 1
- * - [retry_delay] 重试延时(单位: 毫秒) 默认: 1000
+ * - api         测落地的 API  默认: http://ip-api.com/json?lang=zh-CN
+ * - method      请求方法      默认: get
+ * - concurrency 并发数        默认: 10
+ * - timeout / t 单节点超时(ms) 默认: 1000，latency > timeout 则丢弃
+ * - retries     重试次数      默认: 1
+ * - retry_delay 重试延时(ms)  默认: 1000
  *
  * Rename 参数
- * - [format] / [f] 格式化模板，默认: {region_code} {isp_code}
- * - [connector] / [c] 占位符连接符 默认: ' '
+ * - format / f   格式化模板    默认: {region_code} {isp_code}
+ * - connector / c 占位符连接符 默认: ' '
  *
  * Sort 参数
- * - [sort] / [s] 排序规则
- *          新语法: {region_code} ASC, {tag(IPLC)} DESC, {index} ASC
- *          兼容旧语法: region_code ASC, tag(IPLC) DESC
+ * - sort / s   排序规则
+ *   新语法: {region} ASC, {tag(IPLC)} DESC, {index} ASC
+ *   兼容旧语法: region_code ASC, tag(IPLC) DESC
  *
  * 过滤参数
- * - [remove_failed] 移除探测失败的节点 默认: true
+ * - remove_failed 移除失败节点 默认: true
+ * - limit / l     限制返回数量 默认: 0（不限制）
+ *
+ * 缓存策略：
+ * - 探测结果缓存 10 分钟（由 Sub-Store 资源缓存控制）
+ * - 缓存命中时，用当前 timeout 参数重新比较
+ *   latency <= timeout → 通过
+ *   latency > timeout → 丢弃（不重新探测）
+ *
+ * 使用示例（mode: link）：
+ * https://cdn地址#f={region}{i:2d}{tag}&c=-&s={region}ASC&t=800&l=20&remove_failed=true
  */
 
 // ============================================================
