@@ -214,14 +214,14 @@ async function operator() {
     proxies.forEach(proxy => renameProxy(proxy, format, connector));
     $substore.info('RENAME_DONE: ' + proxies.map(p => p.name).join(' | '));
 
-    // ---- Step 4: Sort ----
+// ---- Step 4: Sort ----
     if (sort) {
+        $substore.info('SORT_DEBUG: sort=[' + sort + ']');
         const sortRules = parseSortRules(sort);
+        $substore.info('SORT_DEBUG: rules=' + JSON.stringify(sortRules));
         if (sortRules.length > 0) {
             proxies = applySort(proxies, sortRules);
-            $.info(`排序完成`);
-        }
-    }
+            $substore.info('SORT_DEBUG: sorted, first=' + (proxies[0] && proxies[0].name));
 
     // ---- Step 5: 移除失败节点 ----
     if (remove_failed) {
