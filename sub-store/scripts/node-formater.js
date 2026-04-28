@@ -200,9 +200,19 @@ async function operator(proxies = [], targetPlatform, context) {
         internalProxies.forEach(ip => {
             const cached = scriptResourceCache.get(getProbeCacheKey(ip));
             if (cached !== undefined) {
-                applyProbeResult(ip, proxies, cached);
-                cacheHit.push({ ip, cached });
-                onResult(ip, cached);
+                // 缓存命中：用当前 timeout 参数重新判断是否可用
+                if (cached.latency !== undefined && cached.latency <= node_timeout) {
+                    applyProbeResult(ip, proxies, cached);
+                    cacheHit.push({ ip, cached });
+                    onResult(ip, cached);
+                    $.info(`[${ip.name}] CACHE_HIT latency=${cached.latency}ms <= ${node_timeout}ms`);
+                } else {
+                    // 缓存的延迟超过当前 timeout，视为失败（不重新探测）
+                    applyProbeResult(ip, proxies, null);
+                    cacheHit.push({ ip, cached: null });
+                    onResult(ip, null);
+                    $.info(`[${ip.name}] CACHE_SLOW latency=${cached.latency}ms > ${node_timeout}ms, discard`);
+                }
             } else {
                 needsMeta.push(ip);
             }
