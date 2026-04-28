@@ -162,8 +162,8 @@ async function operator(proxies = [], targetPlatform, context) {
         $.info(`探测完成: 成功 ${probeSuccess}, 失败 ${probeFail}`);
     }
 
-    // ---- Step 3: Rename (所有环境都执行) ----
-    proxies.forEach(proxy => renameProxy(proxy, format, connector));
+    // ---- Step 3: Rename (所有环境都执行，index 暂用原始数字或0) ----
+    proxies.forEach(proxy => renameProxy(proxy, format, connector, 0));
 
     // ---- Step 4: Sort ----
     if (sort) {
@@ -171,6 +171,14 @@ async function operator(proxies = [], targetPlatform, context) {
         if (sortRules.length > 0) {
             proxies = applySort(proxies, sortRules);
         }
+    }
+
+    // ---- Step 4.5: 按 region 分组编号，然后重新格式化 ----
+    if (format) {
+        proxies = reassignGroupIndex(proxies);
+        proxies.forEach(proxy => {
+            proxy.name = applyFormat(proxy, format, connector);
+        });
     }
 
     // ---- Step 5: 移除失败节点 ----
@@ -320,7 +328,7 @@ function getProbeCacheKey(proxy) {
 // ============================================================
 // Rename 函数
 // ============================================================
-function renameProxy(proxy, formatStr, connectorStr) {
+function renameProxy(proxy, formatStr, connectorStr, groupIndex = 0) {
     const originalName = proxy.name || '';
     const lowerName = originalName.toLowerCase();
 
@@ -358,9 +366,12 @@ function renameProxy(proxy, formatStr, connectorStr) {
     // 检测 tag
     proxy.tag = detectTag(lowerName);
 
-    // 检测 index
-    const indexMatches = [...originalName.matchAll(/\d+/g)];
-    proxy.index = indexMatches.length > 0 ? parseInt(indexMatches[indexMatches.length - 1][0]) : 0;
+    // groupIndex 来自外部重排，原始 index 备用
+    proxy.index = groupIndex;
+    proxy._rawIndex = (() => {
+        const m = [...originalName.matchAll(/\d+/g)];
+        return m.length > 0 ? parseInt(m[m.length - 1][0]) : 0;
+    })();
 
     // 检测 otherTags
     proxy.otherTags = detectAllTags(lowerName);
@@ -615,6 +626,27 @@ function applySort(proxies, rules) {
         }
         return 0;
     });
+}
+
+// ============================================================
+// 按 region 分组编号（同一个 region 内的节点依次编号 1, 2, 3...）
+// 编号后再重新格式化，确保 index 跟在 region 后连续递增
+// ============================================================
+function reassignGroupIndex(proxies) {
+    const groups = {};
+    proxies.forEach(p => {
+        const key = p.region_code || 'ZZ';
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(p);
+    });
+
+    Object.values(groups).forEach(group => {
+        group.forEach((p, i) => {
+            p.index = i + 1;
+        });
+    });
+
+    return proxies;
 }
 
 // ============================================================
