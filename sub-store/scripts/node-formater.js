@@ -632,6 +632,9 @@ function applySort(proxies, rules) {
     if (!rules || rules.length === 0) return proxies;
 
     return [...proxies].sort((a, b) => {
+        const va = a._geo?.countryCode || a.region_code || 'ZZ';
+        const vb = b._geo?.countryCode || b.region_code || 'ZZ';
+        $substore.info('SORT: a=' + a.name + ' va=' + va + ' b=' + b.name + ' vb=' + vb);
         for (const rule of rules) {
             const { type, values, hasValues, order } = rule;
             let comparison = 0;
