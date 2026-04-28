@@ -514,7 +514,6 @@ function resolvePlaceholder(proxy, placeholder, conn) {
     const fieldMap = {
         'region_code': proxy.region_code,
         'region': proxy.region_code,  // 简写
-        'r': proxy.region_code,        // 简写
         'region_name': proxy.region_name,
         'region_name_cn': proxy.region_name_cn,
         'region_flag': proxy.region_flag,
@@ -562,7 +561,10 @@ function parseSortRules(sortString) {
     for (const part of parts) {
         if (!part) continue;
 
-        const newMatch = part.match(/^\{([^}]+)\}\s*(ASC|DESC)?$/i);
+        // 支持两种语法:
+        // {region(SG,US)} ASC — 值在括号内
+        // {region}(SG,US) ASC — 值在括号外
+        const newMatch = part.match(/^\{([^}]+)\}(?:\(([^)]+)\))?\s*(ASC|DESC)?$/i);
         const oldMatch = !newMatch ? part.match(/^([\w_]+)(?:\(([^)]+)\))?(?:\s+(ASC|DESC))?$/i) : null;
 
         let field, values, order;
@@ -571,13 +573,18 @@ function parseSortRules(sortString) {
             const inside = newMatch[1];
             const parenIdx = inside.indexOf('(');
             if (parenIdx !== -1) {
+                // {region(SG,US)} 形式
                 field = inside.substring(0, parenIdx).trim();
                 values = inside.substring(parenIdx + 1, inside.length - 1).split(',').map(v => v.trim().toUpperCase());
+            } else if (newMatch[2]) {
+                // {region}(SG,US) 形式，值在括号外
+                field = inside.trim();
+                values = newMatch[2].split(',').map(v => v.trim().toUpperCase());
             } else {
                 field = inside.trim();
                 values = [];
             }
-            order = (newMatch[2] || 'ASC').toLowerCase();
+            order = (newMatch[3] || 'ASC').toLowerCase();
         } else if (oldMatch) {
             field = oldMatch[1].toLowerCase();
             values = oldMatch[2] ? oldMatch[2].split(',').map(v => v.trim().toUpperCase()) : [];
@@ -587,7 +594,7 @@ function parseSortRules(sortString) {
         }
 
         const fieldMap = {
-            'region_code': 'countryCode', 'region': 'countryCode', 'r': 'countryCode',
+            'region_code': 'countryCode', 'region': 'countryCode',
             'region_name': 'countryName',
             'region_flag': 'countryFlag', 'tag': 'tag',
             'isp_code': 'ispCode', 'isp_name': 'ispName',
