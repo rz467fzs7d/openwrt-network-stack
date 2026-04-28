@@ -210,6 +210,7 @@ async function operator() {
 
     // ---- Step 3: Rename (所有环境都执行) ----
     proxies.forEach(proxy => renameProxy(proxy, format, connector));
+    $substore.info('RENAME_DONE: ' + proxies.map(p => p.name).join(' | '));
 
     // ---- Step 4: Sort ----
     if (sort) {
