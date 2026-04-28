@@ -93,11 +93,6 @@ const connector = args.connector || args.c || args.Connector || ' ';
 const sort = args.sort || args.s || null;
 const remove_failed = args.remove_failed !== false;
 
-// DEBUG
-$substore.info('DEBUG format=' + JSON.stringify(format));
-$substore.info('DEBUG connector=' + JSON.stringify(connector));
-$substore.info('DEBUG sort=' + JSON.stringify(sort));
-
 // ============================================================
 // 常量
 // ============================================================
@@ -433,9 +428,7 @@ function renameProxy(proxy, formatStr, connectorStr) {
 
     // 格式化
     if (formatStr) {
-        const newName = applyFormat(proxy, formatStr, connectorStr);
-        $substore.info('applyFormat: proxy.name=[' + proxy.name + '] formatStr=[' + formatStr + '] result=[' + newName + ']');
-        proxy.name = newName;
+        proxy.name = applyFormat(proxy, formatStr, connectorStr);
     }
 }
 
