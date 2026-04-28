@@ -275,7 +275,13 @@ async function operator(proxies = [], targetPlatform, context) {
             const latency = Date.now() - startedAt;
             const status = parseInt(res.status || res.statusCode || 200);
 
-            if (status === 200) {
+            // 超时判断：即使 HTTP 成功返回，若延迟 > node_timeout 也视为失败
+            if (latency > node_timeout) {
+                const cached = null;
+                applyProbeResult(proxy, proxies, cached);
+                scriptResourceCache.set(getProbeCacheKey(proxy), cached);
+                $.info(`[${proxy.name}] SLOW latency=${latency}ms > ${node_timeout}ms, discard`);
+            } else if (status === 200) {
                 let geoData;
                 try {
                     geoData = JSON.parse(String(res.body));
