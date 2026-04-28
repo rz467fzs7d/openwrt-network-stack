@@ -4,10 +4,10 @@
  * Sub-Store 节点格式化脚本 - 探测、抛弃、重命名、排序 一次完成
  *
  * 功能特性：
- * - ✅ HTTP META 探测节点落地 region（国家/ISP）
- * - ✅ 单节点超时抛弃
- * - ✅ 支持 rename 模板（兼容 node-renamer 语法）
- * - ✅ 支持高级排序
+ * - HTTP META 探测节点落地 region（国家/ISP）
+ * - 单节点超时抛弃
+ * - 支持 rename 模板（兼容 node-renamer 语法）
+ * - 支持高级排序
  *
  * HTTP META 参数
  * - [http_meta_protocol] 协议 默认: http
@@ -25,80 +25,18 @@
  * - [retries] 重试次数 默认: 1
  * - [retry_delay] 重试延时(单位: 毫秒) 默认: 1000
  *
- * Rename 参数（统一 {} 语法）
+ * Rename 参数
  * - [format] / [f] 格式化模板，默认: {region_code} {isp_code}
- *           可用占位符:
- *             {region_code}      - 节点名检测到的区域代码 (如 HK, JP) / 简写: {region} / {r}
- *             {region_name}      - 节点名检测到的区域英文名
- *             {region_name_cn}   - 节点名检测到的区域中文名
- *             {region_flag}      - 节点名检测到的区域旗标
- *             {isp_code}         - 节点名检测到的 ISP 代码
- *             {isp_name}         - 节点名检测到的 ISP 名称
- *             {tag}              - 节点标签 (IPLC/UDPN/HOME/BASE)
- *             {otherTags}        - 所有标签 (空格分隔)
- *             {index}            - 节点索引数字 / 简写: {i}
- *             {index:2d}         - 节点索引（2位补零）/ 简写: {i:2d}
- *             {iplc}             - 有 IPLC 关键词则输出 IPLC
- *             {udpn}             - 有 UDPN 关键词则输出 UDPN
- *             {home}             - 有家宽/Home 关键词则输出 Home
- *             {tag:XXX}          - 有 XXX 关键词则输出 XXX
- *             {original}         - 原始节点名
- *             {countryCode}      - 探测到的国家代码（_geo）
- *             {country}          - 探测到的国家名（_geo）
- *             {isp}              - 探测到的 ISP（_geo）
- *             {latency}          - 探测延迟（_geo）
  * - [connector] / [c] 占位符连接符 默认: ' '
  *
- * Sort 参数（统一 {} 语法）
+ * Sort 参数
  * - [sort] / [s] 排序规则
  *          新语法: {region_code} ASC, {tag(IPLC)} DESC, {index} ASC
  *          兼容旧语法: region_code ASC, tag(IPLC) DESC
- *          字段: region_code(region/r), region_name, region_flag, isp_code, isp_name, tag, index(i), name, latency
- *          升序/降序: ASC (默认) / DESC
- *          指定值: {region_code(HK,JP)} / region_code(HK,JP) — 命中优先，未指定排后面
  *
  * 过滤参数
  * - [remove_failed] 移除探测失败的节点 默认: true
  */
-
-const $ = $substore;
-const args = $arguments;
-
-// ============================================================
-// HTTP META 配置
-// ============================================================
-const http_meta_host = args.http_meta_host ?? '127.0.0.1';
-const http_meta_port = args.http_meta_port ?? 9876;
-const http_meta_protocol = args.http_meta_protocol ?? 'http';
-const http_meta_authorization = args.http_meta_authorization ?? '';
-const http_meta_api = `${http_meta_protocol}://${http_meta_host}:${http_meta_port}`;
-const http_meta_start_delay = parseFloat(args.http_meta_start_delay ?? 3000);
-const http_meta_proxy_timeout = parseFloat(args.http_meta_proxy_timeout ?? 10000);
-
-// ============================================================
-// 探测配置
-// ============================================================
-const api_url = args.api || 'http://ip-api.com/json?lang=zh-CN';
-const method = args.method || 'get';
-const concurrency = parseInt(args.concurrency || 10);
-const node_timeout = parseFloat(args.timeout ?? 1000);
-const retries = parseFloat(args.retries ?? 1);
-const retry_delay = parseFloat(args.retry_delay ?? 1000);
-
-// ============================================================
-// Rename 配置
-// ============================================================
-const format = args.format || args.f || '{region_code} {isp_code}';
-const connector = args.connector || args.c || args.Connector || ' ';
-const sort = args.sort || args.s || null;
-const remove_failed = args.remove_failed !== false;
-
-// DEBUG sort
-$substore.info('DEBUG $arguments.proxies count=' + ($arguments.proxies ? $arguments.proxies.length : 'null') + ' $$proxies length=' + $$proxies.length);
-if (sort) {
-    const rules = parseSortRules(sort);
-    $substore.info('DEBUG sort input=[' + sort + '] rules=' + JSON.stringify(rules));
-}
 
 // ============================================================
 // 常量
@@ -116,11 +54,6 @@ const ISP_MAP = {
     'CMCC': { keywords: ['cmcc', '中国移动'], code: 'CMCC', name: 'China Mobile' },
     'CU': { keywords: ['cu', '中国联通'], code: 'CU', name: 'China Unicom' },
     'CT': { keywords: ['ct', '中国电信'], code: 'CT', name: 'China Telecom' },
-};
-
-const OTHER_TAGS_MAP = {
-    'IPLC': { keywords: ['iplc', '专线'], output: 'IPLC' },
-    'Home': { keywords: ['家宽', 'home'], output: 'Home' },
 };
 
 const REGION_MAP = {
@@ -162,19 +95,38 @@ const REGION_MAP = {
 // ============================================================
 // 主入口
 // ============================================================
-// Sub-Store Node.js 环境: proxies 从 $arguments 获取
-// Surge/Loon/QX 环境: proxies 作为函数参数传入
-// 注意: 不要用闭包捕获的外部变量，每次调用 $arguments.proxies 可能不同
-async function operator() {
-    const proxies = (typeof proxies !== 'undefined' && proxies.length > 0)
-        ? proxies
-        : ($arguments.proxies || []);
+async function operator(proxies = [], targetPlatform, context) {
+    const $ = $substore;
+
+    // HTTP META 配置
+    const http_meta_host = $arguments.http_meta_host ?? '127.0.0.1';
+    const http_meta_port = $arguments.http_meta_port ?? 9876;
+    const http_meta_protocol = $arguments.http_meta_protocol ?? 'http';
+    const http_meta_authorization = $arguments.http_meta_authorization ?? '';
+    const http_meta_api = `${http_meta_protocol}://${http_meta_host}:${http_meta_port}`;
+    const http_meta_start_delay = parseFloat($arguments.http_meta_start_delay ?? 3000);
+    const http_meta_proxy_timeout = parseFloat($arguments.http_meta_proxy_timeout ?? 10000);
+
+    // 探测配置
+    const api_url = $arguments.api || 'http://ip-api.com/json?lang=zh-CN';
+    const method = $arguments.method || 'get';
+    const concurrency = parseInt($arguments.concurrency || 10);
+    const node_timeout = parseFloat($arguments.timeout ?? 1000);
+    const retries = parseFloat($arguments.retries ?? 1);
+    const retry_delay = parseFloat($arguments.retry_delay ?? 1000);
+
+    // Rename 配置
+    const format = $arguments.format || $arguments.f || '{region_code} {isp_code}';
+    const connector = $arguments.connector || $arguments.c || ' ';
+    const sort = $arguments.sort || $arguments.s || null;
+    const remove_failed = $arguments.remove_failed !== false;
+
     // ---- Step 0: 检测运行环境 ----
     const isNode = $.env && $.env.isNode;
     const canProbe = !isNode; // Node.js 环境无 HTTP META，跳过探测
 
     if (canProbe) {
-        // ---- Step 1: 转换节点为 internal 格式 (仅非 Node.js 环境需要) ----
+        // ---- Step 1: 转换节点为 internal 格式 ----
         const internalProxies = [];
         proxies.forEach((proxy, index) => {
             try {
@@ -212,18 +164,16 @@ async function operator() {
 
     // ---- Step 3: Rename (所有环境都执行) ----
     proxies.forEach(proxy => renameProxy(proxy, format, connector));
-    $substore.info('RENAME_DONE: ' + proxies.map(p => p.name).join(' | '));
 
-// ---- Step 4: Sort ----
+    // ---- Step 4: Sort ----
     if (sort) {
-        $substore.info('SORT_DEBUG: sort=[' + sort + ']');
         const sortRules = parseSortRules(sort);
-        $substore.info('SORT_DEBUG: rules=' + JSON.stringify(sortRules));
         if (sortRules.length > 0) {
             proxies = applySort(proxies, sortRules);
-$substore.info('SORT_DEBUG: sorted, first=' + (proxies[0] && proxies[0].name));
         }
     }
+
+    // ---- Step 5: 移除失败节点 ----
     if (remove_failed) {
         const before = proxies.length;
         proxies = proxies.filter(p => !p._failed);
@@ -234,11 +184,8 @@ $substore.info('SORT_DEBUG: sorted, first=' + (proxies[0] && proxies[0].name));
 
     // ============================================================
     // 统一探测：缓存 + META
-    // 缓存结构: { countryCode, country, isp, latency, _timeout }
-    // null = 上次探测失败/超时
     // ============================================================
     async function probeAll(internalProxies, proxies, onResult) {
-        // 2a: 分类（缓存命中 vs 需要探测）
         const needsMeta = [];
         const cacheHit = [];
 
@@ -259,7 +206,6 @@ $substore.info('SORT_DEBUG: sorted, first=' + (proxies[0] && proxies[0].name));
             return { ports: null, pid: null };
         }
 
-        // 2b: 启动 HTTP META
         const timeout = http_meta_start_delay + needsMeta.length * http_meta_proxy_timeout;
 
         const startRes = await httpRequest({
@@ -281,13 +227,11 @@ $substore.info('SORT_DEBUG: sorted, first=' + (proxies[0] && proxies[0].name));
         $.info(`HTTP META 启动 [端口: ${ports}] [PID: ${pid}] [超时: ${timeout}ms]`);
         await $.wait(http_meta_start_delay);
 
-        // 2c: 并发探测
         await executeAsyncTasks(
             needsMeta.map((ip, i) => () => probeOne(ip, proxies, ports[i], onResult)),
             { concurrency }
         );
 
-        // 2d: 关闭
         try {
             await httpRequest({
                 method: 'post',
@@ -364,7 +308,7 @@ $substore.info('SORT_DEBUG: sorted, first=' + (proxies[0] && proxies[0].name));
 }
 
 // ============================================================
-// 缓存 key: type + server + port
+// 缓存 key
 // ============================================================
 function getProbeCacheKey(proxy) {
     const type = proxy.type || '';
@@ -376,21 +320,6 @@ function getProbeCacheKey(proxy) {
 // ============================================================
 // Rename 函数
 // ============================================================
-
-// 仅从节点名检测 region（供预检测使用）
-function detectRegionFromName(name) {
-    const lowerName = (name || '').toLowerCase();
-    for (const [key, info] of Object.entries(REGION_MAP)) {
-        const keywords = getRegionKeywords(info);
-        for (const kw of keywords) {
-            if (matchKeyword(lowerName, kw)) {
-                return info;
-            }
-        }
-    }
-    return null;
-}
-
 function renameProxy(proxy, formatStr, connectorStr) {
     const originalName = proxy.name || '';
     const lowerName = originalName.toLowerCase();
@@ -447,26 +376,21 @@ function applyFormat(proxy, formatStr, connectorStr) {
     const conn = connectorStr || ' ';
     const parts = [];
 
-    // 分割: 提取每个 {block} 占位符块和静态文本
     const regex = /\{([^}]+)\}/g;
     let lastIndex = 0;
     let match;
 
     while ((match = regex.exec(formatStr)) !== null) {
-        // 静态文本
         if (match.index > lastIndex) {
             parts.push({ type: 'text', value: formatStr.substring(lastIndex, match.index) });
         }
-        // 占位符
         parts.push({ type: 'placeholder', value: match[1] });
         lastIndex = match.index + match[0].length;
     }
-    // 末尾静态文本
     if (lastIndex < formatStr.length) {
         parts.push({ type: 'text', value: formatStr.substring(lastIndex) });
     }
 
-    // 解析占位符值
     const resultParts = [];
     for (const part of parts) {
         if (part.type === 'text') {
@@ -476,22 +400,18 @@ function applyFormat(proxy, formatStr, connectorStr) {
         }
     }
 
-    // 判断是否有非空格静态内容
     const staticContent = formatStr.replace(/\{[^}]+\}/g, '').replace(/\s+/g, '');
     const hasNonSpaceStatic = staticContent !== '';
 
     if (hasNonSpaceStatic) {
-        // 有非空格静态文本（如 -、_、/）：直接拼接
         return resultParts.filter(Boolean).join('');
     }
 
-    // 检查去掉占位符后是否还有空格（有空格才用 connector）
     const noPlaceholders = formatStr.replace(/\{[^}]+\}/g, '');
     if (/\s/.test(noPlaceholders)) {
         const filtered = resultParts.filter(v => v && v.trim() !== '');
         return filtered.join(conn);
     } else {
-        // 无分隔符的纯占位符拼接
         const filtered = resultParts.filter(v => v && v.trim() !== '');
         return filtered.join('');
     }
@@ -502,25 +422,20 @@ function resolvePlaceholder(proxy, placeholder, conn) {
     const geo = proxy._geo || {};
     const lowerName = (proxy.originalName || '').toLowerCase();
 
-    // {countryCode} / {country} / {isp} / {latency} — _geo 字段
     if (placeholder === 'countryCode') return geo.countryCode || '';
     if (placeholder === 'country') return geo.country || '';
     if (placeholder === 'isp') return geo.isp || '';
     if (placeholder === 'latency') return String(geo.latency !== undefined && geo.latency !== null ? geo.latency : 0);
 
-    // {tag:XXX} 动态检测（先于 {index:2d} 判断）
+    // {tag:XXX}
     if (placeholder.startsWith('tag:')) {
         const tagName = placeholder.split(':')[1].toUpperCase();
         return new RegExp(tagName, 'i').test(lowerName) ? tagName : '';
     }
 
     // {index:2d} / {i:2d}
-    if (placeholder.startsWith('index:') && placeholder.endsWith('d')) {
-        const width = parseInt(placeholder.substring(6, placeholder.length - 1));
-        if (!isNaN(width)) return String(proxy.index || 0).padStart(width, '0');
-    }
-    if (placeholder.startsWith('i:') && placeholder.endsWith('d')) {
-        const width = parseInt(placeholder.substring(2, placeholder.length - 1));
+    if ((placeholder.startsWith('index:') || placeholder.startsWith('i:')) && placeholder.endsWith('d')) {
+        const width = parseInt(placeholder.substring(placeholder.indexOf(':') + 1, placeholder.length - 1));
         if (!isNaN(width)) return String(proxy.index || 0).padStart(width, '0');
     }
 
@@ -529,10 +444,9 @@ function resolvePlaceholder(proxy, placeholder, conn) {
     if (placeholder === 'udpn') return /udpn/i.test(lowerName) ? 'UDPN' : '';
     if (placeholder === 'home') return /家宽|home/i.test(lowerName) ? 'Home' : '';
 
-    // 标准字段映射（含简写）
     const fieldMap = {
         'region_code': proxy.region_code,
-        'region': proxy.region_code,  // 简写
+        'region': proxy.region_code,
         'region_name': proxy.region_name,
         'region_name_cn': proxy.region_name_cn,
         'region_flag': proxy.region_flag,
@@ -541,7 +455,7 @@ function resolvePlaceholder(proxy, placeholder, conn) {
         'tag': proxy.tag,
         'otherTags': Array.isArray(proxy.otherTags) ? proxy.otherTags.join(conn) : '',
         'index': String(proxy.index || 0),
-        'i': String(proxy.index || 0),  // 简写
+        'i': String(proxy.index || 0),
         'original': proxy.originalName,
         'name': proxy.name,
     };
@@ -552,15 +466,10 @@ function resolvePlaceholder(proxy, placeholder, conn) {
 // ============================================================
 // Sort 函数
 // ============================================================
-
-// 统一 sort 解析：支持两种语法
-// 新语法: {region_code} ASC, {tag(IPLC)} DESC, {index} ASC
-// 旧语法: region_code ASC, tag(IPLC) DESC
 function parseSortRules(sortString) {
     if (!sortString) return [];
 
     const rules = [];
-    // 先按逗号分割字段（忽略括号内逗号）
     const parts = [];
     let current = '';
     let depth = 0;
@@ -580,9 +489,6 @@ function parseSortRules(sortString) {
     for (const part of parts) {
         if (!part) continue;
 
-        // 支持两种语法:
-        // {region(SG,US)} ASC — 值在括号内
-        // {region}(SG,US) ASC — 值在括号外
         const newMatch = part.match(/^\{([^}]+)\}(?:\(([^)]+)\))?\s*(ASC|DESC)?$/i);
         const oldMatch = !newMatch ? part.match(/^([\w_]+)(?:\(([^)]+)\))?(?:\s+(ASC|DESC))?$/i) : null;
 
@@ -592,11 +498,9 @@ function parseSortRules(sortString) {
             const inside = newMatch[1];
             const parenIdx = inside.indexOf('(');
             if (parenIdx !== -1) {
-                // {region(SG,US)} 形式
                 field = inside.substring(0, parenIdx).trim();
                 values = inside.substring(parenIdx + 1, inside.length - 1).split(',').map(v => v.trim().toUpperCase());
             } else if (newMatch[2]) {
-                // {region}(SG,US) 形式，值在括号外
                 field = inside.trim();
                 values = newMatch[2].split(',').map(v => v.trim().toUpperCase());
             } else {
@@ -636,9 +540,6 @@ function applySort(proxies, rules) {
     if (!rules || rules.length === 0) return proxies;
 
     return [...proxies].sort((a, b) => {
-        const va = a._geo?.countryCode || a.region_code || 'ZZ';
-        const vb = b._geo?.countryCode || b.region_code || 'ZZ';
-        $substore.info('SORT: a=' + a.name + ' va=' + va + ' b=' + b.name + ' vb=' + vb);
         for (const rule of rules) {
             const { type, values, hasValues, order } = rule;
             let comparison = 0;
@@ -730,7 +631,7 @@ function getRegionKeywords(info) {
 }
 
 function matchKeyword(text, keyword) {
-    // Emoji flag (surrogate pair): check against original text BEFORE toLowerCase
+    // Emoji flag: check against original text BEFORE toLowerCase
     if (keyword.match(/[\uD83C-\uDBFF]/)) return text.includes(keyword);
     const lower = text.toLowerCase();
     const kwLower = keyword.toLowerCase();
@@ -775,11 +676,11 @@ async function httpRequest(opt = {}) {
     let count = 0;
     const fn = async () => {
         try {
-            return await $.http[reqMethod]({ ...opt, timeout: reqTimeout });
+            return await $substore.http[reqMethod]({ ...opt, timeout: reqTimeout });
         } catch (e) {
             if (count < reqRetries) {
                 count++;
-                await $.wait(reqRetryDelay * count);
+                await $substore.wait(reqRetryDelay * count);
                 return fn();
             }
             throw e;
@@ -798,7 +699,7 @@ function executeAsyncTasks(tasks, { concurrency = 1 } = {}) {
                 const taskIndex = index++;
                 running++;
                 tasks[taskIndex]()
-                    .catch(e => $.error(e))
+                    .catch(e => $substore.error(e))
                     .finally(() => {
                         running--;
                         executeNext();
