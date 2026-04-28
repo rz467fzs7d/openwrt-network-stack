@@ -93,6 +93,12 @@ const connector = args.connector || args.c || args.Connector || ' ';
 const sort = args.sort || args.s || null;
 const remove_failed = args.remove_failed !== false;
 
+// DEBUG sort
+if (sort) {
+    const rules = parseSortRules(sort);
+    $substore.info('DEBUG sort input=[' + sort + '] rules=' + JSON.stringify(rules));
+}
+
 // ============================================================
 // 常量
 // ============================================================
