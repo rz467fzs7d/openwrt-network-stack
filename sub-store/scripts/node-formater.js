@@ -164,9 +164,11 @@ const REGION_MAP = {
 // ============================================================
 // Sub-Store Node.js 环境: proxies 从 $arguments 获取
 // Surge/Loon/QX 环境: proxies 作为函数参数传入
-const $$proxies = typeof proxies !== 'undefined' ? proxies : ($arguments.proxies || []);
+// 注意: 不要用闭包捕获的外部变量，每次调用 $arguments.proxies 可能不同
 async function operator() {
-    const proxies = $$proxies;
+    const proxies = (typeof proxies !== 'undefined' && proxies.length > 0)
+        ? proxies
+        : ($arguments.proxies || []);
     // ---- Step 0: 检测运行环境 ----
     const isNode = $.env && $.env.isNode;
     const canProbe = !isNode; // Node.js 环境无 HTTP META，跳过探测
