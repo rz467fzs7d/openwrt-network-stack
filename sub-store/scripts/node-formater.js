@@ -221,9 +221,9 @@ async function operator() {
         $substore.info('SORT_DEBUG: rules=' + JSON.stringify(sortRules));
         if (sortRules.length > 0) {
             proxies = applySort(proxies, sortRules);
-            $substore.info('SORT_DEBUG: sorted, first=' + (proxies[0] && proxies[0].name));
-
-    // ---- Step 5: 移除失败节点 ----
+$substore.info('SORT_DEBUG: sorted, first=' + (proxies[0] && proxies[0].name));
+        }
+    }
     if (remove_failed) {
         const before = proxies.length;
         proxies = proxies.filter(p => !p._failed);
