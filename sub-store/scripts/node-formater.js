@@ -120,6 +120,7 @@ async function operator(proxies = [], targetPlatform, context) {
     const connector = $arguments.connector || $arguments.c || ' ';
     const sort = $arguments.sort || $arguments.s || null;
     const remove_failed = $arguments.remove_failed !== false;
+    const limit = parseInt($arguments.limit || $arguments.l || 0);
 
     // ---- Step 0: 检测运行环境 ----
     const isNode = $.env && $.env.isNode;
@@ -186,6 +187,12 @@ async function operator(proxies = [], targetPlatform, context) {
         const before = proxies.length;
         proxies = proxies.filter(p => !p._failed);
         $.info(`移除失败节点: ${before} -> ${proxies.length}`);
+    }
+
+    // ---- Step 6: 限制返回数量 ----
+    if (limit > 0 && proxies.length > limit) {
+        $.info(`限制返回数量: ${proxies.length} -> ${limit}`);
+        proxies = proxies.slice(0, limit);
     }
 
     return proxies;
