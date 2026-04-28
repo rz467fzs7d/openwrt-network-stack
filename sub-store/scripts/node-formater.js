@@ -724,9 +724,10 @@ function getRegionKeywords(info) {
 }
 
 function matchKeyword(text, keyword) {
+    // Emoji flag (surrogate pair): check against original text BEFORE toLowerCase
+    if (keyword.match(/[\uD83C-\uDBFF]/)) return text.includes(keyword);
     const lower = text.toLowerCase();
     const kwLower = keyword.toLowerCase();
-    if (keyword.match(/[\uD83C-\uDBFF]/)) return text.includes(keyword);
     if (keyword.match(/[一-龥]/)) return lower.includes(kwLower);
     if (keyword.length <= 3) return new RegExp(`\\b${kwLower}\\b`, 'i').test(lower);
     return lower.includes(kwLower);
