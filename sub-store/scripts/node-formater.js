@@ -94,6 +94,7 @@ const sort = args.sort || args.s || null;
 const remove_failed = args.remove_failed !== false;
 
 // DEBUG sort
+$substore.info('DEBUG $arguments.proxies count=' + ($arguments.proxies ? $arguments.proxies.length : 'null') + ' $$proxies length=' + $$proxies.length);
 if (sort) {
     const rules = parseSortRules(sort);
     $substore.info('DEBUG sort input=[' + sort + '] rules=' + JSON.stringify(rules));
