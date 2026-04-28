@@ -413,7 +413,7 @@ function applyFormat(proxy, formatStr, connectorStr) {
         return filtered.join(conn);
     } else {
         const filtered = resultParts.filter(v => v && v.trim() !== '');
-        return filtered.join('');
+        return filtered.join(conn);
     }
 }
 
