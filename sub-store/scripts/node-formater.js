@@ -155,44 +155,53 @@ const REGION_MAP = {
 // ============================================================
 // 主入口
 // ============================================================
-async function operator(proxies = []) {
-    // ---- Step 1: 转换节点为 internal 格式 ----
-    const internalProxies = [];
-    proxies.forEach((proxy, index) => {
-        try {
-            const node = ProxyUtils.produce([{ ...proxy }], 'ClashMeta', 'internal')?.[0];
-            if (node) {
-                internalProxies.push({ ...node, _proxies_index: index });
-            } else {
-                proxy._failed = true;
-                proxy._failReason = 'incompatible';
-            }
-        } catch (e) {
-            proxy._failed = true;
-            proxy._failReason = e.message || 'unknown';
-        }
-    });
+// Sub-Store Node.js 环境: proxies 从 $arguments 获取
+// Surge/Loon/QX 环境: proxies 作为函数参数传入
+const $$proxies = typeof proxies !== 'undefined' ? proxies : ($arguments.proxies || []);
+async function operator() {
+    const proxies = $$proxies;
+    // ---- Step 0: 检测运行环境 ----
+    const isNode = $.env && $.env.isNode;
+    const canProbe = !isNode; // Node.js 环境无 HTTP META，跳过探测
 
-    if (!internalProxies.length) {
-        $.info('无可用节点');
-        return remove_failed ? [] : proxies;
+    if (canProbe) {
+        // ---- Step 1: 转换节点为 internal 格式 (仅非 Node.js 环境需要) ----
+        const internalProxies = [];
+        proxies.forEach((proxy, index) => {
+            try {
+                const node = ProxyUtils.produce([{ ...proxy }], 'ClashMeta', 'internal')?.[0];
+                if (node) {
+                    internalProxies.push({ ...node, _proxies_index: index });
+                } else {
+                    proxy._failed = true;
+                    proxy._failReason = 'incompatible';
+                }
+            } catch (e) {
+                proxy._failed = true;
+                proxy._failReason = e.message || 'unknown';
+            }
+        });
+        if (!internalProxies.length) {
+            $.info('无可用节点');
+            return remove_failed ? [] : proxies;
+        }
+
+        // ---- Step 2: 统一探测 ----
+        let probeSuccess = 0;
+        let probeFail = 0;
+
+        const { ports, pid } = await probeAll(internalProxies, proxies, (ip, result) => {
+            if (result) {
+                probeSuccess++;
+            } else {
+                probeFail++;
+            }
+        });
+
+        $.info(`探测完成: 成功 ${probeSuccess}, 失败 ${probeFail}`);
     }
 
-    // ---- Step 2: 统一探测 ----
-    let probeSuccess = 0;
-    let probeFail = 0;
-
-    const { ports, pid } = await probeAll(internalProxies, proxies, (ip, result) => {
-        if (result) {
-            probeSuccess++;
-        } else {
-            probeFail++;
-        }
-    });
-
-    $.info(`探测完成: 成功 ${probeSuccess}, 失败 ${probeFail}`);
-
-    // ---- Step 3: Rename ----
+    // ---- Step 3: Rename (所有环境都执行) ----
     proxies.forEach(proxy => renameProxy(proxy, format, connector));
 
     // ---- Step 4: Sort ----
