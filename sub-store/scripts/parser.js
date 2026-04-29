@@ -318,6 +318,8 @@ async function operator(proxies = [], targetPlatform, context) {
     // ============================================================
     // 单节点探测
     // ============================================================
+    const MAX_TIMEOUT = 1000;  // 超过此时间直接中断，视为不通，写入 null
+
     async function probeOne(proxy, proxies, port, onResult) {
         const startedAt = Date.now();
 
@@ -329,29 +331,27 @@ async function operator(proxies = [], targetPlatform, context) {
                     'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3.1 Mobile/15E148 Safari/604.1',
                 },
                 url: api_url,
-                timeout: node_timeout,
+                timeout: Math.max(node_timeout, MAX_TIMEOUT),
             });
 
             const latency = Date.now() - startedAt;
             const status = parseInt(res.status || res.statusCode || 200);
 
-            // 超时判断：即使 HTTP 成功返回，若延迟 > node_timeout 也视为失败
-            if (latency > node_timeout) {
-                const cached = null;
-                applyProbeResult(proxy, proxies, cached);
-                scriptResourceCache.set(getProbeCacheKey(proxy), cached);
-                $.info(`[${proxy.name}] SLOW latency=${latency}ms > ${node_timeout}ms, discard`);
-            } else if (status === 200) {
+            // node_timeout：latency > 此值视为慢节点（标记 _slow），但正常写入缓存
+            // MAX_TIMEOUT：超过此值视为不通（httpRequest abort），catch 写入 null
+            const slow = latency > node_timeout;
+
+            if (status === 200) {
                 let geoData;
                 try {
                     geoData = JSON.parse(String(res.body));
                 } catch (_) {
                     geoData = { country: String(res.body).trim(), isp: '', countryCode: 'ZZ' };
                 }
-                const cached = { ...geoData, latency, _timeout: false };
+                const cached = { ...geoData, latency, _slow: slow };
                 applyProbeResult(proxy, proxies, cached);
                 scriptResourceCache.set(getProbeCacheKey(proxy), cached);
-                $.info(`[${proxy.name}] OK country=${geoData.countryCode} latency=${latency}ms`);
+                $.info(`[${proxy.name}] OK country=${geoData.countryCode} latency=${latency}ms${slow ? ' (SLOW)' : ''}`);
             } else {
                 const cached = null;
                 applyProbeResult(proxy, proxies, cached);
@@ -375,8 +375,9 @@ async function operator(proxies = [], targetPlatform, context) {
             p._failed = true;
             p._failReason = 'timeout';
         } else {
-            const { _timeout, ...geo } = result;
+            const { _slow, ...geo } = result;
             p._geo = geo;
+            if (_slow) p._slow = true;
         }
     }
 }
