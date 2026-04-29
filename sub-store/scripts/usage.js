@@ -75,7 +75,7 @@ async function operator(proxies = [], targetPlatform, context) {
           }
         }
       } catch (err) {
-        $.error(`订阅 ${sub.name} 获取流量信息时发生错误: ${JSON.stringify(err)}`)
+        $.error(`订阅 ${sub.name} 获取流量信息时发生错误: ${err?.message || String(err)}`)
       }
     }
 
