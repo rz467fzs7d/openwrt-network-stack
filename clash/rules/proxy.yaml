@@ -22,6 +22,7 @@ payload:
   - DOMAIN-SUFFIX,kr-av.com
   - DOMAIN-SUFFIX,anyrouter.top
   - DOMAIN-SUFFIX,easyenable.com
-- DOMAIN-SUFFIX,5bx6h.net
+  - DOMAIN-SUFFIX,5bx6h.net
   - DOMAIN-SUFFIX,epayudt.com
   - DOMAIN-SUFFIX,makerworld.com
+  - DOMAIN-SUFFIX,riolu.link
