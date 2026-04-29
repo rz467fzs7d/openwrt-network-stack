@@ -151,6 +151,9 @@ async function operator(proxies = [], targetPlatform, context) {
     const retries = parseFloat($arguments.retries ?? 1);
     const retry_delay = parseFloat($arguments.retry_delay ?? 1000);
 
+    // 缓存控制
+    const noCache = !scriptResourceCache;
+
     // Rename 配置（入参别名统一在此处理）
     const rawFormat = $arguments.format ?? $arguments[PARAM_ALIAS.format] ?? '{region_code} {isp_code}';
     const format = normalizePlaceholder(rawFormat);
@@ -159,7 +162,6 @@ async function operator(proxies = [], targetPlatform, context) {
     const sort = rawSort ? normalizePlaceholder(rawSort) : null;
     const remove_failed = $arguments.remove_failed !== false;
     const limit = parseInt($arguments.limit ?? $arguments[PARAM_ALIAS.limit] ?? 0);
-    const noCache = $arguments.noCache == true;  // URL 中可能为字符串 "true"
 
     // ---- Step 1: 转换节点为 internal 格式 ----
     const internalProxies = [];
