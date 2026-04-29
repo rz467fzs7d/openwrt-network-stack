@@ -134,7 +134,7 @@ const REGION_MAP = {
 // ============================================================
 async function operator(proxies = [], targetPlatform, context) {
     const $ = $substore;
-    const MAX_TIMEOUT = 1000;
+    const MAX_TIMEOUT = 3000;
 
     // HTTP META 配置
     const http_meta_host = $arguments.http_meta_host ?? '127.0.0.1';
