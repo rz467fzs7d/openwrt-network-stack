@@ -337,9 +337,8 @@ async function operator(proxies = [], targetPlatform, context) {
             const latency = Date.now() - startedAt;
             const status = parseInt(res.status || res.statusCode || 200);
 
-            // node_timeout：latency > 此值视为慢节点（标记 _slow），但正常写入缓存
-            // MAX_TIMEOUT：超过此值视为不通（httpRequest abort），catch 写入 null
-            const slow = latency > node_timeout;
+            // node_timeout：latency > 此值视为慢节点，但正常写入缓存
+            // MAX_TIMEOUT：超过此值视为不通，catch 写入 null
 
             if (status === 200) {
                 let geoData;
@@ -348,10 +347,10 @@ async function operator(proxies = [], targetPlatform, context) {
                 } catch (_) {
                     geoData = { country: String(res.body).trim(), isp: '', countryCode: 'ZZ' };
                 }
-                const cached = { ...geoData, latency, _slow: slow };
+                const cached = { ...geoData, latency };
                 applyProbeResult(proxy, proxies, cached);
                 scriptResourceCache.set(getProbeCacheKey(proxy), cached);
-                $.info(`[${proxy.name}] OK country=${geoData.countryCode} latency=${latency}ms${slow ? ' (SLOW)' : ''}`);
+                $.info(`[${proxy.name}] OK country=${geoData.countryCode} latency=${latency}ms`);
             } else {
                 const cached = null;
                 applyProbeResult(proxy, proxies, cached);
@@ -375,9 +374,7 @@ async function operator(proxies = [], targetPlatform, context) {
             p._failed = true;
             p._failReason = 'timeout';
         } else {
-            const { _slow, ...geo } = result;
-            p._geo = geo;
-            if (_slow) p._slow = true;
+            p._geo = result;
         }
     }
 }
