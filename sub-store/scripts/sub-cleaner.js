@@ -40,10 +40,7 @@
  * - limit / l     限制返回数量 默认: 0（不限制）
  *
  * 缓存策略：
- * - 探测结果缓存 10 分钟（由 Sub-Store 资源缓存控制）
- * - 缓存命中时，用当前 timeout 参数重新比较
- *   latency <= timeout → 通过
- *   latency > timeout → 丢弃（不重新探测）
+ * - 缓存命中时直接采信测试结果（由 Sub-Store 统一管理缓存时效）
  *
  * 使用示例（mode: link）：
  * https://cdn地址#f={region}{i:2d}{tag}&c=-&s={region}ASC&t=800&l=20&remove_failed=true
@@ -218,19 +215,11 @@ async function operator(proxies = [], targetPlatform, context) {
         internalProxies.forEach(ip => {
             const cached = scriptResourceCache.get(getProbeCacheKey(ip));
             if (cached !== undefined) {
-                // 缓存命中：用当前 timeout 参数重新判断是否可用
-                if (cached.latency !== undefined && cached.latency <= node_timeout) {
-                    applyProbeResult(ip, proxies, cached);
-                    cacheHit.push({ ip, cached });
-                    onResult(ip, cached);
-                    $.info(`[${ip.name}] CACHE_HIT latency=${cached.latency}ms <= ${node_timeout}ms`);
-                } else {
-                    // 缓存的延迟超过当前 timeout，视为失败（不重新探测）
-                    applyProbeResult(ip, proxies, null);
-                    cacheHit.push({ ip, cached: null });
-                    onResult(ip, null);
-                    $.info(`[${ip.name}] CACHE_SLOW latency=${cached.latency}ms > ${node_timeout}ms, discard`);
-                }
+                // 缓存命中：直接采信缓存的测试结果，不受当前参数影响
+                applyProbeResult(ip, proxies, cached);
+                cacheHit.push({ ip, cached });
+                onResult(ip, cached);
+                $.info(`[${ip.name}] CACHE_HIT latency=${cached.latency}ms`);
             } else {
                 needsMeta.push(ip);
             }
