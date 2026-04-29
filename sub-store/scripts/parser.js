@@ -63,7 +63,7 @@ const PLACEHOLDER_ALIAS = {
     'i': 'index',
 };
 
-// 规范化占位符（替换别名）
+// 规范化占位符（替换别名，replaceAll = true）
 function normalizePlaceholder(str) {
     if (!str) return str;
     let result = str;
@@ -160,8 +160,6 @@ async function operator(proxies = [], targetPlatform, context) {
     const remove_failed = $arguments.remove_failed !== false;
     const limit = parseInt($arguments.limit ?? $arguments[PARAM_ALIAS.limit] ?? 0);
     const noCache = $arguments.noCache == true;  // URL 中可能为字符串 "true"
-    $.info(`[DEBUG] $arguments: ${JSON.stringify($arguments)}`);
-    $.info(`[DEBUG] noCache=${noCache} typeof=${typeof $arguments.noCache}`);
 
     // ---- Step 1: 转换节点为 internal 格式 ----
     const internalProxies = [];
@@ -191,7 +189,7 @@ async function operator(proxies = [], targetPlatform, context) {
     let probeSuccess = 0;
     let probeFail = 0;
 
-    const { ports, pid } = await probeAll(internalProxies, proxies, (ip, result) => {
+    const { ports, pid } = await probeAll(internalProxies, proxies, (proxy, result) => {
         if (result) {
             probeSuccess++;
         } else {
@@ -202,10 +200,10 @@ async function operator(proxies = [], targetPlatform, context) {
     $.info(`探测完成: 成功 ${probeSuccess}, 失败 ${probeFail}`);
 
     // 将 _geo 从 internalProxies 同步回 proxies（cache hit 在 internalProxies 上设置了 _geo）
-    internalProxies.forEach(ip => {
-        const p = proxies[ip._proxies_index];
-        if (ip._geo) p._geo = ip._geo;
-        if (ip._failed) { p._failed = true; p._failReason = ip._failReason; }
+    internalProxies.forEach(proxy => {
+        const p = proxies[proxy._proxies_index];
+        if (proxy._geo) p._geo = proxy._geo;
+        if (proxy._failed) { p._failed = true; p._failReason = proxy._failReason; }
     });
 
     // ---- Step 3: Rename ----
@@ -257,7 +255,6 @@ async function operator(proxies = [], targetPlatform, context) {
             }
 
             const cached = scriptResourceCache.get(getProbeCacheKey(proxy));
-            $.info(`[DEBUG] cacheKey=${getProbeCacheKey(proxy)} cached=${JSON.stringify(cached)}`);
             if (cached !== undefined && cached !== null) {
                 // 缓存命中：直接采信缓存的测试结果
                 applyProbeResult(proxy, proxies, cached);
@@ -297,7 +294,7 @@ async function operator(proxies = [], targetPlatform, context) {
         await $.wait(http_meta_start_delay);
 
         await executeAsyncTasks(
-            needsMeta.map((ip, i) => () => probeOne(ip, proxies, ports[i], onResult)),
+            needsMeta.map((proxy, i) => () => probeOne(proxy, proxies, ports[i], onResult)),
             { concurrency }
         );
 
