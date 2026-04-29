@@ -363,7 +363,7 @@ async function operator(proxies = [], targetPlatform, context) {
             const cached = null;
             applyProbeResult(proxy, proxies, cached);
             scriptResourceCache.set(getProbeCacheKey(proxy), cached);
-            $.error(`[${proxy.name}] TIMEOUT/${latency}ms: ${e.message}`);
+            $.error(`[${proxy.name}] TIMEOUT/${latency}ms: ${e.message || e.reason || String(e) || 'unknown'}`);
         }
 
         onResult(proxy, scriptResourceCache.get(getProbeCacheKey(proxy)));
