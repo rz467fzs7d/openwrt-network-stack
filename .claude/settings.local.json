@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rm -f .claude/skills/sub-store-test/scripts/example.py .claude/skills/sub-store-test/references/api_reference.md .claude/skills/sub-store-test/assets/example_asset.txt)",
+      "Bash(rmdir .claude/skills/sub-store-test/scripts .claude/skills/sub-store-test/references .claude/skills/sub-store-test/assets)"
+    ]
+  }
+}
