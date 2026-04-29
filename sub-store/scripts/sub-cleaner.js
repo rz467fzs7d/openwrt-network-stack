@@ -342,10 +342,9 @@ async function operator(proxies = [], targetPlatform, context) {
 // 缓存 key
 // ============================================================
 function getProbeCacheKey(proxy) {
-    const type = proxy.type || '';
-    const server = proxy.server || proxy.address || '';
-    const port = proxy.port || '';
-    return `formater:probe:${type}:${server}:${port}`;
+    const { name, _proxies_index, uuid, password, ...rest } = proxy
+    const hash = require('crypto').createHash('md5').update(JSON.stringify(rest)).digest('hex')
+    return `formater:probe:${hash}`
 }
 
 // ============================================================
