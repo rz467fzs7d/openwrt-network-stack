@@ -218,7 +218,7 @@ async function operator(proxies = [], targetPlatform, context) {
             }
 
             const cached = scriptResourceCache.get(getProbeCacheKey(proxy));
-            if (cached !== undefined) {
+            if (cached !== undefined && cached !== null) {
                 // 缓存命中：直接采信缓存的测试结果
                 applyProbeResult(proxy, proxies, cached);
                 cacheHit.push({ proxy, cached });
