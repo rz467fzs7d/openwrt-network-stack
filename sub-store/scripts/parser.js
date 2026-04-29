@@ -756,8 +756,8 @@ function detectAllTags(name) {
 async function httpRequest(opt = {}) {
     const reqMethod = opt.method || 'get';
     const reqTimeout = parseFloat(opt.timeout || 5000);
-    const reqRetries = parseFloat(opt.retries ?? retries);
-    const reqRetryDelay = parseFloat(opt.retry_delay ?? retry_delay);
+    const reqRetries = parseFloat(opt.retries ?? $arguments.retries ?? 1);
+    const reqRetryDelay = parseFloat(opt.retry_delay ?? $arguments.retry_delay ?? 1000);
 
     let count = 0;
     const fn = async () => {
