@@ -55,6 +55,7 @@ const PARAM_ALIAS = {
     sort: 's',
     timeout: 't',
     limit: 'l',
+    debug: 'd',
 };
 
 // 占位符别名
@@ -133,6 +134,7 @@ const REGION_MAP = {
 // ============================================================
 async function operator(proxies = [], targetPlatform, context) {
     const $ = $substore;
+    const MAX_TIMEOUT = 1000;
 
     // HTTP META 配置
     const http_meta_host = $arguments.http_meta_host ?? '127.0.0.1';
@@ -153,6 +155,10 @@ async function operator(proxies = [], targetPlatform, context) {
 
     // 缓存控制
     const noCache = !scriptResourceCache;
+
+    // 调试日志
+    const debug = $arguments.debug ?? $arguments[PARAM_ALIAS.debug] ?? false;
+    const log = debug ? $.info.bind($) : () => {};
 
     // Rename 配置（入参别名统一在此处理）
     const rawFormat = $arguments.format ?? $arguments[PARAM_ALIAS.format] ?? '{region_code} {isp_code}';
@@ -263,12 +269,14 @@ async function operator(proxies = [], targetPlatform, context) {
                 cacheHit.push({ proxy, cached });
                 onResult(proxy, cached);
                 $.info(`[${proxy.name}] CACHE_HIT latency=${cached.latency}ms`);
+                log(`[DEBUG] cache HIT key=${getProbeCacheKey(proxy)} latency=${cached.latency}`);
             } else {
                 needsMeta.push(proxy);
+                log(`[DEBUG] cache MISS key=${getProbeCacheKey(proxy)}`);
             }
         });
 
-        $.info(`缓存命中 ${cacheHit.length}/${internalProxies.length} 个, 需探测 ${needsMeta.length} 个`);
+        log(`[DEBUG] cache hit=${cacheHit.length}/${internalProxies.length} needMeta=${needsMeta.length}`);
 
         if (needsMeta.length === 0) {
             return { ports: null, pid: null };
@@ -318,8 +326,6 @@ async function operator(proxies = [], targetPlatform, context) {
     // ============================================================
     // 单节点探测
     // ============================================================
-    const MAX_TIMEOUT = 1000;  // 超过此时间直接中断，视为不通，写入 null
-
     async function probeOne(proxy, proxies, port, onResult) {
         const startedAt = Date.now();
 
