@@ -1,5 +1,5 @@
 /**
- * node-formater.js
+ * parser.js
  *
  * Sub-Store 节点格式化脚本 - 探测、抛弃、重命名、排序 一次完成
  *
@@ -45,6 +45,34 @@
  * 使用示例（mode: link）：
  * https://cdn地址#f={region}{i:2d}{tag}&c=-&s={region}ASC&t=800&l=20&remove_failed=true
  */
+
+// ============================================================
+// 参数别名（对外提供的入参别名）
+// ============================================================
+const PARAM_ALIAS = {
+    format: 'f',
+    connector: 'c',
+    sort: 's',
+    timeout: 't',
+    limit: 'l',
+};
+
+// 占位符别名
+const PLACEHOLDER_ALIAS = {
+    'region': 'region_code',
+    'i': 'index',
+};
+
+// 规范化占位符（替换别名）
+function normalizePlaceholder(str) {
+    if (!str) return str;
+    let result = str;
+    for (const [alias, standard] of Object.entries(PLACEHOLDER_ALIAS)) {
+        result = result.replace(new RegExp(`\\{${alias}\\}`, 'g'), `{${standard}}`);
+        result = result.replace(new RegExp(`\\{${alias}:`, 'g'), `{${standard}:`);
+    }
+    return result;
+}
 
 // ============================================================
 // 常量
@@ -119,16 +147,18 @@ async function operator(proxies = [], targetPlatform, context) {
     const api_url = $arguments.api || 'http://ip-api.com/json?lang=zh-CN';
     const method = $arguments.method || 'get';
     const concurrency = parseInt($arguments.concurrency || 10);
-    const node_timeout = parseFloat($arguments.timeout ?? $arguments.t ?? 1000);
+    const node_timeout = parseFloat($arguments[PARAM_ALIAS.timeout] ?? $arguments.timeout ?? 1000);
     const retries = parseFloat($arguments.retries ?? 1);
     const retry_delay = parseFloat($arguments.retry_delay ?? 1000);
 
-    // Rename 配置
-    const format = $arguments.format || $arguments.f || '{region_code} {isp_code}';
-    const connector = $arguments.connector || $arguments.c || ' ';
-    const sort = $arguments.sort || $arguments.s || null;
+    // Rename 配置（入参别名统一在此处理）
+    const rawFormat = $arguments.format ?? $arguments[PARAM_ALIAS.format] ?? '{region_code} {isp_code}';
+    const format = normalizePlaceholder(rawFormat);
+    const connector = $arguments.connector ?? $arguments[PARAM_ALIAS.connector] ?? ' ';
+    const rawSort = $arguments.sort ?? $arguments[PARAM_ALIAS.sort] ?? null;
+    const sort = rawSort ? normalizePlaceholder(rawSort) : null;
     const remove_failed = $arguments.remove_failed !== false;
-    const limit = parseInt($arguments.limit || $arguments.l || 0);
+    const limit = parseInt($arguments.limit ?? $arguments[PARAM_ALIAS.limit] ?? 0);
     const noCache = $arguments.noCache === true;
 
     // ---- Step 1: 转换节点为 internal 格式 ----
