@@ -201,6 +201,13 @@ async function operator(proxies = [], targetPlatform, context) {
 
     $.info(`探测完成: 成功 ${probeSuccess}, 失败 ${probeFail}`);
 
+    // 将 _geo 从 internalProxies 同步回 proxies（cache hit 在 internalProxies 上设置了 _geo）
+    internalProxies.forEach(ip => {
+        const p = proxies[ip._proxies_index];
+        if (ip._geo) p._geo = ip._geo;
+        if (ip._failed) { p._failed = true; p._failReason = ip._failReason; }
+    });
+
     // ---- Step 3: Rename ----
     proxies.map(proxy => renameProxy(proxy, format, connector, 0));
 
@@ -393,17 +400,22 @@ function renameProxy(proxy, formatStr, connectorStr, groupIndex = 0) {
 
     proxy.originalName = originalName;
 
-    // 从节点名检测 region
-    let regionInfo = null;
-    for (const [key, info] of Object.entries(REGION_MAP)) {
-        const keywords = getRegionKeywords(info);
-        for (const kw of keywords) {
-            if (matchKeyword(lowerName, kw)) {
-                regionInfo = info;
-                break;
+    // 从 _geo.countryCode（探测结果）检测 region，优先于名称匹配
+    const geoCountryCode = proxy._geo?.countryCode || '';
+    let regionInfo = geoCountryCode ? REGION_MAP[geoCountryCode] || null : null;
+
+    if (!regionInfo) {
+        // 从节点名检测 region
+        for (const [key, info] of Object.entries(REGION_MAP)) {
+            const keywords = getRegionKeywords(info);
+            for (const kw of keywords) {
+                if (matchKeyword(lowerName, kw)) {
+                    regionInfo = info;
+                    break;
+                }
             }
+            if (regionInfo) break;
         }
-        if (regionInfo) break;
     }
 
     if (regionInfo) {
