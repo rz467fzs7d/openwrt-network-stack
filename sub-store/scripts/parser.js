@@ -327,7 +327,7 @@ async function operator(proxies = [], targetPlatform, context) {
     // ============================================================
     async function probeOne(proxy, proxies, port, onResult) {
         const startedAt = Date.now();
-        log(`[DEBUG] probe timeout=${http_meta_proxy_timeout + 1000}ms (http_meta_proxy_timeout=${http_meta_proxy_timeout}ms)`);
+        log(`[DEBUG] probe timeout=${node_timeout + 1000}ms (node_timeout=${node_timeout}ms)`);
 
         try {
             const res = await httpRequest({
@@ -337,7 +337,7 @@ async function operator(proxies = [], targetPlatform, context) {
                     'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3.1 Mobile/15E148 Safari/604.1',
                 },
                 url: api_url,
-                timeout: http_meta_proxy_timeout + 1000,
+                timeout: node_timeout + 1000,
             });
 
             const latency = Date.now() - startedAt;
