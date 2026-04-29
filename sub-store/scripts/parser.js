@@ -130,49 +130,46 @@ async function operator(proxies = [], targetPlatform, context) {
     const remove_failed = $arguments.remove_failed !== false;
     const limit = parseInt($arguments.limit || $arguments.l || 0);
 
-    // ---- Step 0: 检测运行环境 ----
-    const isNode = $.env && $.env.isNode;
-    const canProbe = !isNode; // Node.js 环境无 HTTP META，跳过探测
-
-    if (canProbe) {
-        // ---- Step 1: 转换节点为 internal 格式 ----
-        const internalProxies = [];
-        proxies.forEach((proxy, index) => {
-            try {
-                const node = ProxyUtils.produce([{ ...proxy }], 'ClashMeta', 'internal')?.[0];
-                if (node) {
-                    internalProxies.push({ ...node, _proxies_index: index });
-                } else {
-                    proxy._failed = true;
-                    proxy._failReason = 'incompatible';
+    // ---- Step 1: 转换节点为 internal 格式 ----
+    const internalProxies = [];
+    proxies.map((proxy, index) => {
+        try {
+            const node = ProxyUtils.produce([{ ...proxy }], 'ClashMeta', 'internal')?.[0];
+            if (node) {
+                // 保留原始 proxy 的 _ 开头字段
+                for (const key in proxy) {
+                    if (/^_/i.test(key)) {
+                        node[key] = proxy[key];
+                    }
                 }
-            } catch (e) {
-                proxy._failed = true;
-                proxy._failReason = e.message || 'unknown';
-            }
-        });
-        if (!internalProxies.length) {
-            $.info('无可用节点');
-            return remove_failed ? [] : proxies;
-        }
-
-        // ---- Step 2: 统一探测 ----
-        let probeSuccess = 0;
-        let probeFail = 0;
-
-        const { ports, pid } = await probeAll(internalProxies, proxies, (ip, result) => {
-            if (result) {
-                probeSuccess++;
+                internalProxies.push({ ...node, _proxies_index: index });
             } else {
-                probeFail++;
+                proxy._incompatible = true;
             }
-        });
+        } catch (e) {
+            $.error(e);
+        }
+    });
 
-        $.info(`探测完成: 成功 ${probeSuccess}, 失败 ${probeFail}`);
-    }
+    $.info(`核心支持节点数: ${internalProxies.length}/${proxies.length}`);
+    if (!internalProxies.length) return proxies;
 
-    // ---- Step 3: Rename (所有环境都执行，index 暂用原始数字或0) ----
-    proxies.forEach(proxy => renameProxy(proxy, format, connector, 0));
+    // ---- Step 2: 统一探测 ----
+    let probeSuccess = 0;
+    let probeFail = 0;
+
+    const { ports, pid } = await probeAll(internalProxies, proxies, (ip, result) => {
+        if (result) {
+            probeSuccess++;
+        } else {
+            probeFail++;
+        }
+    });
+
+    $.info(`探测完成: 成功 ${probeSuccess}, 失败 ${probeFail}`);
+
+    // ---- Step 3: Rename ----
+    proxies.map(proxy => renameProxy(proxy, format, connector, 0));
 
     // ---- Step 4: Sort ----
     if (sort) {
