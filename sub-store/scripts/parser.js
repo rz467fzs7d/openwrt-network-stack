@@ -708,7 +708,6 @@ function detectTag(name) {
     if (/iplc|专线/i.test(name)) return 'IPLC';
     if (/udpn/i.test(name)) return 'UDPN';
     if (/家宽|home/i.test(name)) return 'HOME';
-    if (/base/i.test(name)) return 'BASE';
     return '';
 }
 
@@ -717,7 +716,6 @@ function detectAllTags(name) {
     if (/iplc|专线/i.test(name)) tags.push('IPLC');
     if (/udpn/i.test(name)) tags.push('UDPN');
     if (/家宽|home/i.test(name)) tags.push('HOME');
-    if (/base/i.test(name)) tags.push('BASE');
     return tags;
 }
 
