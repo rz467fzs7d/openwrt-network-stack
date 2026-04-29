@@ -160,6 +160,8 @@ async function operator(proxies = [], targetPlatform, context) {
     const remove_failed = $arguments.remove_failed !== false;
     const limit = parseInt($arguments.limit ?? $arguments[PARAM_ALIAS.limit] ?? 0);
     const noCache = $arguments.noCache == true;  // URL 中可能为字符串 "true"
+    $.info(`[DEBUG] $arguments: ${JSON.stringify($arguments)}`);
+    $.info(`[DEBUG] noCache=${noCache} typeof=${typeof $arguments.noCache}`);
 
     // ---- Step 1: 转换节点为 internal 格式 ----
     const internalProxies = [];
