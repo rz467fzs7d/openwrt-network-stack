@@ -134,7 +134,6 @@ const REGION_MAP = {
 // ============================================================
 async function operator(proxies = [], targetPlatform, context) {
     const $ = $substore;
-    const MAX_TIMEOUT = http_meta_proxy_timeout;
 
     // HTTP META 配置
     const http_meta_host = $arguments.http_meta_host ?? '127.0.0.1';
@@ -337,14 +336,14 @@ async function operator(proxies = [], targetPlatform, context) {
                     'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3.1 Mobile/15E148 Safari/604.1',
                 },
                 url: api_url,
-                timeout: Math.max(node_timeout, MAX_TIMEOUT),
+                timeout: http_meta_proxy_timeout,
             });
 
             const latency = Date.now() - startedAt;
             const status = parseInt(res.status || res.statusCode || 200);
 
             // node_timeout：latency > 此值视为慢节点，但正常写入缓存
-            // MAX_TIMEOUT：超过此值视为不通，catch 写入 null
+            // META 统一控制超时，超时写入 null
 
             if (status === 200) {
                 let geoData;
