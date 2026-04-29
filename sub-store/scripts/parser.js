@@ -159,7 +159,7 @@ async function operator(proxies = [], targetPlatform, context) {
     const sort = rawSort ? normalizePlaceholder(rawSort) : null;
     const remove_failed = $arguments.remove_failed !== false;
     const limit = parseInt($arguments.limit ?? $arguments[PARAM_ALIAS.limit] ?? 0);
-    const noCache = $arguments.noCache === true;
+    const noCache = $arguments.noCache == true;  // URL 中可能为字符串 "true"
 
     // ---- Step 1: 转换节点为 internal 格式 ----
     const internalProxies = [];
