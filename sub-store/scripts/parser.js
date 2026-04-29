@@ -129,6 +129,7 @@ async function operator(proxies = [], targetPlatform, context) {
     const sort = $arguments.sort || $arguments.s || null;
     const remove_failed = $arguments.remove_failed !== false;
     const limit = parseInt($arguments.limit || $arguments.l || 0);
+    const noCache = $arguments.noCache === true;
 
     // ---- Step 1: 转换节点为 internal 格式 ----
     const internalProxies = [];
@@ -209,16 +210,22 @@ async function operator(proxies = [], targetPlatform, context) {
         const needsMeta = [];
         const cacheHit = [];
 
-        internalProxies.forEach(ip => {
-            const cached = scriptResourceCache.get(getProbeCacheKey(ip));
+        internalProxies.forEach(proxy => {
+            // noCache: 跳过读取缓存，直接探测
+            if (noCache) {
+                needsMeta.push(proxy);
+                return;
+            }
+
+            const cached = scriptResourceCache.get(getProbeCacheKey(proxy));
             if (cached !== undefined) {
-                // 缓存命中：直接采信缓存的测试结果，不受当前参数影响
-                applyProbeResult(ip, proxies, cached);
-                cacheHit.push({ ip, cached });
-                onResult(ip, cached);
-                $.info(`[${ip.name}] CACHE_HIT latency=${cached.latency}ms`);
+                // 缓存命中：直接采信缓存的测试结果
+                applyProbeResult(proxy, proxies, cached);
+                cacheHit.push({ proxy, cached });
+                onResult(proxy, cached);
+                $.info(`[${proxy.name}] CACHE_HIT latency=${cached.latency}ms`);
             } else {
-                needsMeta.push(ip);
+                needsMeta.push(proxy);
             }
         });
 
