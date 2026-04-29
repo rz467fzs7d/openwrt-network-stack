@@ -26,7 +26,3 @@ data/
 
 # Sub Store Test Scripts
 test/
-
-# Claude Code
-.claude/
-CLAUDE.md
