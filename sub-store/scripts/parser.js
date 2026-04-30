@@ -162,7 +162,7 @@ async function operator(proxies = [], targetPlatform, context) {
     const scriptCache = typeof scriptResourceCache !== 'undefined' ? scriptResourceCache : null;
     const useCache = ($arguments.cache === undefined) || ($arguments.cache === 'true');
     const noCache = !useCache || !scriptCache;
-    $.info(`[CACHE] scriptCache=${!!scriptCache} cache=${$arguments.cache} useCache=${useCache} noCache=${noCache}`);
+    $.info(`[PARSER][CACHE] scriptCache=${!!scriptCache} cache=${$arguments.cache} useCache=${useCache} noCache=${noCache}`);
 
     // 调试日志
     const debug = $arguments.debug ?? $arguments[PARAM_ALIAS.debug] ?? true;
@@ -198,7 +198,7 @@ async function operator(proxies = [], targetPlatform, context) {
         }
     });
 
-    $.info(`核心支持节点数: ${internalProxies.length}/${proxies.length}`);
+    $.info(`[PARSER] 核心支持节点数: ${internalProxies.length}/${proxies.length}`);
     log(`[DEBUG] input=${proxies.length} internal=${internalProxies.length} incompatible=${proxies.length - internalProxies.length}`);
     if (!internalProxies.length) return proxies;
 
@@ -214,7 +214,7 @@ async function operator(proxies = [], targetPlatform, context) {
         }
     });
 
-    $.info(`探测完成: 成功 ${probeSuccess}, 失败 ${probeFail}`);
+    $.info(`[PARSER] 探测完成: 成功 ${probeSuccess}, 失败 ${probeFail}`);
 
     // 将 _geo 从 internalProxies 同步回 proxies（cache hit 在 internalProxies 上设置了 _geo）
     internalProxies.forEach(proxy => {
@@ -246,12 +246,12 @@ async function operator(proxies = [], targetPlatform, context) {
     if (remove_failed) {
         const before = proxies.length;
         proxies = proxies.filter(p => !p._failed);
-        $.info(`移除失败节点: ${before} -> ${proxies.length}`);
+        $.info(`[PARSER] 移除失败节点: ${before} -> ${proxies.length}`);
     }
 
     // ---- Step 6: 限制返回数量 ----
     if (limit > 0 && proxies.length > limit) {
-        $.info(`限制返回数量: ${proxies.length} -> ${limit}`);
+        $.info(`[PARSER] 限制返回数量: ${proxies.length} -> ${limit}`);
         proxies = proxies.slice(0, limit);
     }
 
@@ -274,10 +274,10 @@ async function operator(proxies = [], targetPlatform, context) {
                     onResult(proxy, cached);
                     cacheHit.push({ proxy, cached });
                     if (cached !== null) {
-                        $.info(`[${proxy.name}] CACHE_HIT latency=${cached.latency}ms`);
+                        $.info(`[PARSER][${proxy.name}] CACHE_HIT latency=${cached.latency}ms`);
                         log(`[DEBUG] cache HIT key=${key} latency=${cached.latency}`);
                     } else {
-                        $.info(`[${proxy.name}] CACHE_HIT (failed, skipped)`);
+                        $.info(`[PARSER][${proxy.name}] CACHE_HIT (failed, skipped)`);
                         log(`[DEBUG] cache HIT (failed) key=${key}`);
                     }
                     return;
@@ -313,7 +313,7 @@ async function operator(proxies = [], targetPlatform, context) {
         const { ports, pid } = body || {};
         if (!pid || !ports) throw new Error(`HTTP META 启动失败: ${body}`);
 
-        $.info(`HTTP META 启动 [端口: ${ports}] [PID: ${pid}] [超时: ${timeout}ms]`);
+        $.info(`[PARSER] HTTP META 启动 [端口: ${ports}] [PID: ${pid}] [超时: ${timeout}ms]`);
         await $.wait(http_meta_start_delay);
 
         await executeAsyncTasks(
@@ -330,7 +330,7 @@ async function operator(proxies = [], targetPlatform, context) {
                 timeout: 5000,
             });
         } catch (e) {
-            $.error(`关闭 HTTP META 失败: ${e.message}`);
+            $.error(`[PARSER] 关闭 HTTP META 失败: ${e.message}`);
         }
 
         return { ports, pid };
@@ -381,19 +381,19 @@ async function operator(proxies = [], targetPlatform, context) {
                 const cached = { ...geoData, latency };
                 applyProbeResult(proxy, proxies, cached);
                 if (scriptCache) scriptCache.set(getProbeCacheKey(proxy), cached);
-                $.info(`[${proxy.name}] OK country=${geoData.countryCode} latency=${latency}ms`);
+                $.info(`[PARSER][${proxy.name}] OK country=${geoData.countryCode} latency=${latency}ms`);
             } else {
                 const cached = null;
                 applyProbeResult(proxy, proxies, cached);
                 if (scriptCache) scriptCache.set(getProbeCacheKey(proxy), cached);
-                $.info(`[${proxy.name}] FAIL status=${status}`);
+                $.info(`[PARSER][${proxy.name}] FAIL status=${status}`);
             }
         } catch (e) {
             const latency = Date.now() - startedAt;
             const cached = null;
             applyProbeResult(proxy, proxies, cached);
             if (scriptCache) scriptCache.set(getProbeCacheKey(proxy), cached);
-            $.error(`[${proxy.name}] TIMEOUT/${latency}ms: ${e.message || e.reason || String(e) || 'unknown'}`);
+            $.error(`[PARSER][${proxy.name}] TIMEOUT/${latency}ms: ${e.message || e.reason || String(e) || 'unknown'}`);
         }
 
         onResult(proxy, scriptCache ? scriptCache.get(getProbeCacheKey(proxy)) : null);
