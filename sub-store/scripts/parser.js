@@ -16,7 +16,7 @@
  * - http_meta_port         端口            默认: 9876
  * - http_meta_authorization Authorization 默认: 空
  * - http_meta_start_delay 初始延时(ms)    默认: 3000
- * - http_meta_proxy_timeout 每节点预估耗时(ms) 默认: 10000
+ * - http_meta_proxy_timeout 每节点预估耗时(ms) 默认: 2000
  *
  * 探测参数
  * - api         测落地的 API  默认: http://ip-api.com/json?lang=zh-CN
@@ -142,7 +142,8 @@ async function operator(proxies = [], targetPlatform, context) {
     const http_meta_authorization = $arguments.http_meta_authorization ?? '';
     const http_meta_api = `${http_meta_protocol}://${http_meta_host}:${http_meta_port}`;
     const http_meta_start_delay = parseFloat($arguments.http_meta_start_delay ?? 3000);
-    const http_meta_proxy_timeout = parseFloat($arguments.http_meta_proxy_timeout ?? 10000);
+    // 超过 2s 的代理视为不可用
+    const http_meta_proxy_timeout = parseFloat($arguments.http_meta_proxy_timeout ?? 2000);
 
     // 探测配置
     const api_url = $arguments.api || 'http://ip-api.com/json?lang=zh-CN';
