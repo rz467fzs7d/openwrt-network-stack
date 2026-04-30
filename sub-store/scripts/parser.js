@@ -155,7 +155,9 @@ async function operator(proxies = [], targetPlatform, context) {
 
     // 缓存控制
     const scriptCache = typeof scriptResourceCache !== 'undefined' ? scriptResourceCache : null;
-    const argNoCache = $arguments.nocache ?? $arguments.no_cache ?? false;
+    const argKeys = Object.keys($arguments);
+    $.info(`[ARGS] keys=${argKeys.join(',')} raw=${JSON.stringify($arguments)}`);
+    const argNoCache = $arguments.nocache ?? $arguments.no_cache ?? $arguments.noCache ?? false;
     const noCache = argNoCache || !scriptCache;
     $.info(`[CACHE] scriptCache=${!!scriptCache} argNoCache=${argNoCache} noCache=${noCache}`);
 
