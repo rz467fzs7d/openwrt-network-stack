@@ -153,13 +153,12 @@ async function operator(proxies = [], targetPlatform, context) {
     const retries = parseFloat($arguments.retries ?? 0);
     const retry_delay = parseFloat($arguments.retry_delay ?? 1000);
 
-    // 缓存控制
+    // 缓存控制（cache 默认为 true）
     const scriptCache = typeof scriptResourceCache !== 'undefined' ? scriptResourceCache : null;
-    const argKeys = Object.keys($arguments);
-    $.info(`[ARGS] keys=${argKeys.join(',')} raw=${JSON.stringify($arguments)}`);
-    const argNoCache = $arguments.nocache ?? $arguments.no_cache ?? $arguments.noCache ?? false;
+    // Sub-Store 通过 c=false 传 nocache（值为字符串 "false"），脚本不拦截 c 用于 connector
+    const argNoCache = ($arguments.c === 'false') || ($arguments.nocache === 'true') || ($arguments.nocache === true);
     const noCache = argNoCache || !scriptCache;
-    $.info(`[CACHE] scriptCache=${!!scriptCache} argNoCache=${argNoCache} noCache=${noCache}`);
+    $.info(`[CACHE] scriptCache=${!!scriptCache} c=${$arguments.c} argNoCache=${argNoCache} noCache=${noCache}`);
 
     // 调试日志
     const debug = $arguments.debug ?? $arguments[PARAM_ALIAS.debug] ?? true;
