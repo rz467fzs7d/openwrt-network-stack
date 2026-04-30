@@ -148,6 +148,10 @@ async function operator(proxies = [], targetPlatform, context) {
 
     // 探测配置
     const api_url = $arguments.api || 'http://ip-api.com/json?lang=zh-CN';
+    // API Token（优先脚本参数，其次环境变量）
+    const api_token = $arguments.ipinfo_api_token
+        ?? (typeof process !== 'undefined' ? process.env.IPINFO_API_TOKEN : null)
+        ?? '';
     const method = $arguments.method || 'get';
     const concurrency = parseInt($arguments.concurrency || 10);
     const node_timeout = parseFloat($arguments[PARAM_ALIAS.timeout] ?? $arguments.timeout ?? 3000); // httpRequest timeout = node_timeout + 1000
@@ -340,12 +344,16 @@ async function operator(proxies = [], targetPlatform, context) {
         log(`[DEBUG] probe timeout=${node_timeout + 1000}ms (node_timeout=${node_timeout}ms)`);
 
         try {
+            const headers = {
+                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3.1 Mobile/15E148 Safari/604.1',
+            };
+            if (api_token) {
+                headers['Authorization'] = `Bearer ${api_token}`;
+            }
             const res = await httpRequest({
                 proxy: `http://${http_meta_host}:${port}`,
                 method,
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3.1 Mobile/15E148 Safari/604.1',
-                },
+                headers,
                 url: api_url,
                 timeout: node_timeout + 1000,
             });
@@ -362,6 +370,13 @@ async function operator(proxies = [], targetPlatform, context) {
                     geoData = JSON.parse(String(res.body));
                 } catch (_) {
                     geoData = { country: String(res.body).trim(), isp: '', countryCode: 'ZZ' };
+                }
+                // 兼容 ipinfo.io 响应格式
+                if (geoData.country_code && !geoData.countryCode) {
+                    geoData.countryCode = geoData.country_code;
+                }
+                if (geoData.as_name && !geoData.isp) {
+                    geoData.isp = geoData.as_name;
                 }
                 const cached = { ...geoData, latency };
                 applyProbeResult(proxy, proxies, cached);
