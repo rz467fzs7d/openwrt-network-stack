@@ -52,6 +52,7 @@
 // 注意：不使用短名称，避免与 Sub-Store 内部参数（c/f/l/s）冲突
 const PARAM_ALIAS = {
     format: 'f',
+    connector: 'c',
     sort: 's',
     timeout: 't',
     limit: 'l',
@@ -153,12 +154,11 @@ async function operator(proxies = [], targetPlatform, context) {
     const retries = parseFloat($arguments.retries ?? 0);
     const retry_delay = parseFloat($arguments.retry_delay ?? 1000);
 
-    // 缓存控制（cache 默认为 true）
+    // 缓存控制（cache 默认为 true，cache=false 时跳过缓存强制重新探测）
     const scriptCache = typeof scriptResourceCache !== 'undefined' ? scriptResourceCache : null;
-    // Sub-Store 通过 c=false 传 nocache（值为字符串 "false"），脚本不拦截 c 用于 connector
-    const argNoCache = ($arguments.c === 'false') || ($arguments.nocache === 'true') || ($arguments.nocache === true);
-    const noCache = argNoCache || !scriptCache;
-    $.info(`[CACHE] scriptCache=${!!scriptCache} c=${$arguments.c} argNoCache=${argNoCache} noCache=${noCache}`);
+    const useCache = ($arguments.cache === undefined) || ($arguments.cache === 'true');
+    const noCache = !useCache || !scriptCache;
+    $.info(`[CACHE] scriptCache=${!!scriptCache} cache=${$arguments.cache} useCache=${useCache} noCache=${noCache}`);
 
     // 调试日志
     const debug = $arguments.debug ?? $arguments[PARAM_ALIAS.debug] ?? true;
