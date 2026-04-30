@@ -136,6 +136,10 @@ const REGION_MAP = {
 async function operator(proxies = [], targetPlatform, context) {
     const $ = $substore;
 
+    // 来源信息（用于日志标识）
+    const source = context?.source || {};
+    const sourceName = source._collection?.displayName || source._collection?.name || source.name || $arguments._sourceName || 'unknown';
+
     // HTTP META 配置
     const http_meta_host = $arguments.http_meta_host ?? '127.0.0.1';
     const http_meta_port = $arguments.http_meta_port ?? 9876;
@@ -162,7 +166,7 @@ async function operator(proxies = [], targetPlatform, context) {
     const scriptCache = typeof scriptResourceCache !== 'undefined' ? scriptResourceCache : null;
     const useCache = ($arguments.cache === undefined) || ($arguments.cache === 'true');
     const noCache = !useCache || !scriptCache;
-    $.info(`[PARSER][CACHE] scriptCache=${!!scriptCache} cache=${$arguments.cache} useCache=${useCache} noCache=${noCache}`);
+    $.info(`[PARSER][${sourceName}] cache: scriptCache=${!!scriptCache} cache=${$arguments.cache} useCache=${useCache} noCache=${noCache}`);
 
     // 调试日志
     const debug = $arguments.debug ?? $arguments[PARAM_ALIAS.debug] ?? true;
