@@ -22,7 +22,7 @@
  * - api         测落地的 API  默认: http://ip-api.com/json?lang=zh-CN
  * - method      请求方法      默认: get
  * - concurrency 并发数        默认: 10
- * - timeout / t 单节点超时(ms) 默认: 1000，latency > timeout 则丢弃
+ * - timeout / t 单节点超时(ms) 默认: 3000，latency > timeout 则丢弃
  * - retries     重试次数      默认: 0（缓存本身就是重试）
  * - retry_delay 重试延时(ms)  默认: 1000
  *
@@ -149,7 +149,7 @@ async function operator(proxies = [], targetPlatform, context) {
     const api_url = $arguments.api || 'http://ip-api.com/json?lang=zh-CN';
     const method = $arguments.method || 'get';
     const concurrency = parseInt($arguments.concurrency || 10);
-    const node_timeout = parseFloat($arguments[PARAM_ALIAS.timeout] ?? $arguments.timeout ?? 1000);
+    const node_timeout = parseFloat($arguments[PARAM_ALIAS.timeout] ?? $arguments.timeout ?? 3000); // httpRequest timeout = node_timeout + 1000
     const retries = parseFloat($arguments.retries ?? 0);
     const retry_delay = parseFloat($arguments.retry_delay ?? 1000);
 
@@ -259,30 +259,29 @@ async function operator(proxies = [], targetPlatform, context) {
         const cacheHit = [];
 
         internalProxies.forEach(proxy => {
-            // noCache: 跳过读取缓存，直接探测
-            if (noCache) {
-                needsMeta.push(proxy);
-                return;
-            }
-
-            const cached = scriptCache ? scriptCache.get(getProbeCacheKey(proxy)) : undefined;
-            if (cached !== undefined) {
-                // 有缓存：null=已确认不可用，直接采信不再重试
-                applyProbeResult(proxy, proxies, cached);
-                onResult(proxy, cached);
-                cacheHit.push({ proxy, cached });
-                if (cached !== null) {
-                    $.info(`[${proxy.name}] CACHE_HIT latency=${cached.latency}ms`);
-                    log(`[DEBUG] cache HIT key=${getProbeCacheKey(proxy)} latency=${cached.latency}`);
-                } else {
-                    $.info(`[${proxy.name}] CACHE_HIT (failed, skipped)`);
-                    log(`[DEBUG] cache HIT (failed) key=${getProbeCacheKey(proxy)}`);
+            const key = getProbeCacheKey(proxy);
+            if (!noCache && scriptCache) {
+                const cached = scriptCache.get(key);
+                if (cached !== undefined) {
+                    // 有缓存（跨请求）：null=已确认不可用，直接采信不再重试
+                    applyProbeResult(proxy, proxies, cached);
+                    onResult(proxy, cached);
+                    cacheHit.push({ proxy, cached });
+                    if (cached !== null) {
+                        $.info(`[${proxy.name}] CACHE_HIT latency=${cached.latency}ms`);
+                        log(`[DEBUG] cache HIT key=${key} latency=${cached.latency}`);
+                    } else {
+                        $.info(`[${proxy.name}] CACHE_HIT (failed, skipped)`);
+                        log(`[DEBUG] cache HIT (failed) key=${key}`);
+                    }
+                    return;
                 }
-            } else {
-                needsMeta.push(proxy);
-                log(`[DEBUG] cache MISS key=${getProbeCacheKey(proxy)}`);
             }
+            needsMeta.push(proxy);
+            log(`[DEBUG] cache MISS key=${key}`);
         });
+
+        log(`[DEBUG] cache hit=${cacheHit.length}/${internalProxies.length} needMeta=${needsMeta.length}`);
 
         log(`[DEBUG] cache hit=${cacheHit.length}/${internalProxies.length} needMeta=${needsMeta.length}`);
 
