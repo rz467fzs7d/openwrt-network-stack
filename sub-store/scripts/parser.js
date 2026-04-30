@@ -265,13 +265,18 @@ async function operator(proxies = [], targetPlatform, context) {
             }
 
             const cached = scriptCache ? scriptCache.get(getProbeCacheKey(proxy)) : undefined;
-            if (cached !== undefined && cached !== null) {
-                // 缓存命中：直接采信缓存的测试结果
+            if (cached !== undefined) {
+                // 有缓存：null=已确认不可用，直接采信不再重试
                 applyProbeResult(proxy, proxies, cached);
-                cacheHit.push({ proxy, cached });
                 onResult(proxy, cached);
-                $.info(`[${proxy.name}] CACHE_HIT latency=${cached.latency}ms`);
-                log(`[DEBUG] cache HIT key=${getProbeCacheKey(proxy)} latency=${cached.latency}`);
+                cacheHit.push({ proxy, cached });
+                if (cached !== null) {
+                    $.info(`[${proxy.name}] CACHE_HIT latency=${cached.latency}ms`);
+                    log(`[DEBUG] cache HIT key=${getProbeCacheKey(proxy)} latency=${cached.latency}`);
+                } else {
+                    $.info(`[${proxy.name}] CACHE_HIT (failed, skipped)`);
+                    log(`[DEBUG] cache HIT (failed) key=${getProbeCacheKey(proxy)}`);
+                }
             } else {
                 needsMeta.push(proxy);
                 log(`[DEBUG] cache MISS key=${getProbeCacheKey(proxy)}`);
