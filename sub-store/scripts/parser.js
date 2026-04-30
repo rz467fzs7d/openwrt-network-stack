@@ -159,7 +159,7 @@ async function operator(proxies = [], targetPlatform, context) {
     $.info(`[CACHE] scriptResourceCache=${scriptCache ? 'available' : 'undefined'} noCache=${noCache}`);
 
     // 调试日志
-    const debug = $arguments.debug ?? $arguments[PARAM_ALIAS.debug] ?? false;
+    const debug = $arguments.debug ?? $arguments[PARAM_ALIAS.debug] ?? true;
     const log = debug ? $.info.bind($) : () => {};
 
     // Rename 配置（入参别名统一在此处理）
@@ -193,6 +193,7 @@ async function operator(proxies = [], targetPlatform, context) {
     });
 
     $.info(`核心支持节点数: ${internalProxies.length}/${proxies.length}`);
+    log(`[DEBUG] input=${proxies.length} internal=${internalProxies.length} incompatible=${proxies.length - internalProxies.length}`);
     if (!internalProxies.length) return proxies;
 
     // ---- Step 2: 统一探测 ----
