@@ -16,13 +16,13 @@
  * - http_meta_port         端口            默认: 9876
  * - http_meta_authorization Authorization 默认: 空
  * - http_meta_start_delay 初始延时(ms)    默认: 3000
- * - http_meta_proxy_timeout 每节点预估耗时(ms) 默认: 2000
+ * - http_meta_proxy_timeout 每节点预估耗时(ms) 默认: 5000
  *
  * 探测参数
  * - api         测落地的 API  默认: http://ip-api.com/json?lang=zh-CN
  * - method      请求方法      默认: get
  * - concurrency 并发数        默认: 10
- * - timeout / t 单节点超时(ms) 默认: 1000，latency > timeout 则丢弃
+ * - timeout / t 单节点超时(ms) 默认: 3000，latency > timeout 则丢弃
  * - retries     重试次数      默认: 1
  * - retry_delay 重试延时(ms)  默认: 1000
  *
@@ -142,14 +142,14 @@ async function operator(proxies = [], targetPlatform, context) {
     const http_meta_authorization = $arguments.http_meta_authorization ?? '';
     const http_meta_api = `${http_meta_protocol}://${http_meta_host}:${http_meta_port}`;
     const http_meta_start_delay = parseFloat($arguments.http_meta_start_delay ?? 3000);
-    // 超过 2s 的代理视为不可用
-    const http_meta_proxy_timeout = parseFloat($arguments.http_meta_proxy_timeout ?? 2000);
+    // 超过 5s 的代理视为不可用（实测：跨境节点 3-7s 才能连通）
+    const http_meta_proxy_timeout = parseFloat($arguments.http_meta_proxy_timeout ?? 5000);
 
     // 探测配置
     const api_url = $arguments.api || 'http://ip-api.com/json?lang=zh-CN';
     const method = $arguments.method || 'get';
     const concurrency = parseInt($arguments.concurrency || 10);
-    const node_timeout = parseFloat($arguments[PARAM_ALIAS.timeout] ?? $arguments.timeout ?? 1000);
+    const node_timeout = parseFloat($arguments[PARAM_ALIAS.timeout] ?? $arguments.timeout ?? 3000);
     const retries = parseFloat($arguments.retries ?? 1);
     const retry_delay = parseFloat($arguments.retry_delay ?? 1000);
 
