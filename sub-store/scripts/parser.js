@@ -154,7 +154,9 @@ async function operator(proxies = [], targetPlatform, context) {
     const retry_delay = parseFloat($arguments.retry_delay ?? 1000);
 
     // 缓存控制
-    const noCache = !scriptResourceCache;
+    const scriptCache = typeof scriptResourceCache !== 'undefined' ? scriptResourceCache : null;
+    const noCache = !scriptCache;
+    $.info(`[CACHE] scriptResourceCache=${scriptCache ? 'available' : 'undefined'} noCache=${noCache}`);
 
     // 调试日志
     const debug = $arguments.debug ?? $arguments[PARAM_ALIAS.debug] ?? false;
@@ -262,7 +264,7 @@ async function operator(proxies = [], targetPlatform, context) {
                 return;
             }
 
-            const cached = scriptResourceCache.get(getProbeCacheKey(proxy));
+            const cached = scriptCache ? scriptCache.get(getProbeCacheKey(proxy)) : undefined;
             if (cached !== undefined && cached !== null) {
                 // 缓存命中：直接采信缓存的测试结果
                 applyProbeResult(proxy, proxies, cached);
@@ -356,23 +358,23 @@ async function operator(proxies = [], targetPlatform, context) {
                 }
                 const cached = { ...geoData, latency };
                 applyProbeResult(proxy, proxies, cached);
-                scriptResourceCache.set(getProbeCacheKey(proxy), cached);
+                if (scriptCache) scriptCache.set(getProbeCacheKey(proxy), cached);
                 $.info(`[${proxy.name}] OK country=${geoData.countryCode} latency=${latency}ms`);
             } else {
                 const cached = null;
                 applyProbeResult(proxy, proxies, cached);
-                scriptResourceCache.set(getProbeCacheKey(proxy), cached);
+                if (scriptCache) scriptCache.set(getProbeCacheKey(proxy), cached);
                 $.info(`[${proxy.name}] FAIL status=${status}`);
             }
         } catch (e) {
             const latency = Date.now() - startedAt;
             const cached = null;
             applyProbeResult(proxy, proxies, cached);
-            scriptResourceCache.set(getProbeCacheKey(proxy), cached);
+            if (scriptCache) scriptCache.set(getProbeCacheKey(proxy), cached);
             $.error(`[${proxy.name}] TIMEOUT/${latency}ms: ${e.message || e.reason || String(e) || 'unknown'}`);
         }
 
-        onResult(proxy, scriptResourceCache.get(getProbeCacheKey(proxy)));
+        onResult(proxy, scriptCache ? scriptCache.get(getProbeCacheKey(proxy)) : null);
     }
 
     function applyProbeResult(proxy, proxies, result) {
