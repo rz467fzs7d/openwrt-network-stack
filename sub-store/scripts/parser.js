@@ -23,7 +23,7 @@
  * - method      请求方法      默认: get
  * - concurrency 并发数        默认: 10
  * - timeout / t 单节点超时(ms) 默认: 3000，latency > timeout 则丢弃
- * - retries     重试次数      默认: 1
+ * - retries     重试次数      默认: 0（缓存本身就是重试）
  * - retry_delay 重试延时(ms)  默认: 1000
  *
  * Rename 参数
@@ -150,7 +150,7 @@ async function operator(proxies = [], targetPlatform, context) {
     const method = $arguments.method || 'get';
     const concurrency = parseInt($arguments.concurrency || 10);
     const node_timeout = parseFloat($arguments[PARAM_ALIAS.timeout] ?? $arguments.timeout ?? 3000);
-    const retries = parseFloat($arguments.retries ?? 1);
+    const retries = parseFloat($arguments.retries ?? 0);
     const retry_delay = parseFloat($arguments.retry_delay ?? 1000);
 
     // 缓存控制
