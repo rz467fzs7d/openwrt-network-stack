@@ -20,9 +20,12 @@ proxy-providers/
 rule-providers/
 *.mmdb
 *.dat
+*.pyc
 
 # Sub Store data
 data/
 
 # Sub Store Test Scripts
 test/
+config.yaml
+.cache/
