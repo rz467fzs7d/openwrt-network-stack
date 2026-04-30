@@ -155,8 +155,9 @@ async function operator(proxies = [], targetPlatform, context) {
 
     // 缓存控制
     const scriptCache = typeof scriptResourceCache !== 'undefined' ? scriptResourceCache : null;
-    const noCache = !scriptCache;
-    $.info(`[CACHE] scriptResourceCache=${scriptCache ? 'available' : 'undefined'} noCache=${noCache}`);
+    const argNoCache = $arguments.nocache ?? $arguments.no_cache ?? false;
+    const noCache = argNoCache || !scriptCache;
+    $.info(`[CACHE] scriptCache=${!!scriptCache} argNoCache=${argNoCache} noCache=${noCache}`);
 
     // 调试日志
     const debug = $arguments.debug ?? $arguments[PARAM_ALIAS.debug] ?? true;
