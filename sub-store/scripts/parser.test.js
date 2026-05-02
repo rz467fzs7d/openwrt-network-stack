@@ -3,9 +3,9 @@
  * 直接用 node 运行：node parser.test.js
  *
  * 测试覆盖：
- * 1. cache 逻辑：cache=false / cache=true / 不传
- * 2. api_token 读取：脚本参数优先，环境变量兜底
- * 3. ipinfo.io 响应映射：country_code → countryCode, as_name → isp
+ * 1. api_token 读取：脚本参数优先，环境变量兜底
+ * 2. ipinfo.io 响应映射：country_code → countryCode, as_name → isp
+ * 3. detectRegionFromName 节点名称识别 region
  */
 
 // ============================================================
@@ -25,39 +25,7 @@ function assert(condition, msg) {
 }
 
 // ============================================================
-// 测试 1: cache 逻辑
-// ============================================================
-console.log('\n[测试 1] cache 逻辑\n');
-
-function testCache($arguments, scriptCache, description) {
-  const useCache = ($arguments.cache === undefined) || ($arguments.cache === 'true');
-  const noCache = !useCache || !scriptCache;
-  console.log(`  ${description}: cache=${$arguments.cache} scriptCache=${!!scriptCache} → noCache=${noCache}`);
-  return noCache;
-}
-
-// 不传 cache → 默认用缓存
-const noCache1 = testCache({}, true, '不传 cache');
-assert(noCache1 === false, '不传 cache，应 noCache=false');
-
-// cache=false → 跳过缓存
-const noCache2 = testCache({ cache: 'false' }, true, 'cache=false (字符串)');
-assert(noCache2 === true, 'cache=false，应 noCache=true');
-
-// cache=true → 用缓存
-const noCache3 = testCache({ cache: 'true' }, true, 'cache=true');
-assert(noCache3 === false, 'cache=true，应 noCache=false');
-
-// 无 scriptCache → noCache
-const noCache4 = testCache({ cache: 'false' }, null, 'cache=false 但无 scriptCache');
-assert(noCache4 === true, 'cache=false 且无 scriptCache，应 noCache=true');
-
-// 无 scriptCache 且不传 cache → noCache
-const noCache5 = testCache({}, null, '不传 cache 且无 scriptCache');
-assert(noCache5 === true, '无 cache 且无 scriptCache，应 noCache=true');
-
-// ============================================================
-// 测试 2: api_token 读取
+// 测试 1: api_token 读取
 // ============================================================
 console.log('\n[测试 2] api_token 读取\n');
 
@@ -168,64 +136,7 @@ const h3 = buildHeaders(null);
 assert(h3['Authorization'] === undefined, 'null token 不应设置 Authorization');
 
 // ============================================================
-// 测试 5: URL fragment 解析（模拟 Sub-Store 行为）
-// ============================================================
-console.log('\n[测试 5] URL fragment 解析\n');
-
-// 模拟 Sub-Store 如何解析 URL fragment
-// 格式：parser.js#key1=value1&key2=value2
-function parseUrlFragment(url) {
-  const frag = url.split('#')[1] || '';
-  const args = {};
-  for (const pair of frag.split('&')) {
-    const [key, value] = pair.split('=');
-    if (key) {
-      args[decodeURIComponent(key)] = value == null || value === ''
-        ? true
-        : decodeURIComponent(value);
-    }
-  }
-  return args;
-}
-
-const frag1 = parseUrlFragment('parser.js#c=-&cache=false&f={region}');
-assert(frag1['c'] === '-', 'c=- 解析为字符串 "-"');
-assert(frag1['cache'] === 'false', 'cache=false 解析为字符串 "false"（不是 boolean）');
-assert(frag1['f'] === '{region}', 'f 参数正确解析');
-
-const frag2 = parseUrlFragment('parser.js#cache=false');
-assert(frag2['cache'] === 'false', '单独 cache=false 解析为字符串 "false"');
-
-// 关键验证：cache=false 字符串在 if 判断中
-const ifResult = frag2['cache'] === 'false';
-assert(ifResult === true, '"false" === "false" 在 JS 中为 true，noCache 逻辑正确');
-
-// ============================================================
-// 测试 6: cache=false 字符串在 noCache 逻辑中的表现
-// ============================================================
-console.log('\n[测试 6] noCache 最终逻辑验证\n');
-
-// 完整模拟最终 noCache 计算
-function calcNoCache($arguments, hasScriptCache) {
-  const useCache = ($arguments.cache === undefined) || ($arguments.cache === 'true');
-  const noCache = !useCache || !hasScriptCache;
-  return noCache;
-}
-
-const r1 = calcNoCache({ cache: 'false' }, true);
-assert(r1 === true, 'cache="false" + scriptCache存在 → noCache=true');
-
-const r2 = calcNoCache({}, true);
-assert(r2 === false, '无cache参数 + scriptCache存在 → noCache=false');
-
-const r3 = calcNoCache({ cache: 'false' }, false);
-assert(r3 === true, 'cache="false" + 无scriptCache → noCache=true');
-
-const r4 = calcNoCache({ cache: 'true' }, true);
-assert(r4 === false, 'cache="true" → noCache=false');
-
-// ============================================================
-// 测试 7: detectRegionFromName - 从节点名称识别 region
+// 测试 3: ipinfo.io 响应映射
 // ============================================================
 console.log('\n[测试 7] detectRegionFromName 节点名称识别\n');
 

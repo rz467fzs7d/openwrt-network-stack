@@ -23,8 +23,6 @@
  * - method      请求方法      默认: get
  * - concurrency 并发数        默认: 10
  * - timeout / t 单节点超时(ms) 默认: 3000，latency > timeout 则丢弃
- * - retries     重试次数      默认: 0（缓存本身就是重试）
- * - retry_delay 重试延时(ms)  默认: 1000
  *
  * Rename 参数
  * - format / f   格式化模板    默认: {region_code} {isp_code}
@@ -36,10 +34,9 @@
  *
  * 过滤参数
  * - remove_failed 移除失败节点 默认: true
- * - limit / l     限制返回数量 默认: 0（不限制）
  *
  * 使用示例（mode: link）：
- * https://cdn地址#f={region}{i:2d}{tag}&c=-&s={region}ASC&l=20&remove_failed=true
+ * https://cdn地址#f={region}{i:2d}{tag}&c=-&s={region}ASC&remove_failed=true
  */
 
 // ============================================================
@@ -158,12 +155,6 @@ async function operator(proxies = [], targetPlatform, context) {
     const retries = parseFloat($arguments.retries ?? 0);
     const retry_delay = parseFloat($arguments.retry_delay ?? 1000);
 
-    // 缓存控制（cache 默认为 true，cache=false 时跳过缓存强制重新探测）
-    const scriptCache = typeof scriptResourceCache !== 'undefined' ? scriptResourceCache : null;
-    const useCache = ($arguments.cache === undefined) || ($arguments.cache === 'true');
-    const noCache = !useCache || !scriptCache;
-    $.info(`[PARSER][${sourceName}] cache: scriptCache=${!!scriptCache} cache=${$arguments.cache} useCache=${useCache} noCache=${noCache}`);
-
     // 调试日志
     const debug = $arguments.debug ?? $arguments[PARAM_ALIAS.debug] ?? true;
     const log = debug ? $.info.bind($) : () => {};
@@ -175,7 +166,6 @@ async function operator(proxies = [], targetPlatform, context) {
     const rawSort = $arguments.sort ?? $arguments[PARAM_ALIAS.sort] ?? null;
     const sort = rawSort ? normalizePlaceholder(rawSort) : null;
     const remove_failed = $arguments.remove_failed !== false;
-    const limit = parseInt($arguments.limit ?? $arguments[PARAM_ALIAS.limit] ?? 0);
 
     // ---- Step 1: 转换节点为 internal 格式 ----
     const internalProxies = [];
@@ -274,53 +264,17 @@ async function operator(proxies = [], targetPlatform, context) {
         $.info(`[PARSER] 移除失败节点: ${before} -> ${proxies.length}`);
     }
 
-    // ---- Step 6: 限制返回数量 ----
-    if (limit > 0 && proxies.length > limit) {
-        $.info(`[PARSER] 限制返回数量: ${proxies.length} -> ${limit}`);
-        proxies = proxies.slice(0, limit);
-    }
-
     return proxies;
 
     // ============================================================
-    // 统一探测：缓存 + META
+    // 统一探测：META
     // ============================================================
     async function probeAll(internalProxies, proxies, onResult) {
-        const needsMeta = [];
-        const cacheHit = [];
-
-        internalProxies.forEach(proxy => {
-            const key = getProbeCacheKey(proxy);
-            if (!noCache && scriptCache) {
-                const cached = scriptCache.get(key);
-                if (cached !== undefined) {
-                    // 有缓存（跨请求）：null=已确认不可用，直接采信不再重试
-                    applyProbeResult(proxy, proxies, cached);
-                    onResult(proxy, cached);
-                    cacheHit.push({ proxy, cached });
-                    if (cached !== null) {
-                        $.info(`[PARSER][${proxy.name}] CACHE_HIT latency=${cached.latency}ms`);
-                        log(`[DEBUG] cache HIT key=${key} latency=${cached.latency}`);
-                    } else {
-                        $.info(`[PARSER][${proxy.name}] CACHE_HIT (failed, skipped)`);
-                        log(`[DEBUG] cache HIT (failed) key=${key}`);
-                    }
-                    return;
-                }
-            }
-            needsMeta.push(proxy);
-            log(`[DEBUG] cache MISS key=${key}`);
-        });
-
-        log(`[DEBUG] cache hit=${cacheHit.length}/${internalProxies.length} needMeta=${needsMeta.length}`);
-
-        log(`[DEBUG] cache hit=${cacheHit.length}/${internalProxies.length} needMeta=${needsMeta.length}`);
-
-        if (needsMeta.length === 0) {
+        if (internalProxies.length === 0) {
             return { ports: null, pid: null };
         }
 
-        const timeout = http_meta_start_delay + needsMeta.length * http_meta_proxy_timeout;
+        const timeout = http_meta_start_delay + internalProxies.length * http_meta_proxy_timeout;
 
         const startRes = await httpRequest({
             method: 'post',
@@ -329,7 +283,7 @@ async function operator(proxies = [], targetPlatform, context) {
                 'Content-type': 'application/json',
                 Authorization: http_meta_authorization,
             },
-            body: JSON.stringify({ proxies: needsMeta, timeout }),
+            body: JSON.stringify({ proxies: internalProxies, timeout }),
             timeout: 10000,
         });
 
@@ -342,7 +296,7 @@ async function operator(proxies = [], targetPlatform, context) {
         await $.wait(http_meta_start_delay);
 
         await executeAsyncTasks(
-            needsMeta.map((proxy, i) => () => probeOne(proxy, proxies, ports[i], onResult)),
+            internalProxies.map((proxy, i) => () => probeOne(proxy, proxies, ports[i], onResult)),
             { concurrency }
         );
 
@@ -386,8 +340,7 @@ async function operator(proxies = [], targetPlatform, context) {
             const latency = Date.now() - startedAt;
             const status = parseInt(res.status || res.statusCode || 200);
 
-            // node_timeout：latency > 此值视为慢节点，但正常写入缓存
-            // META 统一控制超时，超时写入 null
+            // node_timeout：latency > 此值视为慢节点，META 统一控制超时，超时标记为失败
 
             if (status === 200) {
                 let geoData;
@@ -405,23 +358,18 @@ async function operator(proxies = [], targetPlatform, context) {
                 }
                 const cached = { ...geoData, latency };
                 applyProbeResult(proxy, proxies, cached);
-                if (scriptCache) scriptCache.set(getProbeCacheKey(proxy), cached);
                 $.info(`[PARSER][${proxy.name}] OK country=${geoData.countryCode} latency=${latency}ms`);
             } else {
-                const cached = null;
-                applyProbeResult(proxy, proxies, cached);
-                if (scriptCache) scriptCache.set(getProbeCacheKey(proxy), cached);
+                applyProbeResult(proxy, proxies, null);
                 $.info(`[PARSER][${proxy.name}] FAIL status=${status}`);
             }
         } catch (e) {
             const latency = Date.now() - startedAt;
-            const cached = null;
-            applyProbeResult(proxy, proxies, cached);
-            if (scriptCache) scriptCache.set(getProbeCacheKey(proxy), cached);
+            applyProbeResult(proxy, proxies, null);
             $.error(`[PARSER][${proxy.name}] TIMEOUT/${latency}ms: ${e.message || e.reason || String(e) || 'unknown'}`);
         }
 
-        onResult(proxy, scriptCache ? scriptCache.get(getProbeCacheKey(proxy)) : null);
+        onResult(proxy, null);
     }
 
     function applyProbeResult(proxy, proxies, result) {
@@ -433,15 +381,6 @@ async function operator(proxies = [], targetPlatform, context) {
             p._geo = result;
         }
     }
-}
-
-// ============================================================
-// 缓存 key
-// ============================================================
-function getProbeCacheKey(proxy) {
-    const { name, _proxies_index, uuid, password, ...rest } = proxy
-    const hash = require('crypto').createHash('md5').update(JSON.stringify(rest)).digest('hex')
-    return `formater:probe:${hash}`
 }
 
 // ============================================================
