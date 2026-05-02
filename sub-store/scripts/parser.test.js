@@ -225,6 +225,87 @@ const r4 = calcNoCache({ cache: 'true' }, true);
 assert(r4 === false, 'cache="true" → noCache=false');
 
 // ============================================================
+// 测试 7: detectRegionFromName - 从节点名称识别 region
+// ============================================================
+console.log('\n[测试 7] detectRegionFromName 节点名称识别\n');
+
+const REGION_MAP = {
+    'HK': { alias: ['香港', 'hong kong', 'hk'], flag: '🇭🇰', code: 'HK', name_cn: '香港', name_en: 'Hong Kong' },
+    'TW': { alias: ['台湾', 'taiwan', 'tw'], flag: '🇹🇼', code: 'TW', name_cn: '台湾', name_en: 'Taiwan' },
+    'JP': { alias: ['日本', 'japan', 'jp'], flag: '🇯🇵', code: 'JP', name_cn: '日本', name_en: 'Japan' },
+    'US': { alias: ['美国', 'united states', 'us'], flag: '🇺🇸', code: 'US', name_cn: '美国', name_en: 'United States' },
+    'SG': { alias: ['新加坡', 'singapore', 'sg'], flag: '🇸🇬', code: 'SG', name_cn: '新加坡', name_en: 'Singapore' },
+    'KR': { alias: ['韩国', 'korea', 'kr'], flag: '🇰🇷', code: 'KR', name_cn: '韩国', name_en: 'Korea' },
+};
+
+function getRegionKeywords(info) {
+    const kws = [];
+    if (info.flag) kws.push(info.flag);
+    if (info.code) kws.push(info.code);
+    if (info.name_cn) kws.push(info.name_cn);
+    if (info.name_en) kws.push(info.name_en);
+    if (info.alias) kws.push(...info.alias);
+    return kws;
+}
+
+function matchKeyword(text, keyword) {
+    if (keyword.match(/[\uD83C-\uDBFF]/)) return text.includes(keyword);
+    const lower = text.toLowerCase();
+    const kwLower = keyword.toLowerCase();
+    if (keyword.match(/[一-龥]/)) return lower.includes(kwLower);
+    if (keyword.length <= 3) return new RegExp(`\\b${kwLower}\\b`, 'i').test(lower);
+    return lower.includes(kwLower);
+}
+
+function detectRegionFromName(name) {
+    const lowerName = name.toLowerCase();
+    for (const [key, info] of Object.entries(REGION_MAP)) {
+        const keywords = getRegionKeywords(info);
+        for (const kw of keywords) {
+            if (matchKeyword(lowerName, kw)) {
+                return info;
+            }
+        }
+    }
+    return null;
+}
+
+// 能识别的节点名称
+const testCases = [
+    { name: '新加坡 03', expected: 'SG' },
+    { name: '新加坡-03', expected: 'SG' },
+    { name: 'SG-新加坡-01', expected: 'SG' },
+    { name: '🇸🇬 新加坡 05', expected: 'SG' },
+    { name: 'Hong Kong 01', expected: 'HK' },
+    { name: '香港节点', expected: 'HK' },
+    { name: 'JP Tokyo 01', expected: 'JP' },
+    { name: '日本大阪', expected: 'JP' },
+    { name: 'US Los Angeles', expected: 'US' },
+    { name: '美国 01', expected: 'US' },
+    { name: 'TW 台湾 02', expected: 'TW' },
+    { name: 'KR Seoul', expected: 'KR' },
+];
+
+testCases.forEach(tc => {
+    const result = detectRegionFromName(tc.name);
+    const code = result ? result.code : null;
+    assert(code === tc.expected, `"${tc.name}" → ${code || 'null'} (期望 ${tc.expected})`);
+});
+
+// 不能识别的节点名称
+const failCases = [
+    'domain.u53e3.com:26624',
+    'node-01.example.com',
+    'random-name-123',
+    'ss://xxxxx',
+];
+
+failCases.forEach(name => {
+    const result = detectRegionFromName(name);
+    assert(result === null, `"${name}" → null (应无法识别)`);
+});
+
+// ============================================================
 // 汇总
 // ============================================================
 const sep = '='.repeat(50);
