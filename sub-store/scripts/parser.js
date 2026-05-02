@@ -4,8 +4,8 @@
  * Sub-Store 节点格式化脚本 - 探测、抛弃、重命名、排序 一次完成
  *
  * 功能特性：
- * - HTTP META 探测节点落地 region（国家/ISP）
- * - 单节点超时抛弃（latency > timeout 即丢弃）
+ * - 节点名称能识别 region 时跳过 HTTP META 探测
+ * - 名称无法识别 region 的节点使用 HTTP META 探测
  * - 支持 rename 模板（兼容 node-renamer 语法）
  * - 支持高级排序，按 region 分组编号
  * - 支持限制返回数量
@@ -30,20 +30,16 @@
  * - format / f   格式化模板    默认: {region_code} {isp_code}
  * - connector / c 占位符连接符 默认: ' '
  *
- * Sort 参数
+ * Sort 参数（不支持 latency 排序）
  * - sort / s   排序规则
- *   新语法: {region} ASC, {tag(IPLC)} DESC, {index} ASC
- *   兼容旧语法: region_code ASC, tag(IPLC) DESC
+ *   语法: {region} ASC, {tag(IPLC)} DESC, {index} ASC
  *
  * 过滤参数
  * - remove_failed 移除失败节点 默认: true
  * - limit / l     限制返回数量 默认: 0（不限制）
  *
- * 缓存策略：
- * - 缓存命中时直接采信测试结果（由 Sub-Store 统一管理缓存时效）
- *
  * 使用示例（mode: link）：
- * https://cdn地址#f={region}{i:2d}{tag}&c=-&s={region}ASC&t=800&l=20&remove_failed=true
+ * https://cdn地址#f={region}{i:2d}{tag}&c=-&s={region}ASC&l=20&remove_failed=true
  */
 
 // ============================================================
@@ -206,31 +202,56 @@ async function operator(proxies = [], targetPlatform, context) {
     log(`[DEBUG] input=${proxies.length} internal=${internalProxies.length} incompatible=${proxies.length - internalProxies.length}`);
     if (!internalProxies.length) return proxies;
 
-    // ---- Step 2: 统一探测 ----
-    let probeSuccess = 0;
-    let probeFail = 0;
-
-    const { ports, pid } = await probeAll(internalProxies, proxies, (proxy, result) => {
-        if (result) {
-            probeSuccess++;
+    // ---- Step 1.5: 先尝试用节点名称识别 region，能识别的跳过探测 ----
+    let needsMeta = [];
+    internalProxies.forEach(proxy => {
+        const p = proxies[proxy._proxies_index];
+        const detected = detectRegionFromName(p.name || '');
+        if (detected) {
+            // 能从名称识别 region，跳过探测
+            p.region_code = detected.code;
+            p.region_flag = detected.flag;
+            p.region_name = detected.name_en;
+            p.region_name_cn = detected.name_cn;
+            p.isp_code = detectISPFromName((p.name || '').toLowerCase());
+            p.tag = detectTag((p.name || '').toLowerCase());
+            log(`[DEBUG] ${p.name}: region=${detected.code} (name match, skip meta)`);
         } else {
-            probeFail++;
+            // 名称无法识别，需要 META 探测
+            needsMeta.push({ proxy, original: p });
+            log(`[DEBUG] ${p.name}: region=unknown, need meta probe`);
         }
     });
 
-    $.info(`[PARSER] 探测完成: 成功 ${probeSuccess}, 失败 ${probeFail}`);
+    $.info(`[PARSER] 名称识别: ${internalProxies.length - needsMeta.length}/${internalProxies.length}, 待探测: ${needsMeta.length}`);
 
-    // 将 _geo 从 internalProxies 同步回 proxies（cache hit 在 internalProxies 上设置了 _geo）
+    // ---- Step 2: 只对名称无法识别的节点进行 META 探测 ----
+    if (needsMeta.length > 0) {
+        const { ports, pid } = await probeAll(
+            needsMeta.map(n => n.proxy),
+            needsMeta.map(n => n.original),
+            (proxy, result) => {}
+        );
+        $.info(`[PARSER] META 探测完成`);
+    } else {
+        $.info(`[PARSER] 无需 META 探测`);
+    }
+
+    // 将 region 从 internalProxies 同步回 proxies
     internalProxies.forEach(proxy => {
         const p = proxies[proxy._proxies_index];
-        if (proxy._geo) p._geo = proxy._geo;
-        if (proxy._failed) { p._failed = true; p._failReason = proxy._failReason; }
+        if (p.region_code) {
+            proxy.region_code = p.region_code;
+            proxy.region_flag = p.region_flag;
+            proxy.region_name = p.region_name;
+            proxy.region_name_cn = p.region_name_cn;
+        }
     });
 
     // ---- Step 3: Rename ----
     proxies.map(proxy => renameProxy(proxy, format, connector, 0));
 
-    // ---- Step 4: Sort ----
+    // ---- Step 4: Sort（不支持 latency）----
     if (sort) {
         const sortRules = parseSortRules(sort);
         if (sortRules.length > 0) {
@@ -636,7 +657,7 @@ function parseSortRules(sortString) {
             'region_flag': 'countryFlag', 'tag': 'tag',
             'isp_code': 'ispCode', 'isp_name': 'ispName',
             'index': 'index', 'i': 'index',
-            'name': 'name', 'latency': 'latency',
+            'name': 'name',
         };
 
         rules.push({
@@ -671,10 +692,6 @@ function applySort(proxies, rules) {
                 } else {
                     comparison = va.localeCompare(vb);
                 }
-            } else if (type === 'latency') {
-                const va = a._geo?.latency ?? 999999;
-                const vb = b._geo?.latency ?? 999999;
-                comparison = va - vb;
             } else if (type === 'ispCode') {
                 const va = (a._geo?.isp || a.isp_code || '').toUpperCase();
                 const vb = (b._geo?.isp || b.isp_code || '').toUpperCase();
@@ -755,6 +772,20 @@ function reassignGroupIndex(proxies) {
 // ============================================================
 // 工具函数
 // ============================================================
+// 从节点名称识别 region
+function detectRegionFromName(name) {
+    const lowerName = name.toLowerCase();
+    for (const [key, info] of Object.entries(REGION_MAP)) {
+        const keywords = getRegionKeywords(info);
+        for (const kw of keywords) {
+            if (matchKeyword(lowerName, kw)) {
+                return info;
+            }
+        }
+    }
+    return null;
+}
+
 function getRegionKeywords(info) {
     const kws = [];
     if (info.flag) kws.push(info.flag);
