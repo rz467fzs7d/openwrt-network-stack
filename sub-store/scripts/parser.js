@@ -32,6 +32,13 @@
  * - sort / s   排序规则
  *   语法: {region} ASC, {tag(IPLC)} DESC, {index} ASC
  *
+ * 拍平参数
+ * - flat          静态 server->IP 映射，格式: host1=ip1,ip2;host2=ip3
+ *                 在 rename 完成后展开：每个 IP 克隆一个节点
+ *                 server 替换为对应 IP，名称追加 {connector}{ip}
+ *                 例: HK-01-1.2.3.4（connector='-'）
+ *                 不在映射中的节点原样保留
+ *
  * 过滤参数
  * - remove_failed 移除失败节点 默认: true
  *
@@ -166,6 +173,8 @@ async function operator(proxies = [], targetPlatform, context) {
     const rawSort = $arguments.sort ?? $arguments[PARAM_ALIAS.sort] ?? null;
     const sort = rawSort ? normalizePlaceholder(rawSort) : null;
     const remove_failed = $arguments.remove_failed !== false;
+    const limit = parseInt($arguments.limit ?? $arguments[PARAM_ALIAS.limit] ?? 0);
+    const flatMap = parseFlatMap($arguments.flat ?? '');
 
     // ---- Step 1: 转换节点为 internal 格式 ----
     const internalProxies = [];
@@ -255,6 +264,27 @@ async function operator(proxies = [], targetPlatform, context) {
         proxies.forEach(proxy => {
             proxy.name = applyFormat(proxy, format, connector);
         });
+    }
+
+    // ---- Step 4.8: flat 拍平 ----
+    if (Object.keys(flatMap).length > 0) {
+        const expanded = [];
+        for (const proxy of proxies) {
+            const ips = flatMap[proxy.server];
+            if (ips && ips.length) {
+                expanded.push(proxy);
+                for (const ip of ips) {
+                    const cloned = JSON.parse(JSON.stringify(proxy));
+                    cloned.server = ip;
+                    cloned.name = proxy.name + connector + ip;
+                    expanded.push(cloned);
+                }
+            } else {
+                expanded.push(proxy);
+            }
+        }
+        proxies = expanded;
+        $.info(`[PARSER] flat 拍平: -> ${proxies.length} 节点`);
     }
 
     // ---- Step 5: 移除失败节点 ----
@@ -768,6 +798,20 @@ function detectAllTags(name) {
     if (/udpn/i.test(name)) tags.push('UDPN');
     if (/家宽|home/i.test(name)) tags.push('HOME');
     return tags;
+}
+
+// 解析 flat 参数: "host1=ip1,ip2;host2=ip3" -> { host1: ['ip1','ip2'], host2: ['ip3'] }
+function parseFlatMap(raw) {
+    const map = {};
+    if (!raw) return map;
+    for (const entry of raw.split(';')) {
+        const eq = entry.indexOf('=');
+        if (eq === -1) continue;
+        const host = entry.substring(0, eq).trim();
+        const ips = entry.substring(eq + 1).split(',').map(s => s.trim()).filter(Boolean);
+        if (host && ips.length) map[host] = ips;
+    }
+    return map;
 }
 
 async function httpRequest(opt = {}) {
