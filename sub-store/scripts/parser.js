@@ -33,7 +33,7 @@
  *   语法: {region} ASC, {tag(IPLC)} DESC, {index} ASC
  *
  * 拍平参数
- * - flat          静态 server->IP 映射，格式: host1=ip1,ip2;host2=ip3
+ * - flat          静态 server->IP 映射，格式: host1:ip1,ip2;host2:ip3
  *                 在 rename 完成后展开：每个 IP 克隆一个节点
  *                 server 替换为对应 IP，名称追加 {connector}{ip}
  *                 例: HK-01-1.2.3.4（connector='-'）
@@ -800,15 +800,15 @@ function detectAllTags(name) {
     return tags;
 }
 
-// 解析 flat 参数: "host1=ip1,ip2;host2=ip3" -> { host1: ['ip1','ip2'], host2: ['ip3'] }
+// 解析 flat 参数: "host1:ip1,ip2;host2:ip3" -> { host1: ['ip1','ip2'], host2: ['ip3'] }
 function parseFlatMap(raw) {
     const map = {};
     if (!raw) return map;
     for (const entry of raw.split(';')) {
-        const eq = entry.indexOf('=');
-        if (eq === -1) continue;
-        const host = entry.substring(0, eq).trim();
-        const ips = entry.substring(eq + 1).split(',').map(s => s.trim()).filter(Boolean);
+        const colon = entry.indexOf(':');
+        if (colon === -1) continue;
+        const host = entry.substring(0, colon).trim();
+        const ips = entry.substring(colon + 1).split(',').map(s => s.trim()).filter(Boolean);
         if (host && ips.length) map[host] = ips;
     }
     return map;
