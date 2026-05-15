@@ -11,7 +11,7 @@
  * 参数：
  * - protocols      支持拍平的协议列表（逗号分隔）  默认: ss,ssr
  * - ip_map         静态 server->IP 映射，格式:     默认: 空（走 DNS）
- *                  host1=ip1,ip2;host2=ip3,ip4
+ *                  host1:ip1,ip2;host2:ip3,ip4
  *                  指定后对匹配的 server 直接用此映射，不发 DNS 请求
  * - dns_server     DNS 服务器地址                  默认: 1.1.1.1
  * - dns_port       DNS 服务器端口                  默认: 53
@@ -190,15 +190,15 @@ function isIPAddress(str) {
     return false;
 }
 
-// 解析 ip_map 参数: "host1=ip1,ip2;host2=ip3" -> { host1: ['ip1','ip2'], host2: ['ip3'] }
+// 解析 ip_map 参数: "host1:ip1,ip2;host2:ip3" -> { host1: ['ip1','ip2'], host2: ['ip3'] }
 function parseIpMap(raw) {
     const map = {};
     if (!raw) return map;
     for (const entry of raw.split(';')) {
-        const eq = entry.indexOf('=');
-        if (eq === -1) continue;
-        const host = entry.substring(0, eq).trim();
-        const ips = entry.substring(eq + 1).split(',').map(s => s.trim()).filter(Boolean);
+        const colon = entry.indexOf(':');
+        if (colon === -1) continue;
+        const host = entry.substring(0, colon).trim();
+        const ips = entry.substring(colon + 1).split(',').map(s => s.trim()).filter(Boolean);
         if (host && ips.length) map[host] = ips;
     }
     return map;
