@@ -24,6 +24,8 @@ https://fastly.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@16fc05c/sub-stor
 | `limit` | `l` | 限制返回数量 | `0` (不限制) |
 | `remove_failed` | - | 移除探测失败的节点 | `true` |
 | `concurrency` | - | 探测并发数 | `10` |
+| `probe_retries` | - | META geo 探测重试次数 | `2` |
+| `probe_retry_delay` | - | META geo 探测重试间隔(ms) | `1000` |
 
 ### 占位符
 
@@ -60,6 +62,7 @@ s=region:HK,SG,JP:asc|tag:Plus:desc|index:asc
 
 - 能从节点名称识别地区时跳过 META 探测
 - 名称无法识别地区时才进行 META 探测
+- META geo 探测默认额外重试 2 次
 - 探测失败节点默认移除；本轮探测未返回不作为延迟筛选条件
 - 探测结果缓存由 Sub-Store 资源缓存控制
 

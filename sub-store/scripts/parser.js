@@ -22,6 +22,8 @@
  * - api         测落地的 API  默认: http://ip-api.com/json?lang=zh-CN
  * - method      请求方法      默认: get
  * - concurrency 并发数        默认: 10
+ * - probe_retries META geo 探测重试次数 默认: 2
+ * - probe_retry_delay META geo 探测重试间隔(ms) 默认: 1000
  *
  * Rename 参数
  * - format / f   格式化模板    默认: {region_code} {isp_code}
@@ -162,8 +164,8 @@ async function operator(proxies = [], targetPlatform, context) {
         ?? '';
     const method = $arguments.method || 'get';
     const concurrency = parseInt($arguments.concurrency || 10);
-    const retries = parseFloat($arguments.retries ?? 0);
-    const retry_delay = parseFloat($arguments.retry_delay ?? 1000);
+    const probe_retries = parseFloat($arguments.probe_retries ?? $arguments.retries ?? 2);
+    const probe_retry_delay = parseFloat($arguments.probe_retry_delay ?? $arguments.retry_delay ?? 1000);
 
     // 调试日志
     const debug = $arguments.debug ?? $arguments[PARAM_ALIAS.debug] ?? true;
@@ -353,7 +355,7 @@ async function operator(proxies = [], targetPlatform, context) {
     // ============================================================
     async function probeOne(proxy, proxies, port, onResult) {
         const startedAt = Date.now();
-        log(`[DEBUG] probe request timeout=${PROBE_REQUEST_TIMEOUT}ms`);
+        log(`[DEBUG] probe request timeout=${PROBE_REQUEST_TIMEOUT}ms retries=${probe_retries}`);
 
         try {
             const headers = {
@@ -368,6 +370,8 @@ async function operator(proxies = [], targetPlatform, context) {
                 headers,
                 url: api_url,
                 timeout: PROBE_REQUEST_TIMEOUT,
+                retries: probe_retries,
+                retry_delay: probe_retry_delay,
             });
 
             const latency = Date.now() - startedAt;
