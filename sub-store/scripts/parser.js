@@ -22,15 +22,15 @@
  * - api         测落地的 API  默认: http://ip-api.com/json?lang=zh-CN
  * - method      请求方法      默认: get
  * - concurrency 并发数        默认: 10
- * - timeout / t 单节点超时(ms) 默认: 3000，latency > timeout 则丢弃
  *
  * Rename 参数
  * - format / f   格式化模板    默认: {region_code} {isp_code}
- * - connector / c 占位符连接符 默认: ' '
+ * - connector / c 占位符连接符 默认: -
  *
  * Sort 参数（不支持 latency 排序）
  * - sort / s   排序规则
- *   语法: {region} ASC, {tag(IPLC)} DESC, {index} ASC
+ *   推荐语法: region:HK,SG,JP:asc|tag:Plus:desc|has_tag:desc|index:asc
+ *   兼容旧语法: {region} ASC, {tag(IPLC)} DESC, {index} ASC
  *
  * 拍平参数
  * - flat          静态 server->IP 映射，格式: {host1:ip1,ip2}{host2:ip3}
@@ -55,7 +55,6 @@ const PARAM_ALIAS = {
     format: 'f',
     connector: 'c',
     sort: 's',
-    timeout: 't',
     limit: 'l',
     debug: 'd',
 };
@@ -131,6 +130,10 @@ const REGION_MAP = {
     'CL': { alias: ['智利', 'chile', 'cl'], flag: '🇨🇱', code: 'CL', name_cn: '智利', name_en: 'Chile' },
 };
 
+// 本轮探测请求的内部保护超时。对外不暴露 timeout 参数，避免把“本轮未返回”
+// 误解成“节点不可用/应按延迟过滤”。
+const PROBE_REQUEST_TIMEOUT = 5000;
+
 // ============================================================
 // 主入口
 // ============================================================
@@ -159,7 +162,6 @@ async function operator(proxies = [], targetPlatform, context) {
         ?? '';
     const method = $arguments.method || 'get';
     const concurrency = parseInt($arguments.concurrency || 10);
-    const node_timeout = parseFloat($arguments[PARAM_ALIAS.timeout] ?? $arguments.timeout ?? 3000); // httpRequest timeout = node_timeout + 1000
     const retries = parseFloat($arguments.retries ?? 0);
     const retry_delay = parseFloat($arguments.retry_delay ?? 1000);
 
@@ -170,7 +172,7 @@ async function operator(proxies = [], targetPlatform, context) {
     // Rename 配置（入参别名统一在此处理）
     const rawFormat = $arguments.format ?? $arguments[PARAM_ALIAS.format] ?? '{region_code} {isp_code}';
     const format = normalizePlaceholder(rawFormat);
-    const connector = $arguments.connector ?? $arguments[PARAM_ALIAS.connector] ?? ' ';
+    const connector = $arguments.connector ?? $arguments[PARAM_ALIAS.connector] ?? '-';
     const rawSort = $arguments.sort ?? $arguments[PARAM_ALIAS.sort] ?? null;
     const sort = rawSort ? normalizePlaceholder(rawSort) : null;
     const remove_failed = $arguments.remove_failed !== false;
@@ -351,7 +353,7 @@ async function operator(proxies = [], targetPlatform, context) {
     // ============================================================
     async function probeOne(proxy, proxies, port, onResult) {
         const startedAt = Date.now();
-        log(`[DEBUG] probe timeout=${node_timeout + 1000}ms (node_timeout=${node_timeout}ms)`);
+        log(`[DEBUG] probe request timeout=${PROBE_REQUEST_TIMEOUT}ms`);
 
         try {
             const headers = {
@@ -365,13 +367,11 @@ async function operator(proxies = [], targetPlatform, context) {
                 method,
                 headers,
                 url: api_url,
-                timeout: node_timeout + 1000,
+                timeout: PROBE_REQUEST_TIMEOUT,
             });
 
             const latency = Date.now() - startedAt;
             const status = parseInt(res.status || res.statusCode || 200);
-
-            // node_timeout：latency > 此值视为慢节点，META 统一控制超时，超时标记为失败
 
             if (status === 200) {
                 let geoData;
@@ -407,7 +407,7 @@ async function operator(proxies = [], targetPlatform, context) {
         const p = proxies[proxy._proxies_index];
         if (result === null) {
             p._failed = true;
-            p._failReason = 'timeout';
+            p._failReason = 'probe_failed';
         } else {
             p._geo = result;
         }
@@ -478,7 +478,7 @@ function renameProxy(proxy, formatStr, connectorStr, groupIndex = 0) {
 
 // 解析 {xxx} 占位符并应用格式化
 function applyFormat(proxy, formatStr, connectorStr) {
-    const conn = connectorStr || ' ';
+    const conn = connectorStr ?? '-';
     const parts = [];
 
     const regex = /\{([^}]+)\}/g;
@@ -575,27 +575,14 @@ function parseSortRules(sortString) {
     if (!sortString) return [];
 
     const rules = [];
-    const parts = [];
-    let current = '';
-    let depth = 0;
-    for (let i = 0; i < sortString.length; i++) {
-        const char = sortString[i];
-        if (char === '(') depth++;
-        if (char === ')') depth--;
-        if (char === ',' && depth === 0) {
-            parts.push(current.trim());
-            current = '';
-        } else {
-            current += char;
-        }
-    }
-    if (current.trim()) parts.push(current.trim());
+    const parts = splitSortParts(sortString);
 
     for (const part of parts) {
         if (!part) continue;
 
         const newMatch = part.match(/^\{([^}]+)\}(?:\(([^)]+)\))?\s*(ASC|DESC)?$/i);
-        const oldMatch = !newMatch ? part.match(/^([\w_]+)(?:\(([^)]+)\))?(?:\s+(ASC|DESC))?$/i) : null;
+        const colonMatch = !newMatch ? parseColonSortRule(part) : null;
+        const oldMatch = !newMatch && !colonMatch ? part.match(/^([\w_]+)(?:\(([^)]+)\))?(?:\s+(ASC|DESC))?$/i) : null;
 
         let field, values, order;
 
@@ -613,6 +600,10 @@ function parseSortRules(sortString) {
                 values = [];
             }
             order = (newMatch[3] || 'ASC').toLowerCase();
+        } else if (colonMatch) {
+            field = colonMatch.field;
+            values = colonMatch.values;
+            order = colonMatch.order;
         } else if (oldMatch) {
             field = oldMatch[1].toLowerCase();
             values = oldMatch[2] ? oldMatch[2].split(',').map(v => v.trim().toUpperCase()) : [];
@@ -630,8 +621,11 @@ function parseSortRules(sortString) {
             'name': 'name',
         };
 
+        const type = fieldMap[field] || field;
+        const isTagMatch = type === 'tag' && values.length > 0 && colonMatch;
+
         rules.push({
-            type: fieldMap[field] || field,
+            type: isTagMatch ? 'tagMatch' : type,
             values,
             hasValues: values.length > 0,
             order,
@@ -639,6 +633,48 @@ function parseSortRules(sortString) {
     }
 
     return rules;
+}
+
+function splitSortParts(sortString) {
+    if (sortString.includes('|')) {
+        return sortString.split('|').map(part => part.trim()).filter(Boolean);
+    }
+    if (sortString.includes(':') && !sortString.includes('{') && !sortString.includes('(')) {
+        return [sortString.trim()];
+    }
+
+    const parts = [];
+    let current = '';
+    let depth = 0;
+    for (let i = 0; i < sortString.length; i++) {
+        const char = sortString[i];
+        if (char === '(') depth++;
+        if (char === ')') depth--;
+        if (char === ',' && depth === 0) {
+            parts.push(current.trim());
+            current = '';
+        } else {
+            current += char;
+        }
+    }
+    if (current.trim()) parts.push(current.trim());
+    return parts;
+}
+
+function parseColonSortRule(part) {
+    const tokens = part.split(':').map(v => v.trim()).filter(Boolean);
+    if (tokens.length < 2) return null;
+
+    const last = tokens[tokens.length - 1].toLowerCase();
+    const hasOrder = last === 'asc' || last === 'desc';
+    const field = tokens[0].toLowerCase();
+    const rawValues = hasOrder ? tokens.slice(1, -1).join(':') : tokens.slice(1).join(':');
+
+    return {
+        field,
+        values: rawValues ? rawValues.split(',').map(v => v.trim().toUpperCase()).filter(Boolean) : [],
+        order: hasOrder ? last : 'asc',
+    };
 }
 
 function applySort(proxies, rules) {
@@ -680,6 +716,16 @@ function applySort(proxies, rules) {
                 const va = a.index ?? parseInt((a.originalName || '').match(/\d+/)?.[0] || '0');
                 const vb = b.index ?? parseInt((b.originalName || '').match(/\d+/)?.[0] || '0');
                 comparison = va - vb;
+            } else if (type === 'tagMatch') {
+                const nameA = (a.originalName || a.name || '').toUpperCase();
+                const nameB = (b.originalName || b.name || '').toUpperCase();
+                const ha = values.some(value => nameA.includes(value));
+                const hb = values.some(value => nameB.includes(value));
+                if (ha !== hb) comparison = ha ? 1 : -1;
+            } else if (type === 'has_tag') {
+                const ha = Boolean(a.tag);
+                const hb = Boolean(b.tag);
+                if (ha !== hb) comparison = ha ? 1 : -1;
             } else if (type === 'tag') {
                 const ta = a.tag || '';
                 const tb = b.tag || '';

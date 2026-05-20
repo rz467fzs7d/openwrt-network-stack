@@ -8,6 +8,10 @@
  * 3. detectRegionFromName 节点名称识别 region
  */
 
+const fs = require('fs');
+const path = require('path');
+const vm = require('vm');
+
 // ============================================================
 // 测试辅助
 // ============================================================
@@ -22,6 +26,29 @@ function assert(condition, msg) {
     console.error(`  ❌ ${msg}`);
     failed++;
   }
+}
+
+function loadParserFunctions() {
+  const source = fs.readFileSync(path.join(__dirname, 'parser.js'), 'utf8');
+  const context = {
+    console,
+    process,
+    $arguments: {},
+    $substore: {
+      http: { get: async () => ({}), post: async () => ({}) },
+      wait: async () => {},
+      info: () => {},
+      error: () => {},
+    },
+    ProxyUtils: { produce: () => [] },
+  };
+  vm.createContext(context);
+  vm.runInContext(source, context);
+  return {
+    parseSortRules: context.parseSortRules,
+    applySort: context.applySort,
+    applyFormat: context.applyFormat,
+  };
 }
 
 // ============================================================
@@ -215,6 +242,40 @@ failCases.forEach(name => {
     const result = detectRegionFromName(name);
     assert(result === null, `"${name}" → null (应无法识别)`);
 });
+
+// ============================================================
+// 测试 8: sort DSL
+// ============================================================
+console.log('\n[测试 8] sort DSL\n');
+
+const { parseSortRules, applySort, applyFormat } = loadParserFunctions();
+
+const regionRules = parseSortRules('region:HK,SG,JP:asc');
+assert(regionRules.length === 1, 'region 简称排序规则应被解析');
+assert(regionRules[0].type === 'countryCode', 'region 应映射到 countryCode');
+assert(regionRules[0].values.join(',') === 'HK,SG,JP', 'region 指定顺序应被解析为 values');
+
+const tagRules = parseSortRules('tag:Plus:desc');
+const tagSorted = applySort([
+  { originalName: '香港 01', region_code: 'HK', tag: '', index: 1 },
+  { originalName: 'Plus 香港 02', region_code: 'HK', tag: '', index: 2 },
+], tagRules);
+assert(tagSorted[0].originalName === 'Plus 香港 02', 'tag:Plus:desc 应让原始名含 Plus 的节点优先');
+
+const hasTagRules = parseSortRules('has_tag:desc');
+const hasTagSorted = applySort([
+  { originalName: '香港 01', region_code: 'HK', tag: '', index: 1 },
+  { originalName: '香港 IPLC 02', region_code: 'HK', tag: 'IPLC', index: 2 },
+], hasTagRules);
+assert(hasTagSorted[0].tag === 'IPLC', 'has_tag:desc 应让已有主标签的节点优先');
+
+const formattedWithDefaultConnector = applyFormat({
+  region_code: 'HK',
+  index: 1,
+  originalName: 'Plus 香港 IPLC 01',
+  otherTags: ['IPLC'],
+}, '{region}{index:2d}{tag:Plus}{otherTags}');
+assert(formattedWithDefaultConnector === 'HK-01-PLUS-IPLC', 'connector 默认应为 -');
 
 // ============================================================
 // 汇总

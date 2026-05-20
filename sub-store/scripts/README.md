@@ -11,7 +11,7 @@ HTTP META 探测 + 重命名 + 排序 + 限流，一次完成。
 **mode: link**（推荐）：
 
 ```
-https://fastly.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@16fc05c/sub-store/scripts/node-formater.js#f={region}{i:2d}{tag}&c=-&s={region}ASC&t=800&l=20
+https://fastly.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@16fc05c/sub-store/scripts/node-formater.js#f={region}{i:2d}{tag}&c=-&s={region}ASC&l=20
 ```
 
 参数含义：
@@ -19,9 +19,8 @@ https://fastly.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@16fc05c/sub-stor
 | 参数 | 缩写 | 说明 | 默认值 |
 |------|------|------|--------|
 | `format` | `f` | 格式化模板 | `{region_code} {isp_code}` |
-| `connector` | `c` | 占位符连接符 | ` ` (空格) |
+| `connector` | `c` | 占位符连接符 | `-` |
 | `sort` | `s` | 排序规则 | 无 |
-| `timeout` | `t` | 单节点超时(ms)，超过丢弃 | `1000` |
 | `limit` | `l` | 限制返回数量 | `0` (不限制) |
 | `remove_failed` | - | 移除探测失败的节点 | `true` |
 | `concurrency` | - | 探测并发数 | `10` |
@@ -51,17 +50,17 @@ f={region}-{i:02d}&c=-        →  HK-01, JP-02
 ### 排序示例
 
 ```
-s={region}ASC                        按地区升序（HK → JP → SG）
-s={tag(IPLC)}DESC                     IPLC 节点优先
-s={region}ASC,{tag(IPLC)}DESC,{i}ASC  地区 > 标签 > 序号
-s={region}(HK,JP,SG)ASC,{i}ASC        指定地区优先顺序
+s=region:HK,SG,JP:asc|index:asc       指定地区优先顺序，再按序号
+s=tag:Plus:desc|index:asc             原始名称含 Plus 的节点优先
+s=has_tag:desc|index:asc              有主标签（IPLC/UDPN/HOME）的节点优先
+s=region:HK,SG,JP:asc|tag:Plus:desc|index:asc
 ```
 
-### 缓存策略
+### 探测策略
 
-- 探测结果缓存 **10 分钟**（由 Sub-Store 资源缓存控制）
-- 缓存命中时，用当前 `timeout` 参数重新比较：
-  - `latency <= timeout` → 通过
-  - `latency > timeout` → 丢弃（不重新探测）
+- 能从节点名称识别地区时跳过 META 探测
+- 名称无法识别地区时才进行 META 探测
+- 探测失败节点默认移除；本轮探测未返回不作为延迟筛选条件
+- 探测结果缓存由 Sub-Store 资源缓存控制
 
 清除缓存：在 Sub-Store 设置中操作"刷新"（会调用 `revokeAll`）
