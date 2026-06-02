@@ -45,6 +45,7 @@ function loadParserFunctions() {
   vm.createContext(context);
   vm.runInContext(source, context);
   return {
+    operator: context.operator,
     parseSortRules: context.parseSortRules,
     applySort: context.applySort,
     applyFormat: context.applyFormat,
@@ -278,13 +279,66 @@ const formattedWithDefaultConnector = applyFormat({
 assert(formattedWithDefaultConnector === 'HK-01-PLUS-IPLC', 'connector 默认应为 -');
 
 // ============================================================
+// 测试 9: META 探测优先于名称识别
+// ============================================================
+console.log('\n[测试 9] META 探测优先于名称识别\n');
+
+async function testMetaProbeOverridesNameRegion() {
+  const source = fs.readFileSync(path.join(__dirname, 'parser.js'), 'utf8');
+  const context = {
+    console,
+    process,
+    $arguments: {
+      f: '{region}',
+      c: '-',
+      remove_failed: false,
+      debug: false,
+    },
+    $substore: {
+      http: {
+        post: async opt => {
+          if (opt.url.endsWith('/start')) return { body: JSON.stringify({ ports: [10001], pid: 123 }) };
+          if (opt.url.endsWith('/stop')) return { body: '{}' };
+          throw new Error(`unexpected POST ${opt.url}`);
+        },
+        get: async () => ({
+          status: 200,
+          body: JSON.stringify({ country: 'United States', countryCode: 'US', isp: 'Example ISP' }),
+        }),
+      },
+      wait: async () => {},
+      info: () => {},
+      log: () => {},
+      error: () => {},
+    },
+    $substore_env: {},
+    ProxyUtils: {
+      produce: nodes => nodes.map(node => ({ ...node })),
+    },
+  };
+  vm.createContext(context);
+  vm.runInContext(source, context);
+
+  const result = await context.operator([{ name: '香港 01', type: 'ss', server: 'example.com', port: 443 }]);
+  assert(result[0]._geo?.countryCode === 'US', '名称可识别地区的节点仍应执行 META 探测');
+  assert(result[0].region_code === 'US', 'region 应以 META 落地 countryCode 为准');
+  assert(result[0].name === 'US', '重命名结果应使用 META 探测到的 region');
+}
+
+async function runAsyncTests() {
+  await testMetaProbeOverridesNameRegion();
+}
+
+// ============================================================
 // 汇总
 // ============================================================
-const sep = '='.repeat(50);
-console.log(`\n${sep}`);
-console.log(`结果: ${passed} 通过, ${failed} 失败`);
-console.log(`${sep}\n`);
+runAsyncTests().finally(() => {
+  const sep = '='.repeat(50);
+  console.log(`\n${sep}`);
+  console.log(`结果: ${passed} 通过, ${failed} 失败`);
+  console.log(`${sep}\n`);
 
-if (failed > 0) {
-  process.exit(1);
-}
+  if (failed > 0) {
+    process.exit(1);
+  }
+});

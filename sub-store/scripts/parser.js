@@ -4,8 +4,7 @@
  * Sub-Store 节点格式化脚本 - 探测、抛弃、重命名、排序 一次完成
  *
  * 功能特性：
- * - 节点名称能识别 region 时跳过 HTTP META 探测
- * - 名称无法识别 region 的节点使用 HTTP META 探测
+ * - HTTP META 探测节点落地 region（国家/ISP）
  * - 支持 rename 模板（兼容 node-renamer 语法）
  * - 支持高级排序，按 region 分组编号
  * - 支持限制返回数量
@@ -22,8 +21,9 @@
  * - api         测落地的 API  默认: http://ip-api.com/json?lang=zh-CN
  * - method      请求方法      默认: get
  * - concurrency 并发数        默认: 10
- * - probe_retries META geo 探测重试次数 默认: 2
- * - probe_retry_delay META geo 探测重试间隔(ms) 默认: 1000
+ * - timeout 请求超时(ms) 默认: 5000
+ * - retries 请求重试次数 默认: 1
+ * - retry_delay 请求重试间隔(ms) 默认: 1000
  *
  * Rename 参数
  * - format / f   格式化模板    默认: {region_code} {isp_code}
@@ -132,10 +132,6 @@ const REGION_MAP = {
     'CL': { alias: ['智利', 'chile', 'cl'], flag: '🇨🇱', code: 'CL', name_cn: '智利', name_en: 'Chile' },
 };
 
-// 本轮探测请求的内部保护超时。对外不暴露 timeout 参数，避免把“本轮未返回”
-// 误解成“节点不可用/应按延迟过滤”。
-const PROBE_REQUEST_TIMEOUT = 5000;
-
 // ============================================================
 // 主入口
 // ============================================================
@@ -164,8 +160,6 @@ async function operator(proxies = [], targetPlatform, context) {
         ?? '';
     const method = $arguments.method || 'get';
     const concurrency = parseInt($arguments.concurrency || 10);
-    const probe_retries = parseFloat($arguments.probe_retries ?? $arguments.retries ?? 2);
-    const probe_retry_delay = parseFloat($arguments.probe_retry_delay ?? $arguments.retry_delay ?? 1000);
 
     // 调试日志
     const debug = $arguments.debug ?? $arguments[PARAM_ALIAS.debug] ?? true;
@@ -206,51 +200,16 @@ async function operator(proxies = [], targetPlatform, context) {
     log(`[DEBUG] input=${proxies.length} internal=${internalProxies.length} incompatible=${proxies.length - internalProxies.length}`);
     if (!internalProxies.length) return proxies;
 
-    // ---- Step 1.5: 先尝试用节点名称识别 region，能识别的跳过探测 ----
-    let needsMeta = [];
-    internalProxies.forEach(proxy => {
-        const p = proxies[proxy._proxies_index];
-        const detected = detectRegionFromName(p.name || '');
-        if (detected) {
-            // 能从名称识别 region，跳过探测
-            p.region_code = detected.code;
-            p.region_flag = detected.flag;
-            p.region_name = detected.name_en;
-            p.region_name_cn = detected.name_cn;
-            p.isp_code = detectISPFromName((p.name || '').toLowerCase());
-            p.tag = detectTag((p.name || '').toLowerCase());
-            log(`[DEBUG] ${p.name}: region=${detected.code} (name match, skip meta)`);
-        } else {
-            // 名称无法识别，需要 META 探测
-            needsMeta.push({ proxy, original: p });
-            log(`[DEBUG] ${p.name}: region=unknown, need meta probe`);
-        }
+    // ---- Step 2: 统一 META 探测，以落地结果作为 region 来源 ----
+    let probeSuccess = 0;
+    let probeFail = 0;
+
+    await probeAll(internalProxies, proxies, (proxy, result) => {
+        if (result) probeSuccess++;
+        else probeFail++;
     });
 
-    $.info(`[PARSER] 名称识别: ${internalProxies.length - needsMeta.length}/${internalProxies.length}, 待探测: ${needsMeta.length}`);
-
-    // ---- Step 2: 只对名称无法识别的节点进行 META 探测 ----
-    if (needsMeta.length > 0) {
-        const { ports, pid } = await probeAll(
-            needsMeta.map(n => n.proxy),
-            needsMeta.map(n => n.original),
-            (proxy, result) => {}
-        );
-        $.info(`[PARSER] META 探测完成`);
-    } else {
-        $.info(`[PARSER] 无需 META 探测`);
-    }
-
-    // 将 region 从 internalProxies 同步回 proxies
-    internalProxies.forEach(proxy => {
-        const p = proxies[proxy._proxies_index];
-        if (p.region_code) {
-            proxy.region_code = p.region_code;
-            proxy.region_flag = p.region_flag;
-            proxy.region_name = p.region_name;
-            proxy.region_name_cn = p.region_name_cn;
-        }
-    });
+    $.info(`[PARSER] 探测完成: 成功 ${probeSuccess}, 失败 ${probeFail}`);
 
     // ---- Step 3: Rename ----
     proxies.map(proxy => renameProxy(proxy, format, connector, 0));
@@ -355,7 +314,6 @@ async function operator(proxies = [], targetPlatform, context) {
     // ============================================================
     async function probeOne(proxy, proxies, port, onResult) {
         const startedAt = Date.now();
-        log(`[DEBUG] probe request timeout=${PROBE_REQUEST_TIMEOUT}ms retries=${probe_retries}`);
 
         try {
             const headers = {
@@ -369,9 +327,6 @@ async function operator(proxies = [], targetPlatform, context) {
                 method,
                 headers,
                 url: api_url,
-                timeout: PROBE_REQUEST_TIMEOUT,
-                retries: probe_retries,
-                retry_delay: probe_retry_delay,
             });
 
             const latency = Date.now() - startedAt;
@@ -394,17 +349,18 @@ async function operator(proxies = [], targetPlatform, context) {
                 const cached = { ...geoData, latency };
                 applyProbeResult(proxy, proxies, cached);
                 $.info(`[PARSER][${proxy.name}] OK country=${geoData.countryCode} latency=${latency}ms`);
+                onResult(proxy, cached);
             } else {
                 applyProbeResult(proxy, proxies, null);
                 $.info(`[PARSER][${proxy.name}] FAIL status=${status}`);
+                onResult(proxy, null);
             }
         } catch (e) {
             const latency = Date.now() - startedAt;
             applyProbeResult(proxy, proxies, null);
             $.error(`[PARSER][${proxy.name}] TIMEOUT/${latency}ms: ${e.message || e.reason || String(e) || 'unknown'}`);
+            onResult(proxy, null);
         }
-
-        onResult(proxy, null);
     }
 
     function applyProbeResult(proxy, proxies, result) {
