@@ -7,3 +7,4 @@ payload:
   - DOMAIN,pgu1.synology.me
   - DOMAIN-SUFFIX,ascwqw.org
   - DOMAIN,enetsub.egeturl.com
+  - DOMAIN-KEYWORD,speedtest

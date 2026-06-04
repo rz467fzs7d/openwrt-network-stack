@@ -29,3 +29,5 @@ data/
 test/
 config.yaml
 .cache/
+.agents/
+AGENTS.md
