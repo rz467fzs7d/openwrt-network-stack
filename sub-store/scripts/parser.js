@@ -5,7 +5,7 @@
  *
  * 功能特性：
  * - HTTP META 探测节点落地 region（国家）
- * - 支持 rename 模板（兼容 node-renamer 语法）
+ * - 支持 format 模板（兼容既有占位符写法）
  * - 支持高级排序，按 region 分组编号
  * - 支持限制返回数量
  *

@@ -75,7 +75,7 @@ Sub-Store 最强大的功能是通过"操作器"处理节点。
 
 **脚本 URL**:
 ```
-https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/sub-store/scripts/node-renamer.js
+https://fastly.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@0be4c6f/sub-store/scripts/parser.js
 ```
 
 **参数配置示例**:

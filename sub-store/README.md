@@ -12,7 +12,7 @@ sub-store/
 │   ├── OPENWRT-GUIDE.md      # OpenWrt 部署指南
 │   └── README.md             # Docker 镜像说明
 ├── scripts/         # 节点处理脚本
-│   ├── node-renamer.js       # 智能节点重命名脚本
+│   ├── parser.js             # 智能节点处理脚本
 │   └── README.md             # 脚本详细文档
 └── test/           # 测试和基准测试
     ├── benchmark-dataset.js  # 标准测试数据集
@@ -40,16 +40,15 @@ OpenWrt 特定配置请参见：[docker/OPENWRT-GUIDE.md](docker/OPENWRT-GUIDE.m
 
 **CDN URL**：
 ```
-https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/sub-store/scripts/node-renamer.js
+https://fastly.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@0be4c6f/sub-store/scripts/parser.js
 ```
 
 **功能特性**：
-- ✅ 支持 42 个国家/地区识别
-- ✅ 识别 20+ 运营商（ATT、Hinet、TMNet 等）
-- ✅ 识别 IPLC 专线和网络标签
-- ✅ 自动设置 `code` 和 `region` 属性
+- ✅ 支持动态地区识别与 HTTP META region 回填
+- ✅ 识别 IPLC / UDPN / HOME 主标签
+- ✅ 自动设置 `region` 相关属性
 - ✅ 完全自定义格式化模板
-- ✅ 高性能处理（< 0.1s / 100节点）
+- ✅ 支持缓存、排序、拍平与批量处理
 
 详细使用说明请参见：[scripts/README.md](scripts/README.md)
 
@@ -70,14 +69,14 @@ https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/sub-store/scri
 
 1. 部署 Sub Store
 2. 添加订阅，配置操作器
-3. 使用 node-renamer.js，参数留空或 `{}`
-4. 节点将自动获得 `code` 和 `region` 属性
+3. 使用 `parser.js`，参数留空或 `{}`
+4. 节点将自动获得 `region` 相关属性
 
 ### 场景 2: 格式化节点名称
 
 如果你想统一节点命名格式，提取 IPLC 等信息：
 
-1. 使用 node-renamer.js
+1. 使用 `parser.js`
 2. 配置 format 参数：
    ```json
    {
@@ -111,7 +110,7 @@ node run-benchmark.js
 - 📚 重组目录结构，提供完整的 Sub Store 方案
 
 ### 2025-12-19
-- ✅ 添加 node-renamer.js（支持 42 个国家/地区）
+- ✅ 添加 parser.js 节点处理脚本
 - ✅ 添加完整的测试和基准测试套件
 - ✅ 提供详细的使用文档
 
