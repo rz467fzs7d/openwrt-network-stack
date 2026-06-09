@@ -19,11 +19,17 @@
  *
  * 探测参数
  * - api         测落地的 API  默认: http://ip-api.com/json?lang=zh-CN
+ *               internal=true 时默认: http://checkip.amazonaws.com
  * - method      请求方法      默认: get
  * - concurrency 并发数        默认: 10
  * - timeout 请求超时(ms) 默认: 5000
  * - retries 请求重试次数 默认: 1
  * - retry_delay 请求重试间隔(ms) 默认: 1000
+ * - internal 使用内部 MMDB 查询出口 IP 信息 默认: false
+ * - mmdb_country_path GeoLite2 Country 数据库路径，默认读 SUB_STORE_MMDB_COUNTRY_PATH
+ * - mmdb_asn_path GeoLite2 ASN 数据库路径，默认读 SUB_STORE_MMDB_ASN_PATH
+ * - cache 使用 Sub-Store 脚本缓存 默认: false
+ * - disable_failed_cache / ignore_failed_error 禁用失败缓存 默认: false
  *
  * Rename 参数
  * - format / f   格式化模板    默认: {region_code} {isp_code}
@@ -149,17 +155,28 @@ async function operator(proxies = [], targetPlatform, context) {
     const http_meta_authorization = $arguments.http_meta_authorization ?? '';
     const http_meta_api = `${http_meta_protocol}://${http_meta_host}:${http_meta_port}`;
     const http_meta_start_delay = parseFloat($arguments.http_meta_start_delay ?? 3000);
-    // 超过 3s 的代理视为不可用
     const http_meta_proxy_timeout = parseFloat($arguments.http_meta_proxy_timeout ?? 3000);
 
     // 探测配置
-    const api_url = $arguments.api || 'http://ip-api.com/json?lang=zh-CN';
+    const internal = toBoolean($arguments.internal, false);
+    const mmdb_country_path = $arguments.mmdb_country_path;
+    const mmdb_asn_path = $arguments.mmdb_asn_path;
+    const api_url = $arguments.api || (internal ? 'http://checkip.amazonaws.com' : 'http://ip-api.com/json?lang=zh-CN');
     // API Token（优先脚本参数，其次环境变量）
     const api_token = $arguments.ipinfo_api_token
         ?? (typeof process !== 'undefined' ? process.env.IPINFO_API_TOKEN : null)
         ?? '';
     const method = $arguments.method || 'get';
     const concurrency = parseInt($arguments.concurrency || 10);
+    const cacheEnabled = toBoolean($arguments.cache, false);
+    const cache = typeof scriptResourceCache !== 'undefined' ? scriptResourceCache : null;
+    const disableFailedCache = toBoolean($arguments.disable_failed_cache ?? $arguments.ignore_failed_error, false);
+    let mmdb = null;
+    if (internal) {
+        mmdb = new ProxyUtils.MMDB({ country: mmdb_country_path, asn: mmdb_asn_path });
+        $.info(`[PARSER][MMDB] GeoLite2 Country: ${mmdb_country_path || safeEnv('SUB_STORE_MMDB_COUNTRY_PATH') || ''}`);
+        $.info(`[PARSER][MMDB] GeoLite2 ASN: ${mmdb_asn_path || safeEnv('SUB_STORE_MMDB_ASN_PATH') || ''}`);
+    }
 
     // 调试日志
     const debug = $arguments.debug ?? $arguments[PARAM_ALIAS.debug] ?? true;
@@ -171,7 +188,7 @@ async function operator(proxies = [], targetPlatform, context) {
     const connector = $arguments.connector ?? $arguments[PARAM_ALIAS.connector] ?? '-';
     const rawSort = $arguments.sort ?? $arguments[PARAM_ALIAS.sort] ?? null;
     const sort = rawSort ? normalizePlaceholder(rawSort) : null;
-    const remove_failed = $arguments.remove_failed !== false;
+    const remove_failed = toBoolean($arguments.remove_failed, true);
     const limit = parseInt($arguments.limit ?? $arguments[PARAM_ALIAS.limit] ?? 0);
     const flatMap = parseFlatMap($arguments.flat ?? '');
 
@@ -204,10 +221,17 @@ async function operator(proxies = [], targetPlatform, context) {
     let probeSuccess = 0;
     let probeFail = 0;
 
-    await probeAll(internalProxies, proxies, (proxy, result) => {
-        if (result) probeSuccess++;
-        else probeFail++;
-    });
+    const cachedProbe = applyAllCachedProbeResults(internalProxies, proxies);
+    if (cachedProbe.allCached) {
+        probeSuccess = cachedProbe.success;
+        probeFail = cachedProbe.fail;
+        $.info('[PARSER] 所有节点都有有效缓存，跳过 HTTP META');
+    } else {
+        await probeAll(internalProxies, proxies, (proxy, result) => {
+            if (result) probeSuccess++;
+            else probeFail++;
+        });
+    }
 
     $.info(`[PARSER] 探测完成: 成功 ${probeSuccess}, 失败 ${probeFail}`);
 
@@ -314,6 +338,27 @@ async function operator(proxies = [], targetPlatform, context) {
     // ============================================================
     async function probeOne(proxy, proxies, port, onResult) {
         const startedAt = Date.now();
+        const cacheId = getProbeCacheId(proxy);
+
+        if (cacheEnabled && cache) {
+            const cached = cache.get(cacheId);
+            if (cached) {
+                if (cached.api) {
+                    const result = { ...cached.api, _cached: true };
+                    applyProbeResult(proxy, proxies, result);
+                    $.info(`[PARSER][${proxy.name}] 使用成功缓存 country=${result.countryCode || ''}`);
+                    onResult(proxy, result);
+                    return;
+                }
+                if (!disableFailedCache) {
+                    $.info(`[PARSER][${proxy.name}] 使用失败缓存`);
+                    applyProbeResult(proxy, proxies, null);
+                    onResult(proxy, null);
+                    return;
+                }
+                $.info(`[PARSER][${proxy.name}] 忽略失败缓存`);
+            }
+        }
 
         try {
             const headers = {
@@ -334,10 +379,20 @@ async function operator(proxies = [], targetPlatform, context) {
 
             if (status === 200) {
                 let geoData;
-                try {
-                    geoData = JSON.parse(String(res.body));
-                } catch (_) {
-                    geoData = { country: String(res.body).trim(), isp: '', countryCode: 'ZZ' };
+                if (internal) {
+                    const ip = String(res.body || '').trim();
+                    geoData = {
+                        countryCode: mmdb?.geoip(ip) || '',
+                        aso: mmdb?.ipaso(ip) || '',
+                        asn: (mmdb?.ipasn ? mmdb.ipasn(ip) : '') || '',
+                    };
+                    geoData.isp = geoData.aso || '';
+                } else {
+                    try {
+                        geoData = JSON.parse(String(res.body));
+                    } catch (_) {
+                        geoData = { country: String(res.body).trim(), isp: '', countryCode: 'ZZ' };
+                    }
                 }
                 // 兼容 ipinfo.io 响应格式
                 if (geoData.country_code && !geoData.countryCode) {
@@ -348,16 +403,19 @@ async function operator(proxies = [], targetPlatform, context) {
                 }
                 const cached = { ...geoData, latency };
                 applyProbeResult(proxy, proxies, cached);
+                setProbeCache(cacheId, cached);
                 $.info(`[PARSER][${proxy.name}] OK country=${geoData.countryCode} latency=${latency}ms`);
                 onResult(proxy, cached);
             } else {
                 applyProbeResult(proxy, proxies, null);
+                setProbeCache(cacheId, null);
                 $.info(`[PARSER][${proxy.name}] FAIL status=${status}`);
                 onResult(proxy, null);
             }
         } catch (e) {
             const latency = Date.now() - startedAt;
             applyProbeResult(proxy, proxies, null);
+            setProbeCache(cacheId, null);
             $.error(`[PARSER][${proxy.name}] TIMEOUT/${latency}ms: ${e.message || e.reason || String(e) || 'unknown'}`);
             onResult(proxy, null);
         }
@@ -371,6 +429,44 @@ async function operator(proxies = [], targetPlatform, context) {
         } else {
             p._geo = result;
         }
+    }
+
+    function applyAllCachedProbeResults(internalProxies, proxies) {
+        if (!cacheEnabled || !cache) {
+            return { allCached: false, success: 0, fail: 0 };
+        }
+
+        let success = 0;
+        let fail = 0;
+        for (const proxy of internalProxies) {
+            const cached = cache.get(getProbeCacheId(proxy));
+            if (!cached) {
+                return { allCached: false, success, fail };
+            }
+            if (cached.api) {
+                applyProbeResult(proxy, proxies, { ...cached.api, _cached: true });
+                success++;
+            } else {
+                if (disableFailedCache) {
+                    return { allCached: false, success, fail };
+                }
+                applyProbeResult(proxy, proxies, null);
+                fail++;
+            }
+        }
+        return { allCached: true, success, fail };
+    }
+
+    function getProbeCacheId(proxy) {
+        const stableProxy = Object.fromEntries(
+            Object.entries(proxy).filter(([key]) => !/^(collectionName|subName|id|_.*)$/i.test(key))
+        );
+        return `parser:http-meta:geo:${api_url}:${internal}:${JSON.stringify(stableProxy)}`;
+    }
+
+    function setProbeCache(id, api) {
+        if (!cacheEnabled || !cache) return;
+        cache.set(id, api ? { api } : {});
     }
 }
 
@@ -821,6 +917,23 @@ function parseFlatMap(raw) {
         if (host && ips.length) map[host] = ips;
     }
     return map;
+}
+
+function toBoolean(value, defaultValue = false) {
+    if (value === undefined || value === null || value === '') return defaultValue;
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return value !== 0;
+    const normalized = String(value).trim().toLowerCase();
+    if (['true', '1', 'yes', 'y', 'on'].includes(normalized)) return true;
+    if (['false', '0', 'no', 'n', 'off'].includes(normalized)) return false;
+    return defaultValue;
+}
+
+function safeEnv(name) {
+    try {
+        if (typeof process !== 'undefined' && process.env) return process.env[name];
+    } catch (_) {}
+    return '';
 }
 
 async function httpRequest(opt = {}) {
