@@ -51,6 +51,7 @@ function loadParserFunctions() {
     applyFormat: context.applyFormat,
     applyCompiledFormat: context.applyCompiledFormat,
     compileFormat: context.compileFormat,
+    detectRegionFromName: context.detectRegionFromName,
   };
 }
 
@@ -170,54 +171,18 @@ assert(h3['Authorization'] === undefined, 'null token 不应设置 Authorization
 // ============================================================
 console.log('\n[测试 7] detectRegionFromName 节点名称识别\n');
 
-const REGION_CODE_IGNORE = new Set([
-    'SS', 'VM', 'WS', 'IP', 'TCP', 'UDP', 'TLS', 'DNS', 'HTTP', 'HOME', 'PLUS',
-]);
+const { parseSortRules, applySort, applyFormat, compileFormat, applyCompiledFormat, detectRegionFromName } = loadParserFunctions();
 
-function getRegionDisplayName(code, locale) {
-    if (!/^[A-Z]{2}$/.test(code || '')) return '';
-    try {
-        return new Intl.DisplayNames([locale], { type: 'region', fallback: 'code' }).of(code) || '';
-    } catch (_) {
-        return '';
-    }
-}
-
-function isValidRegionCode(code) {
-    if (!/^[A-Z]{2}$/.test(code || '')) return false;
-    const displayName = getRegionDisplayName(code, 'en');
-    return !!displayName && displayName !== code;
-}
-
-function detectRegionCodeFromFlag(text) {
-    const flags = String(text || '').match(/[\u{1F1E6}-\u{1F1FF}]{2}/gu) || [];
-    for (const flag of flags) {
-        const chars = Array.from(flag);
-        if (chars.length !== 2) continue;
-        const code = chars.map(ch => String.fromCharCode(ch.codePointAt(0) - 127397)).join('');
-        if (isValidRegionCode(code)) return code;
-    }
-    return '';
-}
-
-function detectRegionFromName(name) {
-    const codeFromFlag = detectRegionCodeFromFlag(name);
-    if (codeFromFlag) return { code: codeFromFlag };
-
-    const tokens = String(name || '').toUpperCase().match(/[A-Z]{2,}/g) || [];
-    for (const token of tokens) {
-        if (token.length !== 2) continue;
-        if (REGION_CODE_IGNORE.has(token)) continue;
-        if (isValidRegionCode(token)) return { code: token };
-    }
-    return null;
-}
-
-// 能识别的节点名称：只依赖国旗或 ISO alpha-2 code，不维护国家别名表。
+// 能识别的节点名称：优先国旗/ISO code，其次走动态地区名索引。
 const testCases = [
+    { name: '新加坡 03', expected: 'SG' },
     { name: 'SG-新加坡-01', expected: 'SG' },
     { name: '🇸🇬 新加坡 05', expected: 'SG' },
+    { name: 'Hong Kong 01', expected: 'HK' },
+    { name: '香港节点', expected: 'HK' },
     { name: 'JP Tokyo 01', expected: 'JP' },
+    { name: '日本大阪', expected: 'JP' },
+    { name: 'Taiwan 01', expected: 'TW' },
     { name: 'US Los Angeles', expected: 'US' },
     { name: 'TW 台湾 02', expected: 'TW' },
     { name: 'KR Seoul', expected: 'KR' },
@@ -231,10 +196,6 @@ testCases.forEach(tc => {
 
 // 不能识别的节点名称
 const failCases = [
-    '新加坡 03',
-    '香港节点',
-    '日本大阪',
-    'Hong Kong 01',
     'domain.u53e3.com:26624',
     'node-01.example.com',
     'random-name-123',
@@ -250,8 +211,6 @@ failCases.forEach(name => {
 // 测试 8: sort DSL
 // ============================================================
 console.log('\n[测试 8] sort DSL\n');
-
-const { parseSortRules, applySort, applyFormat, compileFormat, applyCompiledFormat } = loadParserFunctions();
 
 const regionRules = parseSortRules('region:HK,SG,JP:asc');
 assert(regionRules.length === 1, 'region 简称排序规则应被解析');
@@ -299,7 +258,7 @@ assert(formattedWithCompiledFormat === 'SG-03-Plus', '预编译 format 应与直
 // ============================================================
 console.log('\n[测试 9] 名称无 ISO code 时使用 META 探测\n');
 
-async function testMetaProbeOverridesNameRegion() {
+async function testMetaProbeFillsMissingNameRegion() {
   const source = fs.readFileSync(path.join(__dirname, 'parser.js'), 'utf8');
   const context = {
     console,
@@ -335,14 +294,14 @@ async function testMetaProbeOverridesNameRegion() {
   vm.createContext(context);
   vm.runInContext(source, context);
 
-  const result = await context.operator([{ name: '香港 01', type: 'ss', server: 'example.com', port: 443 }]);
-  assert(result[0]._geo?.countryCode === 'US', '名称无 ISO code 时应执行 META 探测');
+  const result = await context.operator([{ name: 'random-node 01', type: 'ss', server: 'example.com', port: 443 }]);
+  assert(result[0]._geo?.countryCode === 'US', '名称无法识别地区时应执行 META 探测');
   assert(result[0].region_code === 'US', 'region 应以 META 落地 countryCode 为准');
   assert(result[0].name === 'US', '重命名结果应使用 META 探测到的 region');
 }
 
 async function runAsyncTests() {
-  await testMetaProbeOverridesNameRegion();
+  await testMetaProbeFillsMissingNameRegion();
 }
 
 // ============================================================

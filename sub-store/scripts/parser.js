@@ -100,6 +100,9 @@ const TAG_PRESETS = [
     { name: 'HOME', keywords: ['家宽', 'home'] },
 ];
 
+const REGION_NAME_LOCALES = ['en', 'zh-CN', 'zh-TW'];
+let REGION_NAME_HINTS = null;
+
 // ============================================================
 // 主入口
 // ============================================================
@@ -862,6 +865,13 @@ function detectRegionFromName(name) {
         if (REGION_CODE_IGNORE.has(token)) continue;
         if (isValidRegionCode(token)) return { code: token };
     }
+
+    const lowerName = String(name || '').toLowerCase();
+    for (const hint of getRegionNameHints()) {
+        if (hint.keywords.some(keyword => matchKeyword(lowerName, keyword))) {
+            return { code: hint.code };
+        }
+    }
     return null;
 }
 
@@ -904,6 +914,52 @@ function getRegionDisplayName(code, locale) {
     } catch (_) {
         return '';
     }
+}
+
+function getRegionNameHints() {
+    if (REGION_NAME_HINTS) return REGION_NAME_HINTS;
+
+    const hints = [];
+    for (let first = 65; first <= 90; first++) {
+        for (let second = 65; second <= 90; second++) {
+            const code = String.fromCharCode(first, second);
+            if (REGION_CODE_IGNORE.has(code)) continue;
+            if (!isValidRegionCode(code)) continue;
+
+            const keywords = [];
+            for (const locale of REGION_NAME_LOCALES) {
+                const displayName = getRegionDisplayName(code, locale);
+                if (displayName && displayName !== code) {
+                    keywords.push(...expandRegionDisplayName(displayName));
+                }
+            }
+
+            const uniqueKeywords = [...new Set(keywords)].sort((a, b) => b.length - a.length);
+            if (uniqueKeywords.length > 0) {
+                hints.push({ code, keywords: uniqueKeywords });
+            }
+        }
+    }
+
+    REGION_NAME_HINTS = hints;
+    return REGION_NAME_HINTS;
+}
+
+function expandRegionDisplayName(displayName) {
+    const variants = new Set([displayName]);
+    let normalized = displayName;
+
+    normalized = normalized.replace(/\s+SAR China$/i, '');
+    normalized = normalized.replace(/特别行政区$/u, '');
+    normalized = normalized.replace(/特別行政區$/u, '');
+    normalized = normalized.replace(/^中国/u, '');
+    normalized = normalized.replace(/^中國/u, '');
+
+    if (normalized && normalized !== displayName) {
+        variants.add(normalized);
+    }
+
+    return [...variants];
 }
 
 function getRegionFlag(code) {
