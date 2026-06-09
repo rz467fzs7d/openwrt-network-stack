@@ -30,6 +30,9 @@
  * - mmdb_asn_path GeoLite2 ASN 数据库路径，默认读 SUB_STORE_MMDB_ASN_PATH
  * - include_unsupported_proxy 传递给运行环境时包含官方/商店版不支持的协议 默认: false
  * - cache 使用 Sub-Store 脚本缓存 默认: false
+ * - strict_cache_ttl 严格缓存 TTL(ms) 默认: 48h
+ * - fallback_cache 探测失败时使用节点身份兜底缓存 默认: true
+ * - fallback_cache_ttl 兜底缓存 TTL(ms) 默认: 72h
  * - disable_failed_cache / ignore_failed_error 禁用失败缓存 默认: false
  *
  * Rename 参数
@@ -171,6 +174,9 @@ async function operator(proxies = [], targetPlatform, context) {
     const concurrency = parseInt($arguments.concurrency || 10);
     const cacheEnabled = toBoolean($arguments.cache, false);
     const cache = typeof scriptResourceCache !== 'undefined' ? scriptResourceCache : null;
+    const strictCacheTtl = parsePositiveMs($arguments.strict_cache_ttl, 48 * 3600 * 1000);
+    const fallbackCacheEnabled = cacheEnabled && toBoolean($arguments.fallback_cache, true);
+    const fallbackCacheTtl = parsePositiveMs($arguments.fallback_cache_ttl, 72 * 3600 * 1000);
     const disableFailedCache = toBoolean($arguments.disable_failed_cache ?? $arguments.ignore_failed_error, false);
     const includeUnsupportedProxy = toBoolean($arguments.include_unsupported_proxy, false);
     let mmdb = null;
@@ -357,6 +363,13 @@ async function operator(proxies = [], targetPlatform, context) {
                     return;
                 }
                 if (!disableFailedCache) {
+                    const fallback = getFallbackProbeCache(proxy);
+                    if (fallback) {
+                        applyProbeResult(proxy, proxies, fallback);
+                        logFallbackProbeCache(proxy, fallback);
+                        onResult(proxy, fallback);
+                        return;
+                    }
                     $.info(`[PARSER][${proxy.name}] 使用失败缓存`);
                     applyProbeResult(proxy, proxies, null);
                     onResult(proxy, null);
@@ -408,29 +421,24 @@ async function operator(proxies = [], targetPlatform, context) {
                     geoData.isp = geoData.as_name;
                 }
                 if (internal && !geoData.countryCode) {
-                    applyProbeResult(proxy, proxies, null);
-                    setProbeCache(cacheId, null);
                     $.info(`[PARSER][${proxy.name}] FAIL empty countryCode latency=${latency}ms`);
-                    onResult(proxy, null);
+                    finishProbeFailure(proxy, proxies, cacheId, onResult);
                     return;
                 }
                 const cached = { ...geoData, latency };
                 applyProbeResult(proxy, proxies, cached);
                 setProbeCache(cacheId, cached);
+                setFallbackProbeCache(proxy, cached);
                 $.info(`[PARSER][${proxy.name}] OK country=${geoData.countryCode} latency=${latency}ms`);
                 onResult(proxy, cached);
             } else {
-                applyProbeResult(proxy, proxies, null);
-                setProbeCache(cacheId, null);
                 $.info(`[PARSER][${proxy.name}] FAIL status=${status}`);
-                onResult(proxy, null);
+                finishProbeFailure(proxy, proxies, cacheId, onResult);
             }
         } catch (e) {
             const latency = Date.now() - startedAt;
-            applyProbeResult(proxy, proxies, null);
-            setProbeCache(cacheId, null);
             $.error(`[PARSER][${proxy.name}] TIMEOUT/${latency}ms: ${e.message || e.reason || String(e) || 'unknown'}`);
-            onResult(proxy, null);
+            finishProbeFailure(proxy, proxies, cacheId, onResult);
         }
     }
 
@@ -462,6 +470,13 @@ async function operator(proxies = [], targetPlatform, context) {
                 applyProbeResult(proxy, proxies, { ...cached.api, _cached: true });
                 success++;
             } else {
+                const fallback = getFallbackProbeCache(proxy);
+                if (fallback) {
+                    applyProbeResult(proxy, proxies, fallback);
+                    logFallbackProbeCache(proxy, fallback);
+                    success++;
+                    continue;
+                }
                 if (disableFailedCache) {
                     pending.push(proxy);
                     continue;
@@ -482,7 +497,67 @@ async function operator(proxies = [], targetPlatform, context) {
 
     function setProbeCache(id, api) {
         if (!cacheEnabled || !cache) return;
-        cache.set(id, api ? { api } : {});
+        cache.set(id, api ? { api } : {}, strictCacheTtl);
+    }
+
+    function getFallbackCacheId(proxy) {
+        const identity = {
+            source: sourceName,
+            name: proxy.name || '',
+            type: proxy.type || '',
+        };
+        return `parser:http-meta:geo:fallback:${api_url}:${internal}:${JSON.stringify(identity)}`;
+    }
+
+    function getFallbackProbeCache(proxy) {
+        if (!fallbackCacheEnabled || !cache) return null;
+        const cached = cache.get(getFallbackCacheId(proxy), 0, true);
+        if (!cached?.api) return null;
+        return {
+            ...cached.api,
+            _cached: true,
+            _fallbackCached: true,
+            _fallbackFingerprint: cached.fingerprint || {},
+            _fallbackUpdatedAt: cached.updatedAt || 0,
+        };
+    }
+
+    function setFallbackProbeCache(proxy, api) {
+        if (!fallbackCacheEnabled || !cache || !api || !needsFallbackProbeCache(proxy)) return;
+        cache.set(getFallbackCacheId(proxy), {
+            api,
+            fingerprint: getProbeFingerprint(proxy),
+            updatedAt: Date.now(),
+        }, fallbackCacheTtl);
+    }
+
+    function finishProbeFailure(proxy, proxies, cacheId, onResult) {
+        const fallback = getFallbackProbeCache(proxy);
+        if (fallback) {
+            applyProbeResult(proxy, proxies, fallback);
+            logFallbackProbeCache(proxy, fallback);
+            onResult(proxy, fallback);
+            return;
+        }
+        applyProbeResult(proxy, proxies, null);
+        setProbeCache(cacheId, null);
+        onResult(proxy, null);
+    }
+
+    function needsFallbackProbeCache(proxy) {
+        return !detectRegionFromName(proxy.name || '');
+    }
+
+    function getProbeFingerprint(proxy) {
+        return {
+            server: proxy.server || '',
+            port: proxy.port || '',
+            type: proxy.type || '',
+        };
+    }
+
+    function logFallbackProbeCache(proxy, fallback) {
+        $.info(`[PARSER][${proxy.name}] 使用兜底缓存 country=${fallback.countryCode || ''} oldServer=${fallback._fallbackFingerprint?.server || ''} newServer=${proxy.server || ''}`);
     }
 }
 
@@ -942,6 +1017,12 @@ function toBoolean(value, defaultValue = false) {
     const normalized = String(value).trim().toLowerCase();
     if (['true', '1', 'yes', 'y', 'on'].includes(normalized)) return true;
     if (['false', '0', 'no', 'n', 'off'].includes(normalized)) return false;
+    return defaultValue;
+}
+
+function parsePositiveMs(value, defaultValue) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
     return defaultValue;
 }
 
