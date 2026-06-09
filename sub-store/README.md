@@ -75,17 +75,17 @@ https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/sub-store/scri
 
 ### 场景 2: 格式化节点名称
 
-如果你想统一节点命名格式，提取 IPLC、运营商等信息：
+如果你想统一节点命名格式，提取 IPLC 等信息：
 
 1. 使用 node-renamer.js
 2. 配置 format 参数：
    ```json
    {
-     "format": "{countryName} {iplc} {ispCode} {index:2d}",
+     "format": "{countryName} {iplc} {index:2d}",
      "connector": " "
    }
    ```
-3. 节点名称将被格式化为：`Hong Kong IPLC ATT 01`
+3. 节点名称将被格式化为：`Hong Kong IPLC 01`
 
 ### 场景 3: 本地测试和验证
 

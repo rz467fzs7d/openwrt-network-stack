@@ -18,7 +18,7 @@ https://fastly.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@16fc05c/sub-stor
 
 | 参数 | 缩写 | 说明 | 默认值 |
 |------|------|------|--------|
-| `format` | `f` | 格式化模板 | `{region_code} {isp_code}` |
+| `format` | `f` | 格式化模板 | `{region_code}` |
 | `connector` | `c` | 占位符连接符 | `-` |
 | `sort` | `s` | 排序规则 | 无 |
 | `limit` | `l` | 限制返回数量 | `0` (不限制) |
@@ -34,7 +34,6 @@ https://fastly.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@16fc05c/sub-stor
 | `{region}` / `{region_code}` | 地区代码，如 HK、TW、JP |
 | `{region_flag}` | 国旗 emoji，如 🇭🇰 |
 | `{region_name}` / `{region_name_cn}` | 英文/中文地区名 |
-| `{isp_code}` / `{isp_name}` | 运营商代码/名称 |
 | `{tag}` | 自动检测的标签（IPLC、UDPN、HOME） |
 | `{tag:XXX}` | 动态检测，名称含 XXX 时输出 XXX |
 | `{index:2d}` / `{i:2d}` | 地区内序号，补零格式化 |

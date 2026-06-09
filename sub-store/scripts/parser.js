@@ -4,7 +4,7 @@
  * Sub-Store 节点格式化脚本 - 探测、抛弃、重命名、排序 一次完成
  *
  * 功能特性：
- * - HTTP META 探测节点落地 region（国家/ISP）
+ * - HTTP META 探测节点落地 region（国家）
  * - 支持 rename 模板（兼容 node-renamer 语法）
  * - 支持高级排序，按 region 分组编号
  * - 支持限制返回数量
@@ -35,7 +35,7 @@
  * - disable_failed_cache / ignore_failed_error 禁用失败缓存 默认: false
  *
  * Rename 参数
- * - format / f   格式化模板    默认: {region_code} {isp_code}
+ * - format / f   格式化模板    默认: {region_code}
  * - connector / c 占位符连接符 默认: -
  *
  * Sort 参数（不支持 latency 排序）
@@ -90,21 +90,6 @@ function normalizePlaceholder(str) {
 // ============================================================
 // 常量
 // ============================================================
-const ISP_MAP = {
-    'ATT': { keywords: ['att', 'at&t'], code: 'ATT', name: 'AT&T' },
-    'Hinet': { keywords: ['hinet'], code: 'HINET', name: 'Hinet' },
-    'NTT': { keywords: ['ntt'], code: 'NTT', name: 'NTT' },
-    'Softbank': { keywords: ['softbank'], code: 'SOFTBANK', name: 'SoftBank' },
-    'KT': { keywords: ['kt'], code: 'KT', name: 'KT' },
-    'SK': { keywords: ['sk'], code: 'SK', name: 'SK' },
-    'Singtel': { keywords: ['singtel'], code: 'SINGTEL', name: 'Singtel' },
-    'Starhub': { keywords: ['starhub'], code: 'STARHUB', name: 'Starhub' },
-    'TMNet': { keywords: ['tmnet'], code: 'TMNET', name: 'TMNet' },
-    'CMCC': { keywords: ['cmcc', '中国移动'], code: 'CMCC', name: 'China Mobile' },
-    'CU': { keywords: ['cu', '中国联通'], code: 'CU', name: 'China Unicom' },
-    'CT': { keywords: ['ct', '中国电信'], code: 'CT', name: 'China Telecom' },
-};
-
 const REGION_CODE_IGNORE = new Set([
     'SS', 'VM', 'WS', 'IP', 'TCP', 'UDP', 'TLS', 'DNS', 'HTTP', 'HOME', 'PLUS',
 ]);
@@ -156,7 +141,7 @@ async function operator(proxies = [], targetPlatform, context) {
     const log = debug ? $.info.bind($) : () => {};
 
     // Rename 配置（入参别名统一在此处理）
-    const rawFormat = $arguments.format ?? $arguments[PARAM_ALIAS.format] ?? '{region_code} {isp_code}';
+    const rawFormat = $arguments.format ?? $arguments[PARAM_ALIAS.format] ?? '{region_code}';
     const format = normalizePlaceholder(rawFormat);
     const connector = $arguments.connector ?? $arguments[PARAM_ALIAS.connector] ?? '-';
     const rawSort = $arguments.sort ?? $arguments[PARAM_ALIAS.sort] ?? null;
@@ -540,10 +525,6 @@ function renameProxy(proxy, formatStr, connectorStr, groupIndex = 0) {
     const nameRegionInfo = forceGeoRegion ? null : detectRegionFromName(originalName);
     setRegionMetadata(proxy, nameRegionInfo?.code || geoCountryCode || 'ZZ');
 
-    // 检测 ISP
-    proxy.isp_code = detectISPFromName(lowerName);
-    proxy.isp_name = (ISP_MAP[Object.keys(ISP_MAP).find(k => ISP_MAP[k].code === proxy.isp_code)] || {}).name || '';
-
     // 检测 tag
     proxy.tag = detectTag(lowerName);
 
@@ -642,8 +623,6 @@ function resolvePlaceholder(proxy, placeholder, conn) {
         'region_name': proxy.region_name,
         'region_name_cn': proxy.region_name_cn,
         'region_flag': proxy.region_flag,
-        'isp_code': proxy.isp_code,
-        'isp_name': proxy.isp_name,
         'tag': proxy.tag,
         'otherTags': Array.isArray(proxy.otherTags) ? proxy.otherTags.join(conn) : '',
         'index': String(proxy.index || 0),
@@ -703,7 +682,6 @@ function parseSortRules(sortString) {
             'region_code': 'countryCode', 'region': 'countryCode',
             'region_name': 'countryName',
             'region_flag': 'countryFlag', 'tag': 'tag',
-            'isp_code': 'ispCode', 'isp_name': 'ispName',
             'index': 'index', 'i': 'index',
             'name': 'name',
         };
@@ -785,14 +763,6 @@ function applySort(proxies, rules) {
                 } else {
                     comparison = va.localeCompare(vb);
                 }
-            } else if (type === 'ispCode') {
-                const va = (a._geo?.isp || a.isp_code || '').toUpperCase();
-                const vb = (b._geo?.isp || b.isp_code || '').toUpperCase();
-                comparison = va.localeCompare(vb);
-            } else if (type === 'ispName') {
-                const va = (a._geo?.isp || a.isp_code || '').toUpperCase();
-                const vb = (b._geo?.isp || b.isp_code || '').toUpperCase();
-                comparison = va.localeCompare(vb);
             } else if (type === 'countryName') {
                 const va = a._geo?.country || a.region_name || '';
                 const vb = b._geo?.country || b.region_name || '';
@@ -947,16 +917,6 @@ function matchKeyword(text, keyword) {
     if (keyword.match(/[一-龥]/)) return lower.includes(kwLower);
     if (keyword.length <= 3) return new RegExp(`\\b${kwLower}\\b`, 'i').test(lower);
     return lower.includes(kwLower);
-}
-
-function detectISPFromName(name) {
-    for (const [, info] of Object.entries(ISP_MAP)) {
-        if (!info?.keywords) continue;
-        for (const kw of info.keywords) {
-            if (matchKeyword(name, kw)) return info.code;
-        }
-    }
-    return '';
 }
 
 function detectTag(name) {

@@ -103,11 +103,11 @@ https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/sub-store/scri
 **完整格式**:
 ```json
 {
-  "format": "{region_flag} {region_name} {isp_code} {index:02d}",
+  "format": "{region_flag} {region_name} {index:02d}",
   "connector": " "
 }
 ```
-输出: `🇭🇰 Hong Kong ATT 01`, `🇺🇸 United States 02`
+输出: `🇭🇰 Hong Kong 01`, `🇺🇸 United States 02`
 
 **带 IPLC 标识**:
 ```json
@@ -125,8 +125,6 @@ https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/sub-store/scri
 | `{region_code}` | 地区代码 | HK, US, JP |
 | `{region_name}` | 地区英文名 | Hong Kong, United States |
 | `{region_flag}` | 地区旗帜 | 🇭🇰, 🇺🇸 |
-| `{isp_code}` | 运营商代码 | ATT, NTT |
-| `{isp_name}` | 运营商全名 | AT&T, NTT |
 | `{index:02d}` | 序号（补零） | 01, 02, 03 |
 | `{index}` | 序号 | 1, 2, 3 |
 | `{tag:IPLC}` | 动态标签 | IPLC（有则显示） |
