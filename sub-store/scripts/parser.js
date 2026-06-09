@@ -28,6 +28,7 @@
  * - internal 使用内部 MMDB 查询出口 IP 信息 默认: false
  * - mmdb_country_path GeoLite2 Country 数据库路径，默认读 SUB_STORE_MMDB_COUNTRY_PATH
  * - mmdb_asn_path GeoLite2 ASN 数据库路径，默认读 SUB_STORE_MMDB_ASN_PATH
+ * - include_unsupported_proxy 传递给运行环境时包含官方/商店版不支持的协议 默认: false
  * - cache 使用 Sub-Store 脚本缓存 默认: false
  * - disable_failed_cache / ignore_failed_error 禁用失败缓存 默认: false
  *
@@ -171,6 +172,7 @@ async function operator(proxies = [], targetPlatform, context) {
     const cacheEnabled = toBoolean($arguments.cache, false);
     const cache = typeof scriptResourceCache !== 'undefined' ? scriptResourceCache : null;
     const disableFailedCache = toBoolean($arguments.disable_failed_cache ?? $arguments.ignore_failed_error, false);
+    const includeUnsupportedProxy = toBoolean($arguments.include_unsupported_proxy, false);
     let mmdb = null;
     if (internal) {
         mmdb = new ProxyUtils.MMDB({ country: mmdb_country_path, asn: mmdb_asn_path });
@@ -196,7 +198,9 @@ async function operator(proxies = [], targetPlatform, context) {
     const internalProxies = [];
     proxies.map((proxy, index) => {
         try {
-            const node = ProxyUtils.produce([{ ...proxy }], 'ClashMeta', 'internal')?.[0];
+            const node = ProxyUtils.produce([{ ...proxy }], 'ClashMeta', 'internal', {
+                'include-unsupported-proxy': includeUnsupportedProxy,
+            })?.[0];
             if (node) {
                 // 保留原始 proxy 的 _ 开头字段
                 for (const key in proxy) {
@@ -221,13 +225,15 @@ async function operator(proxies = [], targetPlatform, context) {
     let probeSuccess = 0;
     let probeFail = 0;
 
-    const cachedProbe = applyAllCachedProbeResults(internalProxies, proxies);
-    if (cachedProbe.allCached) {
-        probeSuccess = cachedProbe.success;
-        probeFail = cachedProbe.fail;
+    const cachedProbe = splitCachedProbeResults(internalProxies, proxies);
+    probeSuccess += cachedProbe.success;
+    probeFail += cachedProbe.fail;
+
+    if (cachedProbe.pending.length === 0) {
         $.info('[PARSER] 所有节点都有有效缓存，跳过 HTTP META');
     } else {
-        await probeAll(internalProxies, proxies, (proxy, result) => {
+        $.info(`[PARSER] 缓存命中 ${probeSuccess + probeFail}/${internalProxies.length}，待探测 ${cachedProbe.pending.length}`);
+        await probeAll(cachedProbe.pending, proxies, (proxy, result) => {
             if (result) probeSuccess++;
             else probeFail++;
         });
@@ -401,6 +407,13 @@ async function operator(proxies = [], targetPlatform, context) {
                 if (geoData.as_name && !geoData.isp) {
                     geoData.isp = geoData.as_name;
                 }
+                if (internal && !geoData.countryCode) {
+                    applyProbeResult(proxy, proxies, null);
+                    setProbeCache(cacheId, null);
+                    $.info(`[PARSER][${proxy.name}] FAIL empty countryCode latency=${latency}ms`);
+                    onResult(proxy, null);
+                    return;
+                }
                 const cached = { ...geoData, latency };
                 applyProbeResult(proxy, proxies, cached);
                 setProbeCache(cacheId, cached);
@@ -431,30 +444,33 @@ async function operator(proxies = [], targetPlatform, context) {
         }
     }
 
-    function applyAllCachedProbeResults(internalProxies, proxies) {
+    function splitCachedProbeResults(internalProxies, proxies) {
         if (!cacheEnabled || !cache) {
-            return { allCached: false, success: 0, fail: 0 };
+            return { pending: internalProxies, success: 0, fail: 0 };
         }
 
+        const pending = [];
         let success = 0;
         let fail = 0;
         for (const proxy of internalProxies) {
             const cached = cache.get(getProbeCacheId(proxy));
             if (!cached) {
-                return { allCached: false, success, fail };
+                pending.push(proxy);
+                continue;
             }
             if (cached.api) {
                 applyProbeResult(proxy, proxies, { ...cached.api, _cached: true });
                 success++;
             } else {
                 if (disableFailedCache) {
-                    return { allCached: false, success, fail };
+                    pending.push(proxy);
+                    continue;
                 }
                 applyProbeResult(proxy, proxies, null);
                 fail++;
             }
         }
-        return { allCached: true, success, fail };
+        return { pending, success, fail };
     }
 
     function getProbeCacheId(proxy) {
