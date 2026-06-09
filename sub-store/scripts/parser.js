@@ -29,7 +29,7 @@
  * - mmdb_country_path GeoLite2 Country 数据库路径，默认读 SUB_STORE_MMDB_COUNTRY_PATH
  * - mmdb_asn_path GeoLite2 ASN 数据库路径，默认读 SUB_STORE_MMDB_ASN_PATH
  * - include_unsupported_proxy 传递给运行环境时包含官方/商店版不支持的协议 默认: false
- * - cache 使用 Sub-Store 脚本缓存 默认: false
+ * - cache 使用 Sub-Store 脚本缓存 默认: true
  * - strict_cache_ttl 严格缓存 TTL(ms) 默认: 48h
  * - fallback_cache 探测失败时使用节点身份兜底缓存 默认: true
  * - fallback_cache_ttl 兜底缓存 TTL(ms) 默认: 72h
@@ -172,7 +172,7 @@ async function operator(proxies = [], targetPlatform, context) {
         ?? '';
     const method = $arguments.method || 'get';
     const concurrency = parseInt($arguments.concurrency || 10);
-    const cacheEnabled = toBoolean($arguments.cache, false);
+    const cacheEnabled = toBoolean($arguments.cache, true) && !toBoolean($arguments.noCache, false);
     const cache = typeof scriptResourceCache !== 'undefined' ? scriptResourceCache : null;
     const strictCacheTtl = parsePositiveMs($arguments.strict_cache_ttl, 48 * 3600 * 1000);
     const fallbackCacheEnabled = cacheEnabled && toBoolean($arguments.fallback_cache, true);
