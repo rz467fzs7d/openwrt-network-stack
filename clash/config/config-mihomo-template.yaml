@@ -149,6 +149,7 @@ proxy-groups:
   # 搜索和生产力工具
   - { name: Google, <<: *APPLICATION_POLICY_BASE }
   - { name: Duckduckgo, <<: *APPLICATION_POLICY_BASE }
+  - { name: Global DNS, <<: *FALLBACK_GROUP_BASE }
 
   # 社交媒体和通信
   - { name: Telegram, <<: *APPLICATION_POLICY_BASE }
@@ -370,6 +371,7 @@ rules:
   - RULE-SET,ChinaDomains,DIRECT
   - RULE-SET,ChinaIPs,DIRECT
   - GEOSITE,CN,DIRECT
+  - GEOSITE,category-doh,Global DNS
 
   # ==================== 国际路由 ====================
   # 非中国地区使用智能路由
