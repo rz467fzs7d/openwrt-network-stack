@@ -275,7 +275,7 @@ const formattedWithDefaultConnector = applyFormat({
   index: 1,
   originalName: 'Plus 香港 IPLC 01',
 }, '{region}{index:2d}{tag:Plus}{tag:IPLC=iplc|专线}');
-assert(formattedWithDefaultConnector === 'HK-01-PLUS-IPLC', 'connector 默认应为 -');
+assert(formattedWithDefaultConnector === 'HK-01-Plus-IPLC', '简单 tag 输出应保留传入大小写');
 
 const formattedWithCustomTagRule = applyFormat({
   region_code: 'JP',
