@@ -18,19 +18,17 @@
  * - http_meta_proxy_timeout 每节点预估耗时(ms) 默认: 3000
  *
  * 探测参数
- * - api         测落地的 API  默认: http://checkip.amazonaws.com
+ * - api         测落地的 API  默认: http://ip-api.com/json?lang=zh-CN（返回 JSON，直接取 countryCode/isp）
  * - method      请求方法      默认: get
  * - concurrency 并发数        默认: 10
  * - timeout 请求超时(ms) 默认: 5000
  * - retries 请求重试次数 默认: 1
  * - retry_delay 请求重试间隔(ms) 默认: 1000
- * - internal 已固定启用内部 MMDB 查询出口 IP 信息
- * - mmdb_country_path GeoLite2 Country 数据库路径，默认读 SUB_STORE_MMDB_COUNTRY_PATH
- * - mmdb_asn_path GeoLite2 ASN 数据库路径，默认读 SUB_STORE_MMDB_ASN_PATH
+ * - probe_all 对所有节点强制探测（默认 false：节点名可识别 region 时跳过探测）
  * - include_unsupported_proxy 传递给运行环境时包含官方/商店版不支持的协议 默认: false
  * - cache 使用 Sub-Store 脚本缓存 默认: true
  * - fallback_cache 探测失败时使用节点身份兜底缓存 默认: true
- * - force_geo_region 强制使用 API/MMDB countryCode 作为 region 默认: false
+ * - force_geo_region 强制使用 API 探测的 countryCode 作为 region 默认: false
  *
  * Rename 参数
  * - format / f   格式化模板    默认: {region_code}
@@ -120,11 +118,8 @@ async function operator(proxies = [], targetPlatform, context) {
     const http_meta_start_delay = parsePositiveNumber($arguments.http_meta_start_delay, 3000);
     const http_meta_proxy_timeout = parsePositiveNumber($arguments.http_meta_proxy_timeout, 3000);
 
-    // 探测配置
-    const internal = true;
-    const mmdb_country_path = $arguments.mmdb_country_path;
-    const mmdb_asn_path = $arguments.mmdb_asn_path;
-    const api_url = $arguments.api || 'http://checkip.amazonaws.com';
+    // 探测配置：通过节点出口请求 ip-api.com，直接取 countryCode/isp
+    const api_url = $arguments.api || 'http://ip-api.com/json?lang=zh-CN&fields=status,country,countryCode,isp,query';
     // API Token（优先脚本参数，其次环境变量）
     const api_token = $arguments.ipinfo_api_token
         ?? (typeof process !== 'undefined' ? process.env.IPINFO_API_TOKEN : null)
@@ -135,12 +130,6 @@ async function operator(proxies = [], targetPlatform, context) {
     const cache = typeof scriptResourceCache !== 'undefined' ? scriptResourceCache : null;
     const fallbackCacheEnabled = cacheEnabled && toBoolean($arguments.fallback_cache, true);
     const includeUnsupportedProxy = toBoolean($arguments.include_unsupported_proxy, false);
-    let mmdb = null;
-    if (internal) {
-        mmdb = new ProxyUtils.MMDB({ country: mmdb_country_path, asn: mmdb_asn_path });
-        $.info(`[PARSER][MMDB] GeoLite2 Country: ${mmdb_country_path || safeEnv('SUB_STORE_MMDB_COUNTRY_PATH') || ''}`);
-        $.info(`[PARSER][MMDB] GeoLite2 ASN: ${mmdb_asn_path || safeEnv('SUB_STORE_MMDB_ASN_PATH') || ''}`);
-    }
 
     // 调试日志
     const debug = $arguments.debug ?? $arguments[PARAM_ALIAS.debug] ?? true;
@@ -368,20 +357,10 @@ async function operator(proxies = [], targetPlatform, context) {
 
             if (status === 200) {
                 let geoData;
-                if (internal) {
-                    const ip = String(res.body || '').trim();
-                    geoData = {
-                        countryCode: mmdb?.geoip(ip) || '',
-                        aso: mmdb?.ipaso(ip) || '',
-                        asn: (mmdb?.ipasn ? mmdb.ipasn(ip) : '') || '',
-                    };
-                    geoData.isp = geoData.aso || '';
-                } else {
-                    try {
-                        geoData = JSON.parse(String(res.body));
-                    } catch (_) {
-                        geoData = { country: String(res.body).trim(), isp: '', countryCode: 'ZZ' };
-                    }
+                try {
+                    geoData = JSON.parse(String(res.body));
+                } catch (_) {
+                    geoData = { country: String(res.body).trim(), isp: '', countryCode: 'ZZ' };
                 }
                 // 兼容 ipinfo.io 响应格式
                 if (geoData.country_code && !geoData.countryCode) {
@@ -390,7 +369,7 @@ async function operator(proxies = [], targetPlatform, context) {
                 if (geoData.as_name && !geoData.isp) {
                     geoData.isp = geoData.as_name;
                 }
-                if (internal && !geoData.countryCode) {
+                if (!geoData.countryCode) {
                     $.info(`[PARSER][${proxy.name}] FAIL empty countryCode latency=${latency}ms`);
                     finishProbeFailure(proxy, proxies, onResult);
                     return;
@@ -470,7 +449,7 @@ async function operator(proxies = [], targetPlatform, context) {
         const stableProxy = Object.fromEntries(
             Object.entries(proxy).filter(([key]) => !/^(collectionName|subName|id|_.*)$/i.test(key))
         );
-        return `parser:http-meta:geo:${api_url}:${internal}:${JSON.stringify(stableProxy)}`;
+        return `parser:http-meta:geo:${api_url}:${JSON.stringify(stableProxy)}`;
     }
 
     function setProbeCache(id, api) {
@@ -484,7 +463,7 @@ async function operator(proxies = [], targetPlatform, context) {
             name: proxy.name || '',
             type: proxy.type || '',
         };
-        return `parser:http-meta:geo:fallback:${api_url}:${internal}:${JSON.stringify(identity)}`;
+        return `parser:http-meta:geo:fallback:${api_url}:${JSON.stringify(identity)}`;
     }
 
     function getFallbackProbeCache(proxy) {
@@ -1040,13 +1019,6 @@ function parsePositiveInt(value, defaultValue) {
 function parseNonNegativeInt(value, defaultValue) {
     const parsed = parseInt(value, 10);
     return Number.isInteger(parsed) && parsed >= 0 ? parsed : defaultValue;
-}
-
-function safeEnv(name) {
-    try {
-        if (typeof process !== 'undefined' && process.env) return process.env[name];
-    } catch (_) {}
-    return '';
 }
 
 async function httpRequest(opt = {}) {
