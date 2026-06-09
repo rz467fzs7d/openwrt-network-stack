@@ -193,9 +193,9 @@ async function operator(proxies = [], targetPlatform, context) {
     probeFail += cachedProbe.fail;
 
     if (cachedProbe.pending.length === 0) {
-        $.info('[PARSER] 所有节点都有有效缓存，跳过 HTTP META');
+        $.info(`[PARSER] 所有节点都有有效缓存，跳过 HTTP META（成功缓存 ${cachedProbe.directSuccess}，兜底缓存 ${cachedProbe.fallbackSuccess}）`);
     } else {
-        $.info(`[PARSER] 缓存命中 ${probeSuccess + probeFail}/${internalProxies.length}，待探测 ${cachedProbe.pending.length}`);
+        $.info(`[PARSER] 缓存命中 ${probeSuccess + probeFail}/${internalProxies.length}（成功缓存 ${cachedProbe.directSuccess}，兜底缓存 ${cachedProbe.fallbackSuccess}），待探测 ${cachedProbe.pending.length}`);
         await probeAll(cachedProbe.pending, proxies, (proxy, result) => {
             if (result) probeSuccess++;
             else probeFail++;
@@ -403,12 +403,14 @@ async function operator(proxies = [], targetPlatform, context) {
 
     function splitCachedProbeResults(internalProxies, proxies) {
         if (!cacheEnabled || !cache) {
-            return { pending: internalProxies, success: 0, fail: 0 };
+            return { pending: internalProxies, success: 0, fail: 0, directSuccess: 0, fallbackSuccess: 0 };
         }
 
         const pending = [];
         let success = 0;
         let fail = 0;
+        let directSuccess = 0;
+        let fallbackSuccess = 0;
         for (const proxy of internalProxies) {
             const cached = cache.get(getProbeCacheId(proxy));
             if (!cached) {
@@ -416,20 +418,31 @@ async function operator(proxies = [], targetPlatform, context) {
                 continue;
             }
             if (cached.api) {
-                applyProbeResult(proxy, proxies, { ...cached.api, _cached: true });
+                const result = { ...cached.api, _cached: true };
+                applyProbeResult(proxy, proxies, result);
+                $.info(`[PARSER][${proxy.name}] 预扫描命中成功缓存 country=${result.countryCode || ''}`);
                 success++;
+                directSuccess++;
             } else {
                 const fallback = getFallbackProbeCache(proxy);
                 if (fallback) {
                     applyProbeResult(proxy, proxies, fallback);
                     logFallbackProbeCache(proxy, fallback);
+                    $.info(`[PARSER][${proxy.name}] 预扫描命中兜底缓存 country=${fallback.countryCode || ''}`);
                     success++;
+                    fallbackSuccess++;
                     continue;
                 }
                 pending.push(proxy);
             }
         }
-        return { pending, success, fail };
+        return {
+            pending,
+            success,
+            fail,
+            directSuccess,
+            fallbackSuccess,
+        };
     }
 
     function getProbeCacheId(proxy) {
