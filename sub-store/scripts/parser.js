@@ -30,9 +30,7 @@
  * - mmdb_asn_path GeoLite2 ASN 数据库路径，默认读 SUB_STORE_MMDB_ASN_PATH
  * - include_unsupported_proxy 传递给运行环境时包含官方/商店版不支持的协议 默认: false
  * - cache 使用 Sub-Store 脚本缓存 默认: true
- * - strict_cache_ttl 严格缓存 TTL(ms) 默认: 48h
  * - fallback_cache 探测失败时使用节点身份兜底缓存 默认: true
- * - fallback_cache_ttl 兜底缓存 TTL(ms) 默认: 72h
  * - disable_failed_cache / ignore_failed_error 禁用失败缓存 默认: false
  *
  * Rename 参数
@@ -140,6 +138,9 @@ const REGION_MAP = {
     'MX': { alias: ['墨西哥', 'mexico', 'mx'], flag: '🇲🇽', code: 'MX', name_cn: '墨西哥', name_en: 'Mexico' },
     'AR': { alias: ['阿根廷', 'argentina', 'ar'], flag: '🇦🇷', code: 'AR', name_cn: '阿根廷', name_en: 'Argentina' },
     'CL': { alias: ['智利', 'chile', 'cl'], flag: '🇨🇱', code: 'CL', name_cn: '智利', name_en: 'Chile' },
+    'BD': { alias: ['孟加拉国', 'bangladesh', 'bd'], flag: '🇧🇩', code: 'BD', name_cn: '孟加拉国', name_en: 'Bangladesh' },
+    'NZ': { alias: ['新西兰', 'new zealand', 'nz'], flag: '🇳🇿', code: 'NZ', name_cn: '新西兰', name_en: 'New Zealand' },
+    'PH': { alias: ['菲律宾', 'philippines', 'ph'], flag: '🇵🇭', code: 'PH', name_cn: '菲律宾', name_en: 'Philippines' },
 };
 
 // ============================================================
@@ -174,9 +175,7 @@ async function operator(proxies = [], targetPlatform, context) {
     const concurrency = parseInt($arguments.concurrency || 10);
     const cacheEnabled = toBoolean($arguments.cache, true) && !toBoolean($arguments.noCache, false);
     const cache = typeof scriptResourceCache !== 'undefined' ? scriptResourceCache : null;
-    const strictCacheTtl = parsePositiveMs($arguments.strict_cache_ttl, 48 * 3600 * 1000);
     const fallbackCacheEnabled = cacheEnabled && toBoolean($arguments.fallback_cache, true);
-    const fallbackCacheTtl = parsePositiveMs($arguments.fallback_cache_ttl, 72 * 3600 * 1000);
     const disableFailedCache = toBoolean($arguments.disable_failed_cache ?? $arguments.ignore_failed_error, false);
     const includeUnsupportedProxy = toBoolean($arguments.include_unsupported_proxy, false);
     let mmdb = null;
@@ -497,7 +496,7 @@ async function operator(proxies = [], targetPlatform, context) {
 
     function setProbeCache(id, api) {
         if (!cacheEnabled || !cache) return;
-        cache.set(id, api ? { api } : {}, strictCacheTtl);
+        cache.set(id, api ? { api } : {});
     }
 
     function getFallbackCacheId(proxy) {
@@ -528,7 +527,7 @@ async function operator(proxies = [], targetPlatform, context) {
             api,
             fingerprint: getProbeFingerprint(proxy),
             updatedAt: Date.now(),
-        }, fallbackCacheTtl);
+        });
     }
 
     function finishProbeFailure(proxy, proxies, cacheId, onResult) {
@@ -1017,12 +1016,6 @@ function toBoolean(value, defaultValue = false) {
     const normalized = String(value).trim().toLowerCase();
     if (['true', '1', 'yes', 'y', 'on'].includes(normalized)) return true;
     if (['false', '0', 'no', 'n', 'off'].includes(normalized)) return false;
-    return defaultValue;
-}
-
-function parsePositiveMs(value, defaultValue) {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed) && parsed > 0) return parsed;
     return defaultValue;
 }
 
