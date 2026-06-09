@@ -94,6 +94,12 @@ const REGION_CODE_IGNORE = new Set([
     'SS', 'VM', 'WS', 'IP', 'TCP', 'UDP', 'TLS', 'DNS', 'HTTP', 'HOME', 'PLUS',
 ]);
 
+const TAG_PRESETS = [
+    { name: 'IPLC', keywords: ['iplc', '专线'] },
+    { name: 'UDPN', keywords: ['udpn'] },
+    { name: 'HOME', keywords: ['家宽', 'home'] },
+];
+
 // ============================================================
 // 主入口
 // ============================================================
@@ -106,12 +112,12 @@ async function operator(proxies = [], targetPlatform, context) {
 
     // HTTP META 配置
     const http_meta_host = $arguments.http_meta_host ?? '127.0.0.1';
-    const http_meta_port = $arguments.http_meta_port ?? 9876;
+    const http_meta_port = parsePositiveInt($arguments.http_meta_port, 9876);
     const http_meta_protocol = $arguments.http_meta_protocol ?? 'http';
     const http_meta_authorization = $arguments.http_meta_authorization ?? '';
     const http_meta_api = `${http_meta_protocol}://${http_meta_host}:${http_meta_port}`;
-    const http_meta_start_delay = parseFloat($arguments.http_meta_start_delay ?? 3000);
-    const http_meta_proxy_timeout = parseFloat($arguments.http_meta_proxy_timeout ?? 3000);
+    const http_meta_start_delay = parsePositiveNumber($arguments.http_meta_start_delay, 3000);
+    const http_meta_proxy_timeout = parsePositiveNumber($arguments.http_meta_proxy_timeout, 3000);
 
     // 探测配置
     const internal = toBoolean($arguments.internal, false);
@@ -123,7 +129,7 @@ async function operator(proxies = [], targetPlatform, context) {
         ?? (typeof process !== 'undefined' ? process.env.IPINFO_API_TOKEN : null)
         ?? '';
     const method = $arguments.method || 'get';
-    const concurrency = parseInt($arguments.concurrency || 10);
+    const concurrency = parsePositiveInt($arguments.concurrency, 10);
     const cacheEnabled = toBoolean($arguments.cache, true) && !toBoolean($arguments.noCache, false);
     const cache = typeof scriptResourceCache !== 'undefined' ? scriptResourceCache : null;
     const fallbackCacheEnabled = cacheEnabled && toBoolean($arguments.fallback_cache, true);
@@ -147,7 +153,7 @@ async function operator(proxies = [], targetPlatform, context) {
     const rawSort = $arguments.sort ?? $arguments[PARAM_ALIAS.sort] ?? null;
     const sort = rawSort ? normalizePlaceholder(rawSort) : null;
     const remove_failed = toBoolean($arguments.remove_failed, true);
-    const limit = parseInt($arguments.limit ?? $arguments[PARAM_ALIAS.limit] ?? 0);
+    const limit = parseNonNegativeInt($arguments.limit ?? $arguments[PARAM_ALIAS.limit], 0);
     const flatMap = parseFlatMap($arguments.flat ?? '');
 
     // ---- Step 1: 转换节点为 internal 格式 ----
@@ -563,28 +569,18 @@ function applyFormat(proxy, formatStr, connectorStr) {
 
     const resultParts = [];
     for (const part of parts) {
-        if (part.type === 'text') {
-            resultParts.push(part.value);
-        } else {
-            resultParts.push(resolvePlaceholder(proxy, part.value, conn));
-        }
+        resultParts.push(part.type === 'text' ? part.value : resolvePlaceholder(proxy, part.value, conn));
     }
+    const filteredParts = resultParts.filter(v => v && v.trim() !== '');
 
     const staticContent = formatStr.replace(/\{[^}]+\}/g, '').replace(/\s+/g, '');
     const hasNonSpaceStatic = staticContent !== '';
 
     if (hasNonSpaceStatic) {
-        return resultParts.filter(Boolean).join('');
+        return filteredParts.join('');
     }
 
-    const noPlaceholders = formatStr.replace(/\{[^}]+\}/g, '');
-    if (/\s/.test(noPlaceholders)) {
-        const filtered = resultParts.filter(v => v && v.trim() !== '');
-        return filtered.join(conn);
-    } else {
-        const filtered = resultParts.filter(v => v && v.trim() !== '');
-        return filtered.join(conn);
-    }
+    return filteredParts.join(conn);
 }
 
 // 解析单个占位符
@@ -923,9 +919,9 @@ function matchTagKeywords(text, keywords) {
 }
 
 function detectTag(name) {
-    if (/iplc|专线/i.test(name)) return 'IPLC';
-    if (/udpn/i.test(name)) return 'UDPN';
-    if (/家宽|home/i.test(name)) return 'HOME';
+    for (const preset of TAG_PRESETS) {
+        if (matchTagKeywords(name, preset.keywords)) return preset.name;
+    }
     return '';
 }
 
@@ -955,6 +951,21 @@ function toBoolean(value, defaultValue = false) {
     return defaultValue;
 }
 
+function parsePositiveNumber(value, defaultValue) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : defaultValue;
+}
+
+function parsePositiveInt(value, defaultValue) {
+    const parsed = parseInt(value, 10);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : defaultValue;
+}
+
+function parseNonNegativeInt(value, defaultValue) {
+    const parsed = parseInt(value, 10);
+    return Number.isInteger(parsed) && parsed >= 0 ? parsed : defaultValue;
+}
+
 function safeEnv(name) {
     try {
         if (typeof process !== 'undefined' && process.env) return process.env[name];
@@ -964,9 +975,9 @@ function safeEnv(name) {
 
 async function httpRequest(opt = {}) {
     const reqMethod = opt.method || 'get';
-    const reqTimeout = parseFloat(opt.timeout || 5000);
-    const reqRetries = parseFloat(opt.retries ?? $arguments.retries ?? 1);
-    const reqRetryDelay = parseFloat(opt.retry_delay ?? $arguments.retry_delay ?? 1000);
+    const reqTimeout = parsePositiveNumber(opt.timeout, 5000);
+    const reqRetries = parseNonNegativeInt(opt.retries ?? $arguments.retries, 1);
+    const reqRetryDelay = parsePositiveNumber(opt.retry_delay ?? $arguments.retry_delay, 1000);
 
     let count = 0;
     const fn = async () => {
@@ -985,6 +996,7 @@ async function httpRequest(opt = {}) {
 }
 
 function executeAsyncTasks(tasks, { concurrency = 1 } = {}) {
+    concurrency = parsePositiveInt(concurrency, 1);
     return new Promise((resolve, reject) => {
         let running = 0;
         let index = 0;
