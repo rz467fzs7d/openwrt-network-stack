@@ -274,15 +274,13 @@ const formattedWithDefaultConnector = applyFormat({
   region_code: 'HK',
   index: 1,
   originalName: 'Plus 香港 IPLC 01',
-  otherTags: ['IPLC'],
-}, '{region}{index:2d}{tag:Plus}{otherTags}');
+}, '{region}{index:2d}{tag:Plus}{tag:IPLC=iplc|专线}');
 assert(formattedWithDefaultConnector === 'HK-01-PLUS-IPLC', 'connector 默认应为 -');
 
 const formattedWithCustomTagRule = applyFormat({
   region_code: 'JP',
   index: 2,
   originalName: '日本 家宽 02',
-  otherTags: ['HOME'],
 }, '{region}{index:2d}{tag:Home=家宽|home}');
 assert(formattedWithCustomTagRule === 'JP-02-Home', 'tag 自定义匹配规则应支持多关键词输出');
 

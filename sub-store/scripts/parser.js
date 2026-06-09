@@ -535,9 +535,6 @@ function renameProxy(proxy, formatStr, connectorStr, groupIndex = 0) {
         return m.length > 0 ? parseInt(m[m.length - 1][0]) : 0;
     })();
 
-    // 检测 otherTags
-    proxy.otherTags = detectAllTags(lowerName);
-
     // 格式化
     if (formatStr) {
         proxy.name = applyFormat(proxy, formatStr, connectorStr);
@@ -627,7 +624,6 @@ function resolvePlaceholder(proxy, placeholder, conn) {
         'region_name_cn': proxy.region_name_cn,
         'region_flag': proxy.region_flag,
         'tag': proxy.tag,
-        'otherTags': Array.isArray(proxy.otherTags) ? proxy.otherTags.join(conn) : '',
         'index': String(proxy.index || 0),
         'i': String(proxy.index || 0),
         'original': proxy.originalName,
@@ -931,14 +927,6 @@ function detectTag(name) {
     if (/udpn/i.test(name)) return 'UDPN';
     if (/家宽|home/i.test(name)) return 'HOME';
     return '';
-}
-
-function detectAllTags(name) {
-    const tags = [];
-    if (/iplc|专线/i.test(name)) tags.push('IPLC');
-    if (/udpn/i.test(name)) tags.push('UDPN');
-    if (/家宽|home/i.test(name)) tags.push('HOME');
-    return tags;
 }
 
 // 解析 flat 参数: "{host1:ip1,ip2}{host2:ip3}" -> { host1: ['ip1','ip2'], host2: ['ip3'] }

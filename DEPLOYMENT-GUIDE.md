@@ -212,7 +212,7 @@ docker run -d \
 5. 参数配置（可选）：
    ```json
    {
-     "format": "{countryCode} {index:2d} {tag:IPLC=iplc|专线} {otherTags}"
+     "format": "{countryCode} {index:2d} {tag:IPLC=iplc|专线} {tag:UDPN=udpn} {tag:Home=家宽|home}"
    }
    ```
 6. 保存后，复制订阅链接备用
