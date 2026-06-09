@@ -602,8 +602,8 @@ function resolvePlaceholder(proxy, placeholder, conn) {
         const tagSpec = placeholder.substring(4);
         const eqIndex = tagSpec.indexOf('=');
         if (eqIndex === -1) {
-            const tagName = tagSpec.toUpperCase();
-            return matchTagKeywords(lowerName, [tagName]) ? tagName : '';
+            const tagName = tagSpec.trim();
+            return tagName && matchTagKeywords(lowerName, [tagName]) ? tagName : '';
         }
 
         const output = tagSpec.substring(0, eqIndex).trim();
