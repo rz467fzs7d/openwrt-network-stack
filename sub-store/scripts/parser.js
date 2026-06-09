@@ -188,12 +188,30 @@ async function operator(proxies = [], targetPlatform, context) {
     let probeSuccess = 0;
     let probeFail = 0;
 
-    const cachedProbe = splitCachedProbeResults(internalProxies, proxies);
+    // 名称已能识别 region 的节点跳过探测（probe_all=true 可强制全探）
+    const probeAllNodes = toBoolean($arguments.probe_all, false);
+    const skipByName = [];
+    const needProbe = [];
+    for (const proxy of internalProxies) {
+        const p = proxies[proxy._proxies_index];
+        if (!probeAllNodes && detectRegionFromName(p?.name || proxy.name || '')) {
+            skipByName.push(proxy);
+        } else {
+            needProbe.push(proxy);
+        }
+    }
+    if (skipByName.length > 0) {
+        $.info(`[PARSER] 名称已识别 region，跳过探测 ${skipByName.length}/${internalProxies.length}`);
+    }
+
+    const cachedProbe = splitCachedProbeResults(needProbe, proxies);
     probeSuccess += cachedProbe.success;
     probeFail += cachedProbe.fail;
 
-    if (cachedProbe.pending.length === 0) {
-        $.info(`[PARSER] 所有节点都有有效缓存，跳过 HTTP META（成功缓存 ${cachedProbe.directSuccess}，兜底缓存 ${cachedProbe.fallbackSuccess}）`);
+    if (needProbe.length === 0) {
+        $.info(`[PARSER] 所有节点名称均可识别 region，无需 HTTP META`);
+    } else if (cachedProbe.pending.length === 0) {
+        $.info(`[PARSER] 待探测节点都有有效缓存，跳过 HTTP META（成功缓存 ${cachedProbe.directSuccess}，兜底缓存 ${cachedProbe.fallbackSuccess}）`);
     } else {
         $.info(`[PARSER] 缓存命中 ${probeSuccess + probeFail}/${internalProxies.length}（成功缓存 ${cachedProbe.directSuccess}，兜底缓存 ${cachedProbe.fallbackSuccess}），待探测 ${cachedProbe.pending.length}`);
         await probeAll(cachedProbe.pending, proxies, (proxy, result) => {
@@ -340,6 +358,9 @@ async function operator(proxies = [], targetPlatform, context) {
                 method,
                 headers,
                 url: api_url,
+                // 取出口 IP 的超时对齐单节点预估耗时，死节点不再因默认 5s+重试卡满 ~11s
+                timeout: http_meta_proxy_timeout,
+                retries: 0,
             });
 
             const latency = Date.now() - startedAt;
