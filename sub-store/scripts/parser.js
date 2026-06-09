@@ -18,14 +18,13 @@
  * - http_meta_proxy_timeout 每节点预估耗时(ms) 默认: 3000
  *
  * 探测参数
- * - api         测落地的 API  默认: http://ip-api.com/json?lang=zh-CN
- *               internal=true 时默认: http://checkip.amazonaws.com
+ * - api         测落地的 API  默认: http://checkip.amazonaws.com
  * - method      请求方法      默认: get
  * - concurrency 并发数        默认: 10
  * - timeout 请求超时(ms) 默认: 5000
  * - retries 请求重试次数 默认: 1
  * - retry_delay 请求重试间隔(ms) 默认: 1000
- * - internal 使用内部 MMDB 查询出口 IP 信息 默认: false
+ * - internal 已固定启用内部 MMDB 查询出口 IP 信息
  * - mmdb_country_path GeoLite2 Country 数据库路径，默认读 SUB_STORE_MMDB_COUNTRY_PATH
  * - mmdb_asn_path GeoLite2 ASN 数据库路径，默认读 SUB_STORE_MMDB_ASN_PATH
  * - include_unsupported_proxy 传递给运行环境时包含官方/商店版不支持的协议 默认: false
@@ -122,10 +121,10 @@ async function operator(proxies = [], targetPlatform, context) {
     const http_meta_proxy_timeout = parsePositiveNumber($arguments.http_meta_proxy_timeout, 3000);
 
     // 探测配置
-    const internal = toBoolean($arguments.internal, false);
+    const internal = true;
     const mmdb_country_path = $arguments.mmdb_country_path;
     const mmdb_asn_path = $arguments.mmdb_asn_path;
-    const api_url = $arguments.api || (internal ? 'http://checkip.amazonaws.com' : 'http://ip-api.com/json?lang=zh-CN');
+    const api_url = $arguments.api || 'http://checkip.amazonaws.com';
     // API Token（优先脚本参数，其次环境变量）
     const api_token = $arguments.ipinfo_api_token
         ?? (typeof process !== 'undefined' ? process.env.IPINFO_API_TOKEN : null)
