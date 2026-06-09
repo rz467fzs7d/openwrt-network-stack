@@ -128,6 +128,7 @@ https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/sub-store/scri
 | `{index:02d}` | 序号（补零） | 01, 02, 03 |
 | `{index}` | 序号 | 1, 2, 3 |
 | `{tag:IPLC}` | 动态标签 | IPLC（有则显示） |
+| `{tag:Home=家宽\|home}` | 自定义标签规则 | Home（命中家宽或 home 时显示） |
 
 **详细说明**: [scripts/README.md](scripts/README.md)
 

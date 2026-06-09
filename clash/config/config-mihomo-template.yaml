@@ -11,7 +11,7 @@
 # x- 前缀表示用户自定义扩展（非 Mihomo 原生配置）
 #
 # 配合 Sub-Store node-renamer.js 使用
-# 节点格式: {countryCode} {index:2d} {iplc} {otherTags}
+# 节点格式: {countryCode} {index:2d} {tag:IPLC=iplc|专线} {otherTags}
 # 示例: HK 01, TW 02 IPLC, JP 03 Home, US 01 IPLC ATT
 # ------------------------------------------------------------
 x-keywords:

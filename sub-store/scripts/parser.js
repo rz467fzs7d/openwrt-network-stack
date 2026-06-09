@@ -600,10 +600,18 @@ function resolvePlaceholder(proxy, placeholder, conn) {
     if (placeholder === 'isp') return geo.isp || '';
     if (placeholder === 'latency') return String(geo.latency !== undefined && geo.latency !== null ? geo.latency : 0);
 
-    // {tag:XXX}
+    // {tag:XXX} / {tag:Output=keyword1|keyword2}
     if (placeholder.startsWith('tag:')) {
-        const tagName = placeholder.split(':')[1].toUpperCase();
-        return new RegExp(tagName, 'i').test(lowerName) ? tagName : '';
+        const tagSpec = placeholder.substring(4);
+        const eqIndex = tagSpec.indexOf('=');
+        if (eqIndex === -1) {
+            const tagName = tagSpec.toUpperCase();
+            return matchTagKeywords(lowerName, [tagName]) ? tagName : '';
+        }
+
+        const output = tagSpec.substring(0, eqIndex).trim();
+        const keywords = tagSpec.substring(eqIndex + 1).split('|').map(v => v.trim()).filter(Boolean);
+        return output && matchTagKeywords(lowerName, keywords) ? output : '';
     }
 
     // {index:2d} / {i:2d}
@@ -611,11 +619,6 @@ function resolvePlaceholder(proxy, placeholder, conn) {
         const width = parseInt(placeholder.substring(placeholder.indexOf(':') + 1, placeholder.length - 1));
         if (!isNaN(width)) return String(proxy.index || 0).padStart(width, '0');
     }
-
-    // {iplc} / {udpn} / {home}
-    if (placeholder === 'iplc') return /iplc|专线/i.test(lowerName) ? 'IPLC' : '';
-    if (placeholder === 'udpn') return /udpn/i.test(lowerName) ? 'UDPN' : '';
-    if (placeholder === 'home') return /家宽|home/i.test(lowerName) ? 'Home' : '';
 
     const fieldMap = {
         'region_code': proxy.region_code,
@@ -917,6 +920,10 @@ function matchKeyword(text, keyword) {
     if (keyword.match(/[一-龥]/)) return lower.includes(kwLower);
     if (keyword.length <= 3) return new RegExp(`\\b${kwLower}\\b`, 'i').test(lower);
     return lower.includes(kwLower);
+}
+
+function matchTagKeywords(text, keywords) {
+    return keywords.some(keyword => matchKeyword(text, keyword));
 }
 
 function detectTag(name) {

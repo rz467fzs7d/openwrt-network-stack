@@ -81,7 +81,7 @@ https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/sub-store/scri
 2. 配置 format 参数：
    ```json
    {
-     "format": "{countryName} {iplc} {index:2d}",
+     "format": "{countryName} {tag:IPLC=iplc|专线} {index:2d}",
      "connector": " "
    }
    ```
