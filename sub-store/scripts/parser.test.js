@@ -168,59 +168,55 @@ assert(h3['Authorization'] === undefined, 'null token 不应设置 Authorization
 // ============================================================
 console.log('\n[测试 7] detectRegionFromName 节点名称识别\n');
 
-const REGION_MAP = {
-    'HK': { alias: ['香港', 'hong kong', 'hk'], flag: '🇭🇰', code: 'HK', name_cn: '香港', name_en: 'Hong Kong' },
-    'TW': { alias: ['台湾', 'taiwan', 'tw'], flag: '🇹🇼', code: 'TW', name_cn: '台湾', name_en: 'Taiwan' },
-    'JP': { alias: ['日本', 'japan', 'jp'], flag: '🇯🇵', code: 'JP', name_cn: '日本', name_en: 'Japan' },
-    'US': { alias: ['美国', 'united states', 'us'], flag: '🇺🇸', code: 'US', name_cn: '美国', name_en: 'United States' },
-    'SG': { alias: ['新加坡', 'singapore', 'sg'], flag: '🇸🇬', code: 'SG', name_cn: '新加坡', name_en: 'Singapore' },
-    'KR': { alias: ['韩国', 'korea', 'kr'], flag: '🇰🇷', code: 'KR', name_cn: '韩国', name_en: 'Korea' },
-};
+const REGION_CODE_IGNORE = new Set([
+    'SS', 'VM', 'WS', 'IP', 'TCP', 'UDP', 'TLS', 'DNS', 'HTTP', 'HOME', 'PLUS',
+]);
 
-function getRegionKeywords(info) {
-    const kws = [];
-    if (info.flag) kws.push(info.flag);
-    if (info.code) kws.push(info.code);
-    if (info.name_cn) kws.push(info.name_cn);
-    if (info.name_en) kws.push(info.name_en);
-    if (info.alias) kws.push(...info.alias);
-    return kws;
+function getRegionDisplayName(code, locale) {
+    if (!/^[A-Z]{2}$/.test(code || '')) return '';
+    try {
+        return new Intl.DisplayNames([locale], { type: 'region', fallback: 'code' }).of(code) || '';
+    } catch (_) {
+        return '';
+    }
 }
 
-function matchKeyword(text, keyword) {
-    if (keyword.match(/[\uD83C-\uDBFF]/)) return text.includes(keyword);
-    const lower = text.toLowerCase();
-    const kwLower = keyword.toLowerCase();
-    if (keyword.match(/[一-龥]/)) return lower.includes(kwLower);
-    if (keyword.length <= 3) return new RegExp(`\\b${kwLower}\\b`, 'i').test(lower);
-    return lower.includes(kwLower);
+function isValidRegionCode(code) {
+    if (!/^[A-Z]{2}$/.test(code || '')) return false;
+    const displayName = getRegionDisplayName(code, 'en');
+    return !!displayName && displayName !== code;
+}
+
+function detectRegionCodeFromFlag(text) {
+    const flags = String(text || '').match(/[\u{1F1E6}-\u{1F1FF}]{2}/gu) || [];
+    for (const flag of flags) {
+        const chars = Array.from(flag);
+        if (chars.length !== 2) continue;
+        const code = chars.map(ch => String.fromCharCode(ch.codePointAt(0) - 127397)).join('');
+        if (isValidRegionCode(code)) return code;
+    }
+    return '';
 }
 
 function detectRegionFromName(name) {
-    const lowerName = name.toLowerCase();
-    for (const [key, info] of Object.entries(REGION_MAP)) {
-        const keywords = getRegionKeywords(info);
-        for (const kw of keywords) {
-            if (matchKeyword(lowerName, kw)) {
-                return info;
-            }
-        }
+    const codeFromFlag = detectRegionCodeFromFlag(name);
+    if (codeFromFlag) return { code: codeFromFlag };
+
+    const tokens = String(name || '').toUpperCase().match(/[A-Z]{2,}/g) || [];
+    for (const token of tokens) {
+        if (token.length !== 2) continue;
+        if (REGION_CODE_IGNORE.has(token)) continue;
+        if (isValidRegionCode(token)) return { code: token };
     }
     return null;
 }
 
-// 能识别的节点名称
+// 能识别的节点名称：只依赖国旗或 ISO alpha-2 code，不维护国家别名表。
 const testCases = [
-    { name: '新加坡 03', expected: 'SG' },
-    { name: '新加坡-03', expected: 'SG' },
     { name: 'SG-新加坡-01', expected: 'SG' },
     { name: '🇸🇬 新加坡 05', expected: 'SG' },
-    { name: 'Hong Kong 01', expected: 'HK' },
-    { name: '香港节点', expected: 'HK' },
     { name: 'JP Tokyo 01', expected: 'JP' },
-    { name: '日本大阪', expected: 'JP' },
     { name: 'US Los Angeles', expected: 'US' },
-    { name: '美国 01', expected: 'US' },
     { name: 'TW 台湾 02', expected: 'TW' },
     { name: 'KR Seoul', expected: 'KR' },
 ];
@@ -233,6 +229,10 @@ testCases.forEach(tc => {
 
 // 不能识别的节点名称
 const failCases = [
+    '新加坡 03',
+    '香港节点',
+    '日本大阪',
+    'Hong Kong 01',
     'domain.u53e3.com:26624',
     'node-01.example.com',
     'random-name-123',
@@ -279,9 +279,9 @@ const formattedWithDefaultConnector = applyFormat({
 assert(formattedWithDefaultConnector === 'HK-01-PLUS-IPLC', 'connector 默认应为 -');
 
 // ============================================================
-// 测试 9: META 探测优先于名称识别
+// 测试 9: 名称无 ISO code 时使用 META 探测
 // ============================================================
-console.log('\n[测试 9] META 探测优先于名称识别\n');
+console.log('\n[测试 9] 名称无 ISO code 时使用 META 探测\n');
 
 async function testMetaProbeOverridesNameRegion() {
   const source = fs.readFileSync(path.join(__dirname, 'parser.js'), 'utf8');
@@ -320,7 +320,7 @@ async function testMetaProbeOverridesNameRegion() {
   vm.runInContext(source, context);
 
   const result = await context.operator([{ name: '香港 01', type: 'ss', server: 'example.com', port: 443 }]);
-  assert(result[0]._geo?.countryCode === 'US', '名称可识别地区的节点仍应执行 META 探测');
+  assert(result[0]._geo?.countryCode === 'US', '名称无 ISO code 时应执行 META 探测');
   assert(result[0].region_code === 'US', 'region 应以 META 落地 countryCode 为准');
   assert(result[0].name === 'US', '重命名结果应使用 META 探测到的 region');
 }

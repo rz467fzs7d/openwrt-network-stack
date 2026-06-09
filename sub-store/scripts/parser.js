@@ -105,44 +105,9 @@ const ISP_MAP = {
     'CT': { keywords: ['ct', '中国电信'], code: 'CT', name: 'China Telecom' },
 };
 
-const REGION_MAP = {
-    'HK': { alias: ['香港', 'hong kong', 'hk'], flag: '🇭🇰', code: 'HK', name_cn: '香港', name_en: 'Hong Kong' },
-    'TW': { alias: ['台湾', 'taiwan', 'tw'], flag: '🇹🇼', code: 'TW', name_cn: '台湾', name_en: 'Taiwan' },
-    'MO': { alias: ['澳门', 'macau', 'mo'], flag: '🇲🇴', code: 'MO', name_cn: '澳门', name_en: 'Macao' },
-    'JP': { alias: ['日本', 'japan', 'jp'], flag: '🇯🇵', code: 'JP', name_cn: '日本', name_en: 'Japan' },
-    'US': { alias: ['美国', 'united states', 'us'], flag: '🇺🇸', code: 'US', name_cn: '美国', name_en: 'United States' },
-    'SG': { alias: ['新加坡', 'singapore', 'sg'], flag: '🇸🇬', code: 'SG', name_cn: '新加坡', name_en: 'Singapore' },
-    'KR': { alias: ['韩国', 'korea', 'kr'], flag: '🇰🇷', code: 'KR', name_cn: '韩国', name_en: 'Korea' },
-    'UK': { alias: ['英国', 'united kingdom', 'uk'], flag: '🇬🇧', code: 'UK', name_cn: '英国', name_en: 'United Kingdom' },
-    'DE': { alias: ['德国', 'germany', 'de'], flag: '🇩🇪', code: 'DE', name_cn: '德国', name_en: 'Germany' },
-    'FR': { alias: ['法国', 'france', 'fr'], flag: '🇫🇷', code: 'FR', name_cn: '法国', name_en: 'France' },
-    'CA': { alias: ['加拿大', 'canada', 'ca'], flag: '🇨🇦', code: 'CA', name_cn: '加拿大', name_en: 'Canada' },
-    'AU': { alias: ['澳大利亚', 'australia', 'au'], flag: '🇦🇺', code: 'AU', name_cn: '澳大利亚', name_en: 'Australia' },
-    'NL': { alias: ['荷兰', 'netherlands', 'nl'], flag: '🇳🇱', code: 'NL', name_cn: '荷兰', name_en: 'Netherlands' },
-    'IN': { alias: ['印度', 'india', 'in'], flag: '🇮🇳', code: 'IN', name_cn: '印度', name_en: 'India' },
-    'RU': { alias: ['俄罗斯', 'russia', 'ru'], flag: '🇷🇺', code: 'RU', name_cn: '俄罗斯', name_en: 'Russia' },
-    'BR': { alias: ['巴西', 'brazil', 'br'], flag: '🇧🇷', code: 'BR', name_cn: '巴西', name_en: 'Brazil' },
-    'IT': { alias: ['意大利', 'italy', 'it'], flag: '🇮🇹', code: 'IT', name_cn: '意大利', name_en: 'Italy' },
-    'ES': { alias: ['西班牙', 'spain', 'es'], flag: '🇪🇸', code: 'ES', name_cn: '西班牙', name_en: 'Spain' },
-    'SE': { alias: ['瑞典', 'sweden', 'se'], flag: '🇸🇪', code: 'SE', name_cn: '瑞典', name_en: 'Sweden' },
-    'CH': { alias: ['瑞士', 'switzerland', 'ch'], flag: '🇨🇭', code: 'CH', name_cn: '瑞士', name_en: 'Switzerland' },
-    'NO': { alias: ['挪威', 'norway', 'no'], flag: '🇳🇴', code: 'NO', name_cn: '挪威', name_en: 'Norway' },
-    'FI': { alias: ['芬兰', 'finland', 'fi'], flag: '🇫🇮', code: 'FI', name_cn: '芬兰', name_en: 'Finland' },
-    'DK': { alias: ['丹麦', 'denmark', 'dk'], flag: '🇩🇰', code: 'DK', name_cn: '丹麦', name_en: 'Denmark' },
-    'PL': { alias: ['波兰', 'poland', 'pl'], flag: '🇵🇱', code: 'PL', name_cn: '波兰', name_en: 'Poland' },
-    'AT': { alias: ['奥地利', 'austria', 'at'], flag: '🇦🇹', code: 'AT', name_cn: '奥地利', name_en: 'Austria' },
-    'TH': { alias: ['泰国', 'thailand', 'th'], flag: '🇹🇭', code: 'TH', name_cn: '泰国', name_en: 'Thailand' },
-    'MY': { alias: ['马来西亚', 'malaysia', 'my'], flag: '🇲🇾', code: 'MY', name_cn: '马来西亚', name_en: 'Malaysia' },
-    'ID': { alias: ['印度尼西亚', 'indonesia', 'id'], flag: '🇮🇩', code: 'ID', name_cn: '印度尼西亚', name_en: 'Indonesia' },
-    'VN': { alias: ['越南', 'vietnam', 'vn'], flag: '🇻🇳', code: 'VN', name_cn: '越南', name_en: 'Vietnam' },
-    'TR': { alias: ['土耳其', 'turkey', 'tr'], flag: '🇹🇷', code: 'TR', name_cn: '土耳其', name_en: 'Turkey' },
-    'MX': { alias: ['墨西哥', 'mexico', 'mx'], flag: '🇲🇽', code: 'MX', name_cn: '墨西哥', name_en: 'Mexico' },
-    'AR': { alias: ['阿根廷', 'argentina', 'ar'], flag: '🇦🇷', code: 'AR', name_cn: '阿根廷', name_en: 'Argentina' },
-    'CL': { alias: ['智利', 'chile', 'cl'], flag: '🇨🇱', code: 'CL', name_cn: '智利', name_en: 'Chile' },
-    'BD': { alias: ['孟加拉国', 'bangladesh', 'bd'], flag: '🇧🇩', code: 'BD', name_cn: '孟加拉国', name_en: 'Bangladesh' },
-    'NZ': { alias: ['新西兰', 'new zealand', 'nz'], flag: '🇳🇿', code: 'NZ', name_cn: '新西兰', name_en: 'New Zealand' },
-    'PH': { alias: ['菲律宾', 'philippines', 'ph'], flag: '🇵🇭', code: 'PH', name_cn: '菲律宾', name_en: 'Philippines' },
-};
+const REGION_CODE_IGNORE = new Set([
+    'SS', 'VM', 'WS', 'IP', 'TCP', 'UDP', 'TLS', 'DNS', 'HTTP', 'HOME', 'PLUS',
+]);
 
 // ============================================================
 // 主入口
@@ -912,26 +877,16 @@ function reassignGroupIndex(proxies) {
 // ============================================================
 // 从节点名称识别 region
 function detectRegionFromName(name) {
-    const lowerName = name.toLowerCase();
-    for (const [key, info] of Object.entries(REGION_MAP)) {
-        const keywords = getRegionKeywords(info);
-        for (const kw of keywords) {
-            if (matchKeyword(lowerName, kw)) {
-                return info;
-            }
-        }
+    const codeFromFlag = detectRegionCodeFromFlag(name);
+    if (codeFromFlag) return { code: codeFromFlag };
+
+    const tokens = String(name || '').toUpperCase().match(/[A-Z]{2,}/g) || [];
+    for (const token of tokens) {
+        if (token.length !== 2) continue;
+        if (REGION_CODE_IGNORE.has(token)) continue;
+        if (isValidRegionCode(token)) return { code: token };
     }
     return null;
-}
-
-function getRegionKeywords(info) {
-    const kws = [];
-    if (info.flag) kws.push(info.flag);
-    if (info.code) kws.push(info.code);
-    if (info.name_cn) kws.push(info.name_cn);
-    if (info.name_en) kws.push(info.name_en);
-    if (info.alias) kws.push(...info.alias);
-    return kws;
 }
 
 function setRegionMetadata(proxy, code) {
@@ -947,6 +902,23 @@ function setRegionMetadata(proxy, code) {
     proxy.region_flag = getRegionFlag(code);
     proxy.region_name = getRegionDisplayName(code, 'en') || code;
     proxy.region_name_cn = getRegionDisplayName(code, 'zh-CN') || '未知';
+}
+
+function isValidRegionCode(code) {
+    if (!/^[A-Z]{2}$/.test(code || '')) return false;
+    const displayName = getRegionDisplayName(code, 'en');
+    return !!displayName && displayName !== code;
+}
+
+function detectRegionCodeFromFlag(text) {
+    const flags = String(text || '').match(/[\u{1F1E6}-\u{1F1FF}]{2}/gu) || [];
+    for (const flag of flags) {
+        const chars = Array.from(flag);
+        if (chars.length !== 2) continue;
+        const code = chars.map(ch => String.fromCharCode(ch.codePointAt(0) - 127397)).join('');
+        if (isValidRegionCode(code)) return code;
+    }
+    return '';
 }
 
 function getRegionDisplayName(code, locale) {
