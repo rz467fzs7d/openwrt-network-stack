@@ -593,9 +593,9 @@ function renameProxy(proxy, formatStr, connectorStr, groupIndex = 0) {
         proxy.region_name = regionInfo.name_en;
         proxy.region_name_cn = regionInfo.name_cn;
     } else {
-        proxy.region_code = 'ZZ';
+        proxy.region_code = geoCountryCode || 'ZZ';
         proxy.region_flag = '';
-        proxy.region_name = 'Unknown';
+        proxy.region_name = geoCountryCode || 'Unknown';
         proxy.region_name_cn = '未知';
     }
 
