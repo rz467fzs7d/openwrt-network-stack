@@ -36,6 +36,7 @@ https://fastly.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@16fc05c/sub-stor
 | `{region_name}` / `{region_name_cn}` | 英文/中文地区名 |
 | `{tag}` | 自动检测的标签（IPLC、UDPN、HOME） |
 | `{tag:XXX}` | 动态检测，名称含 XXX 时输出 XXX |
+| `{tag:输出=关键词1\|关键词2}` | 自定义匹配规则，命中后输出指定内容 |
 | `{index:2d}` / `{i:2d}` | 地区内序号，补零格式化 |
 | `{latency}` | 探测延迟 |
 | `{original}` | 原始名称 |
@@ -46,6 +47,7 @@ https://fastly.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@16fc05c/sub-stor
 f={region}{i:2d}{tag}&c=-   →  HK-01-IPLC, SG-02-UDPN
 f={region_flag} {region}&c=  →  🇭🇰HK, 🇯🇵JP
 f={region}-{i:02d}&c=-        →  HK-01, JP-02
+f={region}{i:2d}{tag:Home=家宽|home}&c=-  →  JP-01-Home
 ```
 
 ### 排序示例
