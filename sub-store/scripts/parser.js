@@ -149,6 +149,7 @@ async function operator(proxies = [], targetPlatform, context) {
     // Rename 配置（入参别名统一在此处理）
     const rawFormat = $arguments.format ?? $arguments[PARAM_ALIAS.format] ?? '{region_code}';
     const format = normalizePlaceholder(rawFormat);
+    const compiledFormat = format ? compileFormat(format) : null;
     const connector = $arguments.connector ?? $arguments[PARAM_ALIAS.connector] ?? '-';
     const rawSort = $arguments.sort ?? $arguments[PARAM_ALIAS.sort] ?? null;
     const sort = rawSort ? normalizePlaceholder(rawSort) : null;
@@ -203,22 +204,30 @@ async function operator(proxies = [], targetPlatform, context) {
 
     $.info(`[PARSER] 探测完成: 成功 ${probeSuccess}, 失败 ${probeFail}`);
 
-    // ---- Step 3: Rename ----
-    proxies.map(proxy => renameProxy(proxy, format, connector, 0));
+    // ---- Step 3: 提取元数据 ----
+    proxies.forEach(proxy => prepareProxyMetadata(proxy, 0));
 
     // ---- Step 4: Sort（不支持 latency）----
+    let sortRules = [];
     if (sort) {
-        const sortRules = parseSortRules(sort);
-        if (sortRules.length > 0) {
-            proxies = applySort(proxies, sortRules);
-        }
+        sortRules = parseSortRules(sort);
+    }
+
+    if (compiledFormat && sortRules.some(rule => rule.type === 'name')) {
+        proxies.forEach(proxy => {
+            proxy.name = applyCompiledFormat(proxy, compiledFormat, connector);
+        });
+    }
+
+    if (sortRules.length > 0) {
+        proxies = applySort(proxies, sortRules);
     }
 
     // ---- Step 4.5: 按 region 分组编号，然后重新格式化 ----
-    if (format) {
+    if (compiledFormat) {
         proxies = reassignGroupIndex(proxies);
         proxies.forEach(proxy => {
-            proxy.name = applyFormat(proxy, format, connector);
+            proxy.name = applyCompiledFormat(proxy, compiledFormat, connector);
         });
     }
 
@@ -518,9 +527,9 @@ async function operator(proxies = [], targetPlatform, context) {
 }
 
 // ============================================================
-// Rename 函数
+// Rename 元数据
 // ============================================================
-function renameProxy(proxy, formatStr, connectorStr, groupIndex = 0) {
+function prepareProxyMetadata(proxy, groupIndex = 0) {
     const originalName = proxy.name || '';
     const lowerName = originalName.toLowerCase();
 
@@ -540,18 +549,11 @@ function renameProxy(proxy, formatStr, connectorStr, groupIndex = 0) {
         const m = [...originalName.matchAll(/\d+/g)];
         return m.length > 0 ? parseInt(m[m.length - 1][0]) : 0;
     })();
-
-    // 格式化
-    if (formatStr) {
-        proxy.name = applyFormat(proxy, formatStr, connectorStr);
-    }
 }
 
-// 解析 {xxx} 占位符并应用格式化
-function applyFormat(proxy, formatStr, connectorStr) {
-    const conn = connectorStr ?? '-';
+// 编译 format 模板，避免整批节点重复解析字符串
+function compileFormat(formatStr) {
     const parts = [];
-
     const regex = /\{([^}]+)\}/g;
     let lastIndex = 0;
     let match;
@@ -566,17 +568,26 @@ function applyFormat(proxy, formatStr, connectorStr) {
     if (lastIndex < formatStr.length) {
         parts.push({ type: 'text', value: formatStr.substring(lastIndex) });
     }
+    return {
+        parts,
+        hasStaticText: formatStr.replace(/\{[^}]+\}/g, '').replace(/\s+/g, '') !== '',
+    };
+}
 
+// 解析 {xxx} 占位符并应用格式化
+function applyFormat(proxy, formatStr, connectorStr) {
+    return applyCompiledFormat(proxy, compileFormat(formatStr), connectorStr);
+}
+
+function applyCompiledFormat(proxy, compiledFormat, connectorStr) {
+    const conn = connectorStr ?? '-';
     const resultParts = [];
-    for (const part of parts) {
+    for (const part of compiledFormat.parts) {
         resultParts.push(part.type === 'text' ? part.value : resolvePlaceholder(proxy, part.value, conn));
     }
     const filteredParts = resultParts.filter(v => v && v.trim() !== '');
 
-    const staticContent = formatStr.replace(/\{[^}]+\}/g, '').replace(/\s+/g, '');
-    const hasNonSpaceStatic = staticContent !== '';
-
-    if (hasNonSpaceStatic) {
+    if (compiledFormat.hasStaticText) {
         return filteredParts.join('');
     }
 
