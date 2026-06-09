@@ -569,12 +569,16 @@ function renameProxy(proxy, formatStr, connectorStr, groupIndex = 0) {
 
     proxy.originalName = originalName;
 
-    // 从 _geo.countryCode（探测结果）检测 region，优先于名称匹配
     const geoCountryCode = proxy._geo?.countryCode || '';
-    let regionInfo = geoCountryCode ? REGION_MAP[geoCountryCode] || null : null;
+    let regionInfo = null;
 
-    if (!regionInfo) {
-        // 从节点名检测 region
+    if (geoCountryCode) {
+        proxy.region_code = geoCountryCode;
+        proxy.region_flag = getRegionFlag(geoCountryCode);
+        proxy.region_name = getRegionDisplayName(geoCountryCode, 'en') || geoCountryCode;
+        proxy.region_name_cn = getRegionDisplayName(geoCountryCode, 'zh-CN') || '未知';
+    } else {
+        // 没有探测结果时，才从节点名检测 region
         for (const [key, info] of Object.entries(REGION_MAP)) {
             const keywords = getRegionKeywords(info);
             for (const kw of keywords) {
@@ -585,18 +589,17 @@ function renameProxy(proxy, formatStr, connectorStr, groupIndex = 0) {
             }
             if (regionInfo) break;
         }
-    }
-
-    if (regionInfo) {
-        proxy.region_code = regionInfo.code;
-        proxy.region_flag = regionInfo.flag;
-        proxy.region_name = regionInfo.name_en;
-        proxy.region_name_cn = regionInfo.name_cn;
-    } else {
-        proxy.region_code = geoCountryCode || 'ZZ';
-        proxy.region_flag = '';
-        proxy.region_name = geoCountryCode || 'Unknown';
-        proxy.region_name_cn = '未知';
+        if (regionInfo) {
+            proxy.region_code = regionInfo.code;
+            proxy.region_flag = regionInfo.flag;
+            proxy.region_name = regionInfo.name_en;
+            proxy.region_name_cn = regionInfo.name_cn;
+        } else {
+            proxy.region_code = 'ZZ';
+            proxy.region_flag = '';
+            proxy.region_name = 'Unknown';
+            proxy.region_name_cn = '未知';
+        }
     }
 
     // 检测 ISP
@@ -956,6 +959,24 @@ function getRegionKeywords(info) {
     if (info.name_en) kws.push(info.name_en);
     if (info.alias) kws.push(...info.alias);
     return kws;
+}
+
+function getRegionDisplayName(code, locale) {
+    if (!/^[A-Z]{2}$/.test(code || '')) return '';
+    try {
+        return new Intl.DisplayNames([locale], { type: 'region', fallback: 'code' }).of(code) || '';
+    } catch (_) {
+        return '';
+    }
+}
+
+function getRegionFlag(code) {
+    if (!/^[A-Z]{2}$/.test(code || '')) return '';
+    try {
+        return [...code].map(c => String.fromCodePoint(127397 + c.charCodeAt(0))).join('');
+    } catch (_) {
+        return '';
+    }
 }
 
 function matchKeyword(text, keyword) {
