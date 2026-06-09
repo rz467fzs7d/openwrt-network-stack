@@ -31,6 +31,7 @@
  * - include_unsupported_proxy 传递给运行环境时包含官方/商店版不支持的协议 默认: false
  * - cache 使用 Sub-Store 脚本缓存 默认: true
  * - fallback_cache 探测失败时使用节点身份兜底缓存 默认: true
+ * - force_geo_region 强制使用 API/MMDB countryCode 作为 region 默认: false
  * - disable_failed_cache / ignore_failed_error 禁用失败缓存 默认: false
  *
  * Rename 参数
@@ -570,37 +571,9 @@ function renameProxy(proxy, formatStr, connectorStr, groupIndex = 0) {
     proxy.originalName = originalName;
 
     const geoCountryCode = proxy._geo?.countryCode || '';
-    let regionInfo = null;
-
-    if (geoCountryCode) {
-        proxy.region_code = geoCountryCode;
-        proxy.region_flag = getRegionFlag(geoCountryCode);
-        proxy.region_name = getRegionDisplayName(geoCountryCode, 'en') || geoCountryCode;
-        proxy.region_name_cn = getRegionDisplayName(geoCountryCode, 'zh-CN') || '未知';
-    } else {
-        // 没有探测结果时，才从节点名检测 region
-        for (const [key, info] of Object.entries(REGION_MAP)) {
-            const keywords = getRegionKeywords(info);
-            for (const kw of keywords) {
-                if (matchKeyword(lowerName, kw)) {
-                    regionInfo = info;
-                    break;
-                }
-            }
-            if (regionInfo) break;
-        }
-        if (regionInfo) {
-            proxy.region_code = regionInfo.code;
-            proxy.region_flag = regionInfo.flag;
-            proxy.region_name = regionInfo.name_en;
-            proxy.region_name_cn = regionInfo.name_cn;
-        } else {
-            proxy.region_code = 'ZZ';
-            proxy.region_flag = '';
-            proxy.region_name = 'Unknown';
-            proxy.region_name_cn = '未知';
-        }
-    }
+    const forceGeoRegion = toBoolean($arguments.force_geo_region ?? $arguments.force_region_from_geo, false);
+    const nameRegionInfo = forceGeoRegion ? null : detectRegionFromName(originalName);
+    setRegionMetadata(proxy, nameRegionInfo?.code || geoCountryCode || 'ZZ');
 
     // 检测 ISP
     proxy.isp_code = detectISPFromName(lowerName);
@@ -959,6 +932,21 @@ function getRegionKeywords(info) {
     if (info.name_en) kws.push(info.name_en);
     if (info.alias) kws.push(...info.alias);
     return kws;
+}
+
+function setRegionMetadata(proxy, code) {
+    if (!/^[A-Z]{2}$/.test(code || '') || code === 'ZZ') {
+        proxy.region_code = 'ZZ';
+        proxy.region_flag = '';
+        proxy.region_name = 'Unknown';
+        proxy.region_name_cn = '未知';
+        return;
+    }
+
+    proxy.region_code = code;
+    proxy.region_flag = getRegionFlag(code);
+    proxy.region_name = getRegionDisplayName(code, 'en') || code;
+    proxy.region_name_cn = getRegionDisplayName(code, 'zh-CN') || '未知';
 }
 
 function getRegionDisplayName(code, locale) {
