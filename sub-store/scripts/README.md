@@ -24,8 +24,8 @@ https://fastly.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@16fc05c/sub-stor
 | `limit` | `l` | 限制返回数量 | `0` (不限制) |
 | `remove_failed` | - | 移除探测失败的节点 | `true` |
 | `concurrency` | - | 探测并发数 | `10` |
-| `probe_retries` | - | META geo 探测重试次数 | `2` |
-| `probe_retry_delay` | - | META geo 探测重试间隔(ms) | `1000` |
+| `retries` | - | 请求重试次数 | `1` |
+| `retry_delay` | - | 请求重试间隔(ms) | `1000` |
 
 ### 占位符
 
