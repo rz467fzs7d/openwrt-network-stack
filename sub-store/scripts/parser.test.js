@@ -49,6 +49,8 @@ function loadParserFunctions() {
     parseSortRules: context.parseSortRules,
     applySort: context.applySort,
     applyFormat: context.applyFormat,
+    applyCompiledFormat: context.applyCompiledFormat,
+    compileFormat: context.compileFormat,
   };
 }
 
@@ -249,7 +251,7 @@ failCases.forEach(name => {
 // ============================================================
 console.log('\n[测试 8] sort DSL\n');
 
-const { parseSortRules, applySort, applyFormat } = loadParserFunctions();
+const { parseSortRules, applySort, applyFormat, compileFormat, applyCompiledFormat } = loadParserFunctions();
 
 const regionRules = parseSortRules('region:HK,SG,JP:asc');
 assert(regionRules.length === 1, 'region 简称排序规则应被解析');
@@ -283,6 +285,14 @@ const formattedWithCustomTagRule = applyFormat({
   originalName: '日本 家宽 02',
 }, '{region}{index:2d}{tag:Home=家宽|home}');
 assert(formattedWithCustomTagRule === 'JP-02-Home', 'tag 自定义匹配规则应支持多关键词输出');
+
+const compiledFormat = compileFormat('{region}{index:2d}{tag:Plus}');
+const formattedWithCompiledFormat = applyCompiledFormat({
+  region_code: 'SG',
+  index: 3,
+  originalName: 'plus 新加坡 03',
+}, compiledFormat);
+assert(formattedWithCompiledFormat === 'SG-03-Plus', '预编译 format 应与直接格式化保持一致');
 
 // ============================================================
 // 测试 9: 名称无 ISO code 时使用 META 探测
