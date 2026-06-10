@@ -48,7 +48,6 @@ function loadParserFunctions() {
     operator: context.operator,
     parseSortRules: context.parseSortRules,
     applySort: context.applySort,
-    applyFormat: context.applyFormat,
     applyCompiledFormat: context.applyCompiledFormat,
     compileFormat: context.compileFormat,
     detectRegionFromName: context.detectRegionFromName,
@@ -171,7 +170,7 @@ assert(h3['Authorization'] === undefined, 'null token 不应设置 Authorization
 // ============================================================
 console.log('\n[测试 7] detectRegionFromName 节点名称识别\n');
 
-const { parseSortRules, applySort, applyFormat, compileFormat, applyCompiledFormat, detectRegionFromName } = loadParserFunctions();
+const { parseSortRules, applySort, compileFormat, applyCompiledFormat, detectRegionFromName } = loadParserFunctions();
 
 // 能识别的节点名称：优先国旗/ISO code，其次走动态地区名索引。
 const testCases = [
@@ -186,6 +185,24 @@ const testCases = [
     { name: 'US Los Angeles', expected: 'US' },
     { name: 'TW 台湾 02', expected: 'TW' },
     { name: 'KR Seoul', expected: 'KR' },
+    // 真实订阅节点名
+    { name: 'Plus 香港HKT家宽', expected: 'HK' },
+    { name: 'Plus 美国Frontier家宽', expected: 'US' },
+    { name: 'Plus 台湾Hinet家宽', expected: 'TW' },
+    { name: 'Base 澳门', expected: 'MO' },
+    { name: 'Base 韩国家宽', expected: 'KR' },
+    { name: 'Base 马来西亚', expected: 'MY' },
+    { name: 'Base 印度尼西亚', expected: 'ID' },
+    { name: 'Base 菲律宾 02', expected: 'PH' },
+    { name: 'Base 阿根廷家宽', expected: 'AR' },
+    { name: 'Base 英国家宽', expected: 'GB' },
+    { name: 'Base 孟加拉国', expected: 'BD' },
+    // 弃用/别名代码不应误命中（DD 东德→DE，VD 北越→VN）
+    { name: 'Base 德国', expected: 'DE' },
+    { name: 'Base 德国家宽', expected: 'DE' },
+    { name: 'Base 越南', expected: 'VN' },
+    { name: 'JP-vless_reality_vision', expected: 'JP' },
+    { name: 'SG-ssr', expected: 'SG' },
 ];
 
 testCases.forEach(tc => {
@@ -200,6 +217,9 @@ const failCases = [
     'node-01.example.com',
     'random-name-123',
     'ss://xxxxx',
+    // 真实订阅里名称无地区信息的节点
+    'ELG-vless_reality_vision',
+    'JMS-400878@c91s1.portablesubmarines.com:10038',
 ];
 
 failCases.forEach(name => {
@@ -231,18 +251,31 @@ const hasTagSorted = applySort([
 ], hasTagRules);
 assert(hasTagSorted[0].tag === 'IPLC', 'has_tag:desc 应让已有主标签的节点优先');
 
-const formattedWithDefaultConnector = applyFormat({
+// tag 指定 values 的 asc/desc 应方向相反（修复双重 order 反转）
+const tagValAsc = applySort([{ tag: '' }, { tag: 'IPLC' }], parseSortRules('{tag}(IPLC) asc'));
+const tagValDesc = applySort([{ tag: '' }, { tag: 'IPLC' }], parseSortRules('{tag}(IPLC) desc'));
+assert(tagValAsc[0].tag === 'IPLC', '{tag}(IPLC) asc 应让命中节点排前');
+assert(tagValDesc[0].tag === '' , '{tag}(IPLC) desc 应让命中节点排后（与 asc 相反）');
+
+// region_name_cn 排序应生效（此前缺 applySort 分支被静默忽略）
+const cnSorted = applySort(
+  [{ region_name_cn: '日本' }, { region_name_cn: '澳门' }],
+  parseSortRules('region_name_cn:asc'),
+);
+assert(cnSorted[0].region_name_cn === '澳门', 'region_name_cn:asc 应按中文名排序');
+
+const formattedWithDefaultConnector = applyCompiledFormat({
   region_code: 'HK',
   index: 1,
   originalName: 'Plus 香港 IPLC 01',
-}, '{region}{index:2d}{tag:Plus}{tag:IPLC=iplc|专线}');
+}, compileFormat('{region}{index:2d}{tag:Plus}{tag:IPLC=iplc|专线}'));
 assert(formattedWithDefaultConnector === 'HK-01-Plus-IPLC', '简单 tag 输出应保留传入大小写');
 
-const formattedWithCustomTagRule = applyFormat({
+const formattedWithCustomTagRule = applyCompiledFormat({
   region_code: 'JP',
   index: 2,
   originalName: '日本 家宽 02',
-}, '{region}{index:2d}{tag:Home=家宽|home}');
+}, compileFormat('{region}{index:2d}{tag:Home=家宽|home}'));
 assert(formattedWithCustomTagRule === 'JP-02-Home', 'tag 自定义匹配规则应支持多关键词输出');
 
 const compiledFormat = compileFormat('{region}{index:2d}{tag:Plus}');
@@ -266,7 +299,6 @@ async function testMetaProbeFillsMissingNameRegion() {
     $arguments: {
       f: '{region}',
       c: '-',
-      remove_failed: false,
       debug: false,
     },
     $substore: {

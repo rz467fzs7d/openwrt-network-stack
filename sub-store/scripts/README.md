@@ -22,7 +22,6 @@ https://fastly.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@0be4c6f/sub-stor
 | `connector` | `c` | 占位符连接符 | `-` |
 | `sort` | `s` | 排序规则 | 无 |
 | `limit` | `l` | 限制返回数量 | `0` (不限制) |
-| `remove_failed` | - | 移除探测失败的节点 | `true` |
 | `concurrency` | - | 探测并发数 | `10` |
 | `retries` | - | 请求重试次数 | `1` |
 | `retry_delay` | - | 请求重试间隔(ms) | `1000` |
@@ -61,9 +60,8 @@ s=region:HK,SG,JP:asc|tag:Plus:desc|index:asc
 
 ### 探测策略
 
-- 所有节点都会执行 HTTP META 探测，地区名识别只作为 region 回填与失败兜底
+- 名称可识别地区的节点默认跳过探测（`probe_all=true` 可强制全探）
 - 探测成功结果会缓存，失败结果不缓存
-- 名称可识别地区的节点，失败后仍可能因 `remove_failed=true` 被过滤
-- 探测失败节点默认移除；本轮探测未返回不作为延迟筛选条件
+- 探测失败的节点标记 `_failed=true`，本脚本不移除，交由下游环节处理
 
 清除缓存：在 Sub-Store 设置中操作"刷新"（会调用 `revokeAll`）

@@ -7,7 +7,6 @@
  * - HTTP META 探测节点落地 region（国家）
  * - 支持 format 模板（兼容既有占位符写法）
  * - 支持高级排序，按 region 分组编号
- * - 支持限制返回数量
  *
  * HTTP META 参数
  * - http_meta_protocol    协议            默认: http
@@ -21,9 +20,9 @@
  * - api         测落地的 API  默认: http://ip-api.com/json?lang=zh-CN（返回 JSON，直接取 countryCode/isp）
  * - method      请求方法      默认: get
  * - concurrency 并发数        默认: 10
- * - timeout 请求超时(ms) 默认: 5000
  * - retries 请求重试次数 默认: 1
  * - retry_delay 请求重试间隔(ms) 默认: 1000
+ *   （单节点探测超时由 http_meta_proxy_timeout 控制，见上）
  * - probe_all 对所有节点强制探测（默认 false：节点名可识别 region 时跳过探测）
  * - include_unsupported_proxy 传递给运行环境时包含官方/商店版不支持的协议 默认: false
  * - cache 使用 Sub-Store 脚本缓存 默认: true
@@ -48,21 +47,20 @@
  *                 不在映射中的节点原样保留
  *
  * 过滤参数
- * - remove_failed 移除失败节点 默认: true
+ * - 探测失败的节点会被标记 _failed=true（不在此移除，交由下游环节处理）
  *
  * 使用示例（mode: link）：
- * https://cdn地址#f={region}{i:2d}{tag}&c=-&s={region}ASC&remove_failed=true
+ * https://cdn地址#f={region}{i:2d}{tag}&c=-&s={region}ASC
  */
 
 // ============================================================
 // 参数别名（对外提供的入参别名）
 // ============================================================
-// 注意：不使用短名称，避免与 Sub-Store 内部参数（c/f/l/s）冲突
+// 注意：不使用单字母短名称（如 l），避免与 Sub-Store 内部参数（c/f/s）冲突
 const PARAM_ALIAS = {
     format: 'f',
     connector: 'c',
     sort: 's',
-    limit: 'l',
     debug: 'd',
 };
 
@@ -90,6 +88,14 @@ const REGION_CODE_IGNORE = new Set([
     'SS', 'VM', 'WS', 'IP', 'TCP', 'UDP', 'TLS', 'DNS', 'HTTP', 'HOME', 'PLUS',
 ]);
 
+// ISO 3166-1 已弃用/历史/别名代码：ICU 仍会把它们解析成现代国名，
+// 且按字母序常排在正式代码前面（如 DD 东德、VD 北越），导致名称索引误命中。
+// 仅用于名称索引生成时跳过，让正式代码（DE/VN/...）命中。
+const REGION_CODE_DEPRECATED = new Set([
+    'AN', 'BU', 'CS', 'DD', 'DY', 'FX', 'HV', 'NH',
+    'RH', 'SU', 'TP', 'VD', 'YD', 'YU', 'ZR',
+]);
+
 const TAG_PRESETS = [
     { name: 'IPLC', keywords: ['iplc', '专线'] },
     { name: 'UDPN', keywords: ['udpn'] },
@@ -98,12 +104,17 @@ const TAG_PRESETS = [
 
 const REGION_NAME_LOCALES = ['en', 'zh-CN', 'zh-TW'];
 let REGION_NAME_HINTS = null;
+// 按 locale 缓存 Intl.DisplayNames，避免每次查询都 new（hints 构建 + 每节点元数据是热点）
+const REGION_NAME_FORMATTERS = {};
 
 // ============================================================
 // 主入口
 // ============================================================
 async function operator(proxies = [], targetPlatform, context) {
     const $ = $substore;
+
+    // 命名约定：与 $arguments 入参同名的局部变量保留 snake_case（便于和入参对照），
+    // 由入参派生的内部状态用 camelCase。
 
     // 来源信息（用于日志标识）
     const source = context?.source || {};
@@ -142,13 +153,12 @@ async function operator(proxies = [], targetPlatform, context) {
     const connector = $arguments.connector ?? $arguments[PARAM_ALIAS.connector] ?? '-';
     const rawSort = $arguments.sort ?? $arguments[PARAM_ALIAS.sort] ?? null;
     const sort = rawSort ? normalizePlaceholder(rawSort) : null;
-    const remove_failed = toBoolean($arguments.remove_failed, true);
-    const limit = parseNonNegativeInt($arguments.limit ?? $arguments[PARAM_ALIAS.limit], 0);
+    const forceGeoRegion = toBoolean($arguments.force_geo_region ?? $arguments.force_region_from_geo, false);
     const flatMap = parseFlatMap($arguments.flat ?? '');
 
     // ---- Step 1: 转换节点为 internal 格式 ----
     const internalProxies = [];
-    proxies.map((proxy, index) => {
+    proxies.forEach((proxy, index) => {
         try {
             const node = ProxyUtils.produce([{ ...proxy }], 'ClashMeta', 'internal', {
                 'include-unsupported-proxy': includeUnsupportedProxy,
@@ -179,23 +189,22 @@ async function operator(proxies = [], targetPlatform, context) {
 
     // 名称已能识别 region 的节点跳过探测（probe_all=true 可强制全探）
     const probeAllNodes = toBoolean($arguments.probe_all, false);
-    const skipByName = [];
+    let skipByNameCount = 0;
     const needProbe = [];
     for (const proxy of internalProxies) {
         const p = proxies[proxy._proxies_index];
         if (!probeAllNodes && detectRegionFromName(p?.name || proxy.name || '')) {
-            skipByName.push(proxy);
+            skipByNameCount++;
         } else {
             needProbe.push(proxy);
         }
     }
-    if (skipByName.length > 0) {
-        $.info(`[PARSER] 名称已识别 region，跳过探测 ${skipByName.length}/${internalProxies.length}`);
+    if (skipByNameCount > 0) {
+        $.info(`[PARSER] 名称已识别 region，跳过探测 ${skipByNameCount}/${internalProxies.length}`);
     }
 
     const cachedProbe = splitCachedProbeResults(needProbe, proxies);
     probeSuccess += cachedProbe.success;
-    probeFail += cachedProbe.fail;
 
     if (needProbe.length === 0) {
         $.info(`[PARSER] 所有节点名称均可识别 region，无需 HTTP META`);
@@ -212,7 +221,7 @@ async function operator(proxies = [], targetPlatform, context) {
     $.info(`[PARSER] 探测完成: 成功 ${probeSuccess}, 失败 ${probeFail}`);
 
     // ---- Step 3: 提取元数据 ----
-    proxies.forEach(proxy => prepareProxyMetadata(proxy, 0));
+    proxies.forEach(proxy => prepareProxyMetadata(proxy, 0, forceGeoRegion));
 
     // ---- Step 4: Sort（不支持 latency）----
     let sortRules = [];
@@ -220,6 +229,10 @@ async function operator(proxies = [], targetPlatform, context) {
         sortRules = parseSortRules(sort);
     }
 
+    // 按 name 排序时，需先格式化出最终名（除 index 外）再排序——
+    // 因为 applySort 的 name 分支比较的是 proxy.name（展示名）而非原始订阅名。
+    // 排序后 reassignGroupIndex 才能定 index，Step 4.5 会再格式化一次覆盖此处结果。
+    // 故按 name 排序时每节点格式化 2 次，是语义需求，非冗余。
     if (compiledFormat && sortRules.some(rule => rule.type === 'name')) {
         proxies.forEach(proxy => {
             proxy.name = applyCompiledFormat(proxy, compiledFormat, connector);
@@ -259,11 +272,10 @@ async function operator(proxies = [], targetPlatform, context) {
         $.info(`[PARSER] flat 拍平: -> ${proxies.length} 节点`);
     }
 
-    // ---- Step 5: 移除失败节点 ----
-    if (remove_failed) {
-        const before = proxies.length;
-        proxies = proxies.filter(p => !p._failed);
-        $.info(`[PARSER] 移除失败节点: ${before} -> ${proxies.length}`);
+    // ---- Step 5: 标记失败节点（移除交由下游处理）----
+    const failedCount = proxies.filter(p => p._failed).length;
+    if (failedCount > 0) {
+        $.info(`[PARSER] 标记失败节点: ${failedCount}/${proxies.length}（_failed=true，移除交由下游）`);
     }
 
     return proxies;
@@ -322,18 +334,9 @@ async function operator(proxies = [], targetPlatform, context) {
     // ============================================================
     async function probeOne(proxy, proxies, port, onResult) {
         const startedAt = Date.now();
+        // 进入此处的节点都已被 splitCachedProbeResults 预扫描确认未命中缓存，
+        // 无需再 cache.get 复查；cacheId 仅用于探测成功后写缓存。
         const cacheId = getProbeCacheId(proxy);
-
-        if (cacheEnabled && cache) {
-            const cached = cache.get(cacheId);
-            if (cached?.api) {
-                const result = { ...cached.api, _cached: true };
-                applyProbeResult(proxy, proxies, result);
-                $.info(`[PARSER][${proxy.name}] 使用成功缓存 country=${result.countryCode || ''}`);
-                onResult(proxy, result);
-                return;
-            }
-        }
 
         try {
             const headers = {
@@ -403,12 +406,11 @@ async function operator(proxies = [], targetPlatform, context) {
 
     function splitCachedProbeResults(internalProxies, proxies) {
         if (!cacheEnabled || !cache) {
-            return { pending: internalProxies, success: 0, fail: 0, directSuccess: 0, fallbackSuccess: 0 };
+            return { pending: internalProxies, success: 0, directSuccess: 0, fallbackSuccess: 0 };
         }
 
         const pending = [];
         let success = 0;
-        let fail = 0;
         let directSuccess = 0;
         let fallbackSuccess = 0;
         for (const proxy of internalProxies) {
@@ -439,7 +441,6 @@ async function operator(proxies = [], targetPlatform, context) {
         return {
             pending,
             success,
-            fail,
             directSuccess,
             fallbackSuccess,
         };
@@ -520,14 +521,13 @@ async function operator(proxies = [], targetPlatform, context) {
 // ============================================================
 // Rename 元数据
 // ============================================================
-function prepareProxyMetadata(proxy, groupIndex = 0) {
+function prepareProxyMetadata(proxy, groupIndex = 0, forceGeoRegion = false) {
     const originalName = proxy.name || '';
     const lowerName = originalName.toLowerCase();
 
     proxy.originalName = originalName;
 
     const geoCountryCode = proxy._geo?.countryCode || '';
-    const forceGeoRegion = toBoolean($arguments.force_geo_region ?? $arguments.force_region_from_geo, false);
     const nameRegionInfo = forceGeoRegion ? null : detectRegionFromName(originalName);
     setRegionMetadata(proxy, nameRegionInfo?.code || geoCountryCode || 'ZZ');
 
@@ -563,11 +563,6 @@ function compileFormat(formatStr) {
         parts,
         hasStaticText: formatStr.replace(/\{[^}]+\}/g, '').replace(/\s+/g, '') !== '',
     };
-}
-
-// 解析 {xxx} 占位符并应用格式化
-function applyFormat(proxy, formatStr, connectorStr) {
-    return applyCompiledFormat(proxy, compileFormat(formatStr), connectorStr);
 }
 
 function applyCompiledFormat(proxy, compiledFormat, connectorStr) {
@@ -677,7 +672,7 @@ function parseSortRules(sortString) {
 
         const fieldMap = {
             'region_code': 'countryCode', 'region': 'countryCode',
-            'region_name': 'countryName',
+            'region_name': 'countryName', 'region_name_cn': 'countryNameCn',
             'region_flag': 'countryFlag', 'tag': 'tag',
             'index': 'index', 'i': 'index',
             'name': 'name',
@@ -764,6 +759,10 @@ function applySort(proxies, rules) {
                 const va = a._geo?.country || a.region_name || '';
                 const vb = b._geo?.country || b.region_name || '';
                 comparison = va.localeCompare(vb);
+            } else if (type === 'countryNameCn') {
+                const va = a.region_name_cn || '';
+                const vb = b.region_name_cn || '';
+                comparison = va.localeCompare(vb, 'zh-CN');
             } else if (type === 'name') {
                 comparison = (a.name || '').localeCompare(b.name || '', 'zh-CN');
             } else if (type === 'index') {
@@ -781,28 +780,20 @@ function applySort(proxies, rules) {
                 const hb = Boolean(b.tag);
                 if (ha !== hb) comparison = ha ? 1 : -1;
             } else if (type === 'tag') {
+                // 产出中性比较值（命中 values / 有 tag 者排前为负），方向统一由末尾 order 反转处理
                 const ta = a.tag || '';
                 const tb = b.tag || '';
                 if (hasValues && values.length) {
-                    const ua = ta.toUpperCase();
-                    const ub = tb.toUpperCase();
-                    const ha = ua && values.includes(ua);
-                    const hb = ub && values.includes(ub);
-                    if (ha !== hb) {
-                        comparison = ha ? (order === 'desc' ? 1 : -1) : (order === 'desc' ? -1 : 1);
-                    } else if (!ta && !tb) {
-                        comparison = 0;
-                    } else if (!ta) {
-                        comparison = order === 'desc' ? 1 : -1;
-                    } else if (!tb) {
-                        comparison = order === 'desc' ? -1 : 1;
-                    } else {
-                        comparison = ta.localeCompare(tb);
-                    }
+                    const ha = ta && values.includes(ta.toUpperCase());
+                    const hb = tb && values.includes(tb.toUpperCase());
+                    if (ha !== hb) comparison = ha ? -1 : 1;
+                    else if (ta && tb) comparison = ta.localeCompare(tb);
+                    else if (ta) comparison = -1;
+                    else if (tb) comparison = 1;
                 } else {
-                    if (ta && !tb) comparison = order === 'desc' ? 1 : -1;
-                    else if (!ta && tb) comparison = order === 'desc' ? -1 : 1;
-                    else comparison = ta.localeCompare(tb);
+                    if (ta && tb) comparison = ta.localeCompare(tb);
+                    else if (ta) comparison = -1;
+                    else if (tb) comparison = 1;
                 }
             } else if (type === 'countryFlag') {
                 const va = a.region_flag || '';
@@ -898,7 +889,12 @@ function detectRegionCodeFromFlag(text) {
 function getRegionDisplayName(code, locale) {
     if (!/^[A-Z]{2}$/.test(code || '')) return '';
     try {
-        return new Intl.DisplayNames([locale], { type: 'region', fallback: 'code' }).of(code) || '';
+        let fmt = REGION_NAME_FORMATTERS[locale];
+        if (!fmt) {
+            fmt = new Intl.DisplayNames([locale], { type: 'region', fallback: 'code' });
+            REGION_NAME_FORMATTERS[locale] = fmt;
+        }
+        return fmt.of(code) || '';
     } catch (_) {
         return '';
     }
@@ -912,6 +908,7 @@ function getRegionNameHints() {
         for (let second = 65; second <= 90; second++) {
             const code = String.fromCharCode(first, second);
             if (REGION_CODE_IGNORE.has(code)) continue;
+            if (REGION_CODE_DEPRECATED.has(code)) continue;
             if (!isValidRegionCode(code)) continue;
 
             const keywords = [];
@@ -1045,7 +1042,7 @@ async function httpRequest(opt = {}) {
 
 function executeAsyncTasks(tasks, { concurrency = 1 } = {}) {
     concurrency = parsePositiveInt(concurrency, 1);
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
         let running = 0;
         let index = 0;
 
