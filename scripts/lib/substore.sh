@@ -193,7 +193,7 @@ ${BOLD}${GREEN}Sub-Store 配置指南${NC}
    - 进入订阅详情
    - 点击 "操作器" → "添加脚本操作器"
    - 脚本地址:
-     ${DIM}https://cdn.jsdelivr.net/gh/${GITHUB_REPO}@${GITHUB_BRANCH}/sub-store/scripts/node-renamer.js${NC}
+     ${DIM}https://cdn.jsdelivr.net/gh/${GITHUB_REPO}@${GITHUB_BRANCH}/sub-store/scripts/parser.js${NC}
    - 参数配置:
      ${DIM}{"format": "{region_code} {index:02d}"}${NC}
 

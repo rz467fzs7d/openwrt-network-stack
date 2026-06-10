@@ -1,0 +1,230 @@
+# Mihomo 模板化配置 - GEOSITE 分流（无外部 rule-provider 依赖）
+# 路由规则全部基于内置 GeoSite/GeoIP 数据，订阅节点通过 filter 关键词分组
+# 架构参考: 见 CONFIGURATION.md
+
+# region YAML 锚点（可复用模板）
+# ============================================================
+# YAML 锚点（可复用模板）- 集中管理
+# ============================================================
+
+# ------------------------------------------------------------\n# 扩展：节点筛选关键词定义
+# x- 前缀表示用户自定义扩展（非 Mihomo 原生配置）
+#
+# 配合 Sub-Store parser.js 使用
+# 节点格式: {countryCode} {index:2d} {tag:IPLC=iplc|专线} {tag:UDPN=udpn} {tag:Home=家宽|home}
+# 示例: HK 01, TW 02 IPLC, JP 03 Home, US 01 IPLC ATT
+# ------------------------------------------------------------
+x-keywords:
+  hong-kong: &HONG_KONG_KEYWORDS "HK"
+  taiwan: &TAIWAN_KEYWORDS "TW"
+  japan: &JAPAN_KEYWORDS "JP"
+  united-states: &UNITED_STATES_KEYWORDS "US"
+  singapore: &SINGAPORE_KEYWORDS "SG"
+  iplc: &IPLC_KEYWORDS "IPLC"
+  game: &GAME_KEYWORDS "Game"
+  # 其他地区排除：仅排除主要地区和特殊用途节点
+  other-regions-exclude: &OTHER_REGIONS_EXCLUDE_KEYWORDS "HK|TW|JP|US|SG|IPLC|Game"
+
+# ------------------------------------------------------------\n# 扩展：代理组模板定义
+# x- 前缀表示用户自定义扩展（非 Mihomo 原生配置）
+# ------------------------------------------------------------
+x-templates:
+  # 代理组基础模板
+  proxy-group: &PROXY_GROUP_BASE
+    type: select
+    interval: 120
+    lazy: true
+    include-all: true
+    exclude-type: direct
+    hidden: false
+    tolerance: 20
+    disable-udp: false
+    timeout: 500
+
+  # Fallback 组模板（自动故障转移）
+  fallback-group: &FALLBACK_GROUP_BASE
+    <<: *PROXY_GROUP_BASE
+    type: fallback
+    fallback-filter:
+      retry: 2
+      timeout: 500
+      health-check:
+        enable: true
+        interval: 120
+        unhealthy_threshold: 2
+        healthy_threshold: 2
+        dns:
+          - "https://8.8.8.8/dns-query"
+          - "https://dns.alidns.com/dns-query"
+        http:
+          - url: "https://www.gstatic.com/generate_204"
+            method: GET
+            expected-status: 204
+            timeout: 500
+
+  # URL Test 组模板（基于延迟自动选择）
+  url-test-group: &URL_TEST_GROUP_BASE
+    type: url-test
+    url: "https://www.gstatic.com/generate_204"
+    interval: 120
+    tolerance: 50
+    timeout: 500
+    expected-status: 204
+    include-all: true
+
+  # 应用策略模板（Smart 优先）
+  application-policy: &APPLICATION_POLICY_BASE
+    type: select
+    hidden: false
+    proxies:
+      - Smart
+      - Hong Kong
+      - Taiwan
+      - Japan
+      - United States
+      - Singapore
+      - Others
+      - IPLC
+      - Game
+      - Select
+      - DIRECT
+
+  # 应用策略模板（DIRECT 优先）
+  application-policy-direct-first: &APPLICATION_POLICY_DIRECT_FIRST
+    type: select
+    hidden: false
+    proxies:
+      - DIRECT
+      - Smart
+      - Hong Kong
+      - Taiwan
+      - Japan
+      - United States
+      - Singapore
+      - Others
+      - IPLC
+      - Game
+      - Select
+
+  # 应用策略模板（AI 无限流量）
+  application-policy-ai-unlimited: &APPLICATION_POLICY_AI_UNLIMITED
+    type: select
+    hidden: false
+    proxies:
+      - United States
+      - Singapore
+      - Japan
+      - Select
+
+# endregion
+
+# region 代理配置
+# ============================================================
+# 代理配置
+# ============================================================
+
+# ------------------------------------------------------------\n# 代理组配置
+# ------------------------------------------------------------
+proxy-groups:
+  # ==================== 核心代理组 ====================
+  - { name: PROXY, <<: *APPLICATION_POLICY_BASE, type: select }
+  - { name: FINAL, <<: *APPLICATION_POLICY_DIRECT_FIRST, type: select }
+
+  # 智能选择（从地区组自动故障转移）
+  - name: Smart
+    <<: *FALLBACK_GROUP_BASE
+    proxies: [Hong Kong, Taiwan, Japan, United States, Singapore, Others]
+
+  # 手动选择
+  - { name: Select, <<: *PROXY_GROUP_BASE }
+
+  # ==================== 应用专用代理组 ====================
+  # 搜索和生产力工具
+  - { name: Google, <<: *APPLICATION_POLICY_BASE }
+  - { name: Global DNS, <<: *FALLBACK_GROUP_BASE }
+
+  # 流媒体和娱乐
+  - { name: YouTube, <<: *APPLICATION_POLICY_BASE }
+  - { name: Netflix, <<: *APPLICATION_POLICY_BASE, hidden: true }
+  - { name: Spotify, <<: *APPLICATION_POLICY_BASE }
+
+  # AI 服务
+  - { name: AI Services, <<: *APPLICATION_POLICY_AI_UNLIMITED }
+
+  # ==================== 地区节点组 ====================
+  - { name: Hong Kong, <<: *URL_TEST_GROUP_BASE, filter: *HONG_KONG_KEYWORDS }
+  - { name: Taiwan, <<: *URL_TEST_GROUP_BASE, filter: *TAIWAN_KEYWORDS }
+  - { name: Japan, <<: *URL_TEST_GROUP_BASE, filter: *JAPAN_KEYWORDS }
+  - {
+      name: United States,
+      <<: *URL_TEST_GROUP_BASE,
+      filter: *UNITED_STATES_KEYWORDS,
+    }
+  - { name: Singapore, <<: *URL_TEST_GROUP_BASE, filter: *SINGAPORE_KEYWORDS }
+  - name: Others
+    <<: *PROXY_GROUP_BASE
+    exclude-filter: *OTHER_REGIONS_EXCLUDE_KEYWORDS
+
+  # ==================== 特殊用途组 ====================
+  - name: IPLC
+    <<: *PROXY_GROUP_BASE
+    filter: *IPLC_KEYWORDS
+  - { name: Game, <<: *PROXY_GROUP_BASE, hidden: true, filter: *GAME_KEYWORDS }
+# endregion
+
+# region 路由规则
+# ============================================================
+# 路由规则
+# ============================================================
+
+# ------------------------------------------------------------\n# 路由规则（从上到下优先级）
+# ------------------------------------------------------------
+rules:
+  # ==================== 网络基础 ====================
+  # 本地网络 - 始终直连
+  - GEOIP,lan,DIRECT,no-resolve
+  - GEOIP,private,DIRECT,no-resolve
+
+  # ==================== 国内服务 ====================
+  # 中国特定服务（Steam、Microsoft）- 直连
+  - GEOSITE,steam@cn,DIRECT
+  - GEOSITE,microsoft@cn,DIRECT
+
+  # ==================== 广告拦截 ====================
+  - GEOSITE,category-ads-all,REJECT
+
+  # ==================== 流媒体 ====================
+  - GEOSITE,netflix,Netflix
+
+  # ==================== 海外站点 ====================
+  - GEOSITE,category-ai-!cn,AI Services
+
+  - GEOSITE,duckduckgo,PROXY
+  - GEOSITE,telegram,PROXY
+
+  - GEOSITE,category-dev,PROXY
+
+  - GEOSITE,spotify,Spotify
+  - GEOSITE,youtube,YouTube
+  - GEOSITE,google,Google
+
+  - GEOSITE,apple,DIRECT
+  - GEOSITE,icloud,DIRECT
+
+  # ==================== 通用站点 ====================
+  - GEOSITE,CN,DIRECT
+  # DoH/DoT 加密 DNS 走 Global DNS 组（海外节点），让 AdGuardHome 的上游解析不被本地网络劫持/污染
+  - GEOSITE,category-doh,Global DNS
+  - GEOSITE,geolocation-!cn,PROXY
+
+  # ==================== GeoIP 路由 ====================
+  - GEOIP,google,Google
+  - GEOIP,telegram,PROXY
+  - GEOIP,twitter,PROXY
+  - GEOIP,facebook,PROXY
+  - GEOIP,CN,DIRECT
+
+  # ==================== 最终兜底规则 ====================
+  # 未匹配的流量进入 FINAL 组
+  - MATCH,FINAL
+# endregion

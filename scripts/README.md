@@ -347,5 +347,5 @@ MIT License
 - [项目主页](https://github.com/rz467fzs7d/openwrt-network-stack)
 - [部署指南](../DEPLOYMENT-GUIDE.md)
 - [AdGuard Home 配置](../adguardhome/CONFIGURATION.md)
-- [OpenClash 配置](../clash/CONFIGURATION.md)
+- [OpenClash 配置](../openclash/CONFIGURATION.md)
 - [Sub-Store 文档](../sub-store/README.md)
