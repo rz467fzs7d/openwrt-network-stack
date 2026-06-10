@@ -25,7 +25,7 @@ Mihomo (Clash Meta) 配置模板的使用说明，包含代理组、DNS、规则
 
 ### 配置模板文件
 
-- `config/config-mihomo.yaml.example` - 完整配置模板
+- `config/config-mihomo-template.yaml` - 完整配置模板
 - `rules/direct.yaml` - 自定义直连规则
 - `rules/proxy.yaml` - 自定义代理规则
 
@@ -34,11 +34,11 @@ Mihomo (Clash Meta) 配置模板的使用说明，包含代理组、DNS、规则
 ```bash
 # OpenClash
 cd /etc/openclash
-wget https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/clash/config/config-mihomo.yaml.example -O config.yaml
+wget https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/openclash/config/config-mihomo-template.yaml -O config.yaml
 
 # Mihomo
 cd /etc/mihomo
-wget https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/clash/config/config-mihomo.yaml.example -O config.yaml
+wget https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/openclash/config/config-mihomo-template.yaml -O config.yaml
 ```
 
 ---
@@ -64,17 +64,15 @@ proxy-groups:
 
 ### 2. 智能路由策略 (Smart Group)
 
-基于机器学习自动选择最优节点：
+`Smart` 组采用 **fallback** 类型，按地区组顺序做健康检查与自动故障转移，首个可用的地区组即为出口：
 
 ```yaml
 - name: Smart
-  type: smart
-  proxies: [Hong Kong, Taiwan, Japan, United States, Singapore]
-  policy-priority: "Hong Kong:1.5;Others:0.5"
-  prefer-asn: true      # 优先 ASN 质量
-  uselightgbm: true     # 使用 LightGBM 模型
-  collectdata: true     # 收集性能数据
+  <<: *FALLBACK_GROUP_BASE        # type: fallback + 健康检查
+  proxies: [Hong Kong, Taiwan, Japan, United States, Singapore, Others]
 ```
+
+> 健康检查 URL、超时、重试等参数集中在 `x-templates` 的 `FALLBACK_GROUP_BASE` 锚点里统一管理。
 
 ### 3. 地区节点自动选择
 
@@ -85,10 +83,14 @@ proxy-groups:
 
 | 应用 | 默认策略 | 适用场景 |
 |------|---------|---------|
-| AI Services | Smart | OpenAI, Claude, Gemini |
-| YouTube | Smart | 流媒体 |
-| GitHub | Smart | 代码托管 |
-| Apple Services | DIRECT | App Store, iCloud |
+| AI Services | 海外优先 | OpenAI, Claude, Gemini（`GEOSITE,category-ai-!cn`） |
+| YouTube | Smart | 流媒体（`GEOSITE,youtube`） |
+| Netflix | Smart | 流媒体（`GEOSITE,netflix`） |
+| Spotify | Smart | 音乐（`GEOSITE,spotify`） |
+| Google | Smart | 搜索 / 服务（`GEOSITE,google`） |
+| Global DNS | Fallback | DoH/DoT 加密 DNS（`GEOSITE,category-doh`） |
+
+> 其余分流（开发 `category-dev`、Telegram、Apple/iCloud 直连等）直接在 `rules` 中用内置 GEOSITE 分类指向 PROXY / DIRECT，无需单独代理组。
 
 ### 5. 完善的 DNS 配置
 
@@ -168,13 +170,17 @@ sniffer:
 ```yaml
 rule-providers:
   CUSTOM-DIRECT:
-    <<: *RULE_PROVIDER_BASE
-    url: "https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/clash/rules/direct.yaml"
+    behavior: classical
+    type: http
+    interval: 86400
+    url: "https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/openclash/rules/direct.yaml"
     path: ./rule-providers/custom-direct.yaml
 
   CUSTOM-PROXY:
-    <<: *RULE_PROVIDER_BASE
-    url: "https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/clash/rules/proxy.yaml"
+    behavior: classical
+    type: http
+    interval: 86400
+    url: "https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/openclash/rules/proxy.yaml"
     path: ./rule-providers/custom-proxy.yaml
 
 rules:
@@ -182,7 +188,7 @@ rules:
   - RULE-SET,CUSTOM-PROXY,PROXY
 ```
 
-**自定义规则**: Fork 本仓库后修改 `clash/rules/*.yaml`，然后更新 URL。
+**自定义规则**: Fork 本仓库后修改 `openclash/rules/*.yaml`，然后更新 URL。
 
 详见: [rules/README.md](rules/README.md)
 
@@ -284,35 +290,28 @@ proxy-groups:
 ### 添加新应用策略
 
 ```yaml
-# 1. 添加规则提供者
-rule-providers:
-  Reddit:
-    <<: *RULE_PROVIDER_BASE
-    url: "https://fastly.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/Reddit/Reddit.yaml"
-    path: ./rule-providers/reddit.yaml
-
-# 2. 添加代理组
+# 1. 添加代理组
 proxy-groups:
   - { name: Reddit, <<: *APPLICATION_POLICY_BASE }
 
-# 3. 添加路由规则
+# 2. 添加路由规则（优先使用内置 GEOSITE 分类）
 rules:
-  - RULE-SET,Reddit,Reddit
+  - GEOSITE,reddit,Reddit
 ```
 
-### 禁用 Smart Group
+### 调整 / 禁用 Smart Group
 
-如不想使用机器学习：
+如不想用 fallback 自动故障转移，改用固定地区优先：
 
 ```yaml
-# 方式 1: 改为 Hong Kong 优先
+# 方式 1: 应用策略改为固定地区优先（把 Smart 从首位移除）
 application-policy: &APPLICATION_POLICY_BASE
   proxies:
-    - Hong Kong  # 改为固定地区
+    - Hong Kong  # 改为固定地区优先
     - Taiwan
     - Japan
 
-# 方式 2: 删除 Smart 组相关配置
+# 方式 2: 删除 Smart 组定义，并从各应用组 proxies 中移除 Smart
 ```
 
 ---
@@ -401,22 +400,29 @@ curl -H 'accept: application/dns-json' 'https://dns.alidns.com/resolve?name=goog
 curl http://127.0.0.1:9090/dns/cache
 ```
 
-### Q: 规则集无法更新
+### Q: 规则 / GEOSITE 数据无法更新
 
-**手动更新**:
+本模板的分流全部基于内置 GeoSite/GeoIP 数据（`geox-url`），仅保留 `CUSTOM-DIRECT` / `CUSTOM-PROXY` 两个指向本项目的自定义规则集。
+
+**手动刷新 GeoX 数据与缓存**:
 ```bash
-# 删除缓存
+# 删除自定义规则集缓存
 rm -rf /etc/mihomo/rule-providers/*
 
-# 重启服务
+# 重启服务（会重新拉取 geosite.dat / geoip.dat）
 /etc/init.d/openclash restart
 # 或
 /etc/init.d/mihomo restart
 ```
 
-**检查规则集 URL**:
+**检查 GeoX 数据源连通性**:
 ```bash
-wget -O /dev/null "https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/China/China.yaml"
+wget -O /dev/null "https://cdn.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geosite.dat"
+```
+
+**检查自定义规则集 URL**:
+```bash
+wget -O /dev/null "https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/openclash/rules/direct.yaml"
 ```
 
 ---
@@ -426,7 +432,7 @@ wget -O /dev/null "https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@mast
 - [INSTALLATION.md](INSTALLATION.md) - 安装指南
 - [rules/README.md](rules/README.md) - 自定义规则说明
 - [Mihomo 官方文档](https://wiki.metacubex.one/)
-- [Clash 规则集项目](https://github.com/blackmatrix7/ios_rule_script)
+- [GeoSite 数据源 (Loyalsoldier)](https://github.com/Loyalsoldier/v2ray-rules-dat)
 - [GeoIP 数据源](https://github.com/MetaCubeX/meta-rules-dat)
 
 ---
@@ -464,7 +470,7 @@ A: OpenWrt 上：
 ### DNS 架构设计
 
 ```
-设备 → AdGuard Home (192.168.0.1:53) → OpenClash (127.0.0.1:7874) → 上游 DNS
+设备 → AdGuard Home (192.168.0.2:53) → OpenClash (127.0.0.1:7874) → 上游 DNS
          ↓
     广告拦截/过滤
          ↓
@@ -581,9 +587,9 @@ nameserver-policy:
 **诊断流程：**
 ```bash
 # 1. 测试不同 DNS 服务器
-dig +short registry-1.docker.io @192.168.0.1    # AdGuard
-dig +short registry-1.docker.io @192.168.0.2      # Clash
-dig +short registry-1.docker.io @8.8.4.4         # Google
+dig +short registry-1.docker.io @192.168.0.2         # AdGuard Home
+dig +short registry-1.docker.io @127.0.0.1 -p 7874   # OpenClash
+dig +short registry-1.docker.io @8.8.4.4             # Google
 
 # 2. 验证 IP 属地
 curl -s ipinfo.io/<IP> | grep country
@@ -615,8 +621,8 @@ curl -s -o /dev/null -w "%{http_code}" https://registry-1.docker.io/v2/
 # 检查规则匹配
 logread | grep "match RuleSet"
 
-# 检查规则文件
-cat /etc/openclash/rule-providers/docker.yaml | head -20
+# 检查规则文件（自定义规则集）
+cat /etc/openclash/rule-providers/custom-direct.yaml | head -20
 ```
 
 ## AdGuard Home 配置要点

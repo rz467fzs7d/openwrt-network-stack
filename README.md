@@ -110,7 +110,7 @@ chmod +x deploy.sh
 
 ```
 openwrt-network-stack/
-├── clash/              # OpenClash/Mihomo 配置
+├── openclash/              # OpenClash/Mihomo 配置
 │   ├── config/         # 配置模板
 │   └── rules/          # 自定义规则集
 ├── sub-store/          # Sub-Store 订阅管理
@@ -133,11 +133,11 @@ openwrt-network-stack/
 - 详细配置: [adguardhome/CONFIGURATION.md](adguardhome/CONFIGURATION.md)
 
 ### OpenClash / Mihomo
-- 智能分流 (国内直连/国外代理)
-- 多地区节点自动选择
-- 分应用代理策略 (AI、流媒体、开发工具)
-- 自定义路由规则
-- 详细配置: [clash/CONFIGURATION.md](clash/CONFIGURATION.md)
+- 基于内置 GeoSite/GeoIP 的智能分流 (国内直连/国外代理)，无第三方 rule-provider 依赖
+- 多地区节点自动选择 + fallback 故障转移
+- 分应用代理策略 (AI、流媒体)
+- 自定义路由规则 (`openclash/rules/*.yaml`)
+- 详细配置: [openclash/CONFIGURATION.md](openclash/CONFIGURATION.md)
 
 ### Sub-Store
 - 订阅托管和转换
@@ -166,7 +166,7 @@ uci commit dhcp
 | 组件 | 部署方式 | 访问地址 | 详细文档 |
 |------|---------|---------|---------|
 | **Sub-Store** | Docker | `http://192.168.0.2:3001` | [sub-store/README.md](sub-store/README.md) |
-| **OpenClash** | opkg | OpenWrt LuCI 界面 | [clash/CONFIGURATION.md](clash/CONFIGURATION.md) |
+| **OpenClash** | opkg | OpenWrt LuCI 界面 | [openclash/CONFIGURATION.md](openclash/CONFIGURATION.md) |
 | **AdGuard Home** | opkg | `http://192.168.0.2:3000` | [adguardhome/CONFIGURATION.md](adguardhome/CONFIGURATION.md) |
 
 ### 3. 配置关键连接
@@ -176,8 +176,8 @@ uci commit dhcp
 
 ## 🛠️ 高级配置
 
-- **自定义路由规则**: [clash/rules/README.md](clash/rules/README.md)
-- **内网办公网络配置**: [clash/rules/README.md#openclash-绕过黑名单](clash/rules/README.md#-openclash-绕过黑名单bypass-blacklist)
+- **自定义路由规则**: [openclash/rules/README.md](openclash/rules/README.md)
+- **内网办公网络配置**: [openclash/rules/README.md#openclash-绕过黑名单](openclash/rules/README.md#-openclash-绕过黑名单bypass-blacklist)
 - **节点重命名脚本**: [sub-store/scripts/README.md](sub-store/scripts/README.md)
 - **完整部署指南**: [DEPLOYMENT-GUIDE.md](DEPLOYMENT-GUIDE.md)
 
@@ -200,7 +200,7 @@ MIT License
 - [AdGuard Home](https://github.com/AdguardTeam/AdGuardHome)
 
 **规则资源**：
-- [Clash 规则集](https://github.com/blackmatrix7/ios_rule_script)
+- [GeoSite 数据 (Loyalsoldier)](https://github.com/Loyalsoldier/v2ray-rules-dat)
 - [GeoIP 数据](https://github.com/MetaCubeX/meta-rules-dat)
 
 ## ⚠️ 免责声明

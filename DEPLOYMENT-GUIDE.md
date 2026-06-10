@@ -207,7 +207,7 @@ docker run -d \
 3. 点击订阅 → **操作器** → **添加脚本操作器**
 4. 脚本地址填入：
    ```
-   https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/sub-store/scripts/node-renamer.js
+   https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/sub-store/scripts/parser.js
    ```
 5. 参数配置（可选）：
    ```json
@@ -248,7 +248,7 @@ opkg install luci-app-openclash
 cd /etc/openclash
 
 # 下载 Mihomo 配置模板
-wget https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/clash/config/config-mihomo.yaml.example -O config.yaml
+wget https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/openclash/config/config-mihomo-template.yaml -O config.yaml
 
 # 备份原配置（可选）
 # cp config.yaml config.yaml.bak
@@ -306,7 +306,7 @@ mihomo -t -d /etc/openclash
 3. 上传配置文件或在线编辑
 4. 启动 OpenClash
 
-> 📖 **详细配置**: [clash/CONFIGURATION.md](clash/CONFIGURATION.md)
+> 📖 **详细配置**: [openclash/CONFIGURATION.md](openclash/CONFIGURATION.md)
 
 ---
 
@@ -547,8 +547,8 @@ logread | grep openclash
 |------|------|
 | [README.md](README.md) | 网络架构和拓扑说明 |
 | [sub-store/docker/OPENWRT-GUIDE.md](sub-store/docker/OPENWRT-GUIDE.md) | Sub-Store 旁路由部署详解 |
-| [clash/CONFIGURATION.md](clash/CONFIGURATION.md) | OpenClash/Mihomo 配置说明 |
-| [clash/rules/README.md](clash/rules/README.md) | 自定义规则集 |
+| [openclash/CONFIGURATION.md](openclash/CONFIGURATION.md) | OpenClash/Mihomo 配置说明 |
+| [openclash/rules/README.md](openclash/rules/README.md) | 自定义规则集 |
 | [adguardhome/CONFIGURATION.md](adguardhome/CONFIGURATION.md) | AdGuard Home 配置详解 |
 
 ---

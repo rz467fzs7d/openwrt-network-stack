@@ -67,14 +67,14 @@ rule-providers:
     type: http
     behavior: classical
     interval: 86400
-    url: "https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/clash/rules/direct.yaml"
+    url: "https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/openclash/rules/direct.yaml"
     path: ./rule-providers/custom-direct.yaml
 
   CUSTOM-PROXY:
     type: http
     behavior: classical
     interval: 86400
-    url: "https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/clash/rules/proxy.yaml"
+    url: "https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/openclash/rules/proxy.yaml"
     path: ./rule-providers/custom-proxy.yaml
 
 rules:
@@ -111,10 +111,10 @@ rules:
 ### 方式三：Fork 后自定义
 
 1. Fork 本仓库
-2. 修改 `clash/rules/*.yaml` 文件
+2. 修改 `openclash/rules/*.yaml` 文件
 3. 更新 Clash 配置中的 URL：
    ```yaml
-   url: "https://cdn.jsdelivr.net/gh/YOUR_USERNAME/openwrt-network-stack@main/clash/rules/direct.yaml"
+   url: "https://cdn.jsdelivr.net/gh/YOUR_USERNAME/openwrt-network-stack@main/openclash/rules/direct.yaml"
    ```
 
 ## ✏️ 自定义规则
@@ -268,7 +268,7 @@ curl -X GET "http://127.0.0.1:9090/providers/rules/CUSTOM-DIRECT"
 
 ```bash
 # 添加规则后提交
-git add clash/rules/*.yaml
+git add openclash/rules/*.yaml
 git commit -m "Add: XXX 域名规则"
 git push
 
@@ -489,4 +489,4 @@ curl -I http://git.company.internal
 
 - [OpenClash Wiki - 绕过中国大陆](https://github.com/vernesong/OpenClash/wiki/绕过中国大陆)
 - [Mihomo DNS 配置](https://wiki.metacubex.one/config/dns/)
-- [本项目配置示例](../config/config-mihomo.yaml.example)
+- [本项目配置示例](../config/config-mihomo-template.yaml)

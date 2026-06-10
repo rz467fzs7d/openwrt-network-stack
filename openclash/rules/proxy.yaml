@@ -1,8 +1,6 @@
 payload:
-  - DOMAIN,dns.adguard-dns.com
   - DOMAIN-SUFFIX,hdhive.com
   - DOMAIN-SUFFIX,plex.tv
-  - DOMAIN-SUFFIX,brew.sh
   - DOMAIN-SUFFIX,yunpan1.xyz
   - DOMAIN-SUFFIX,mycomic.com
   - DOMAIN-SUFFIX,biccam.com
@@ -10,19 +8,15 @@ payload:
   - DOMAIN-SUFFIX,jjsubmarines.com
   - DOMAIN-SUFFIX,clouddrive2.com
   - DOMAIN-KEYWORD,hdhive
-  - DOMAIN-SUFFIX,dmm.co.jp
-  - DOMAIN-SUFFIX,thetvdb.com
   - DOMAIN-SUFFIX,javbee.vip
   - DOMAIN-SUFFIX,ai18.pics
   - DOMAIN-SUFFIX,idol69.net
   - DOMAIN-SUFFIX,javball.com
   - DOMAIN-SUFFIX,cnxx.me
   - DOMAIN-SUFFIX,lgthinq.com
-  - DOMAIN-SUFFIX,rssforever.com
   - DOMAIN-SUFFIX,kr-av.com
   - DOMAIN-SUFFIX,anyrouter.top
   - DOMAIN-SUFFIX,easyenable.com
-  - DOMAIN-SUFFIX,5bx6h.net
   - DOMAIN-SUFFIX,epayudt.com
   - DOMAIN-SUFFIX,makerworld.com
   - DOMAIN-SUFFIX,riolu.link

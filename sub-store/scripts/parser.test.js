@@ -217,9 +217,9 @@ const failCases = [
     'node-01.example.com',
     'random-name-123',
     'ss://xxxxx',
-    // 真实订阅里名称无地区信息的节点
+    // 名称无地区信息的节点（含 @域名:端口 形式）
     'ELG-vless_reality_vision',
-    'JMS-400878@c91s1.portablesubmarines.com:10038',
+    'JMS-12345@node1.example.com:10038',
 ];
 
 failCases.forEach(name => {
