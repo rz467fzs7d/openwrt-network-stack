@@ -12,19 +12,20 @@ async function operator(proxies = [], targetPlatform, context) {
 
   const allSubs = $.read(SUBS_KEY) || []
   const { parseFlowHeaders, getFlowHeaders, normalizeFlowHeader } = flowUtils
+  const pickUserinfo = input => normalizeFlowHeader(input, true)?.['subscription-userinfo']
 
   // 构建订阅名 Set（O(1) 查找）
-  const subnames = new Set([...collection.subscriptions])
+  const subNames = new Set(collection.subscriptions)
   const subscriptionTags = collection.subscriptionTags
   if (Array.isArray(subscriptionTags) && subscriptionTags.length > 0) {
     allSubs.forEach(sub => {
       if (
         Array.isArray(sub.tag) &&
         sub.tag.length > 0 &&
-        !subnames.has(sub.name) &&
+        !subNames.has(sub.name) &&
         sub.tag.some(tag => subscriptionTags.includes(tag))
       ) {
-        subnames.add(sub.name)
+        subNames.add(sub.name)
       }
     })
   }
@@ -34,9 +35,9 @@ async function operator(proxies = [], targetPlatform, context) {
   let totalSum = 0
   let expire
 
-  for await (const sub of allSubs) {
-    if (!subnames.has(sub.name)) continue
-
+  // 拉取单条订阅的流量信息（subscription-userinfo 字符串），失败返回 undefined。
+  // 抽成独立函数以便并发执行，避免逐条 await 串行排队。
+  async function fetchSubInfo(sub) {
     let subInfo
     let flowInfo
 
@@ -67,10 +68,7 @@ async function operator(proxies = [], targetPlatform, context) {
               fragArgs.flowUrl
             )
             if (flowInfo) {
-              const headers = normalizeFlowHeader(flowInfo, true)
-              if (headers?.['subscription-userinfo']) {
-                subInfo = headers['subscription-userinfo']
-              }
+              subInfo = pickUserinfo(flowInfo) ?? subInfo
             }
           }
         }
@@ -81,29 +79,48 @@ async function operator(proxies = [], targetPlatform, context) {
 
     // 自定义流量链接
     if (sub.subUserinfo) {
-      let subUserInfo
+      let customFlowInfo
       try {
-        subUserInfo = /^https?:\/\//.test(sub.subUserinfo)
+        customFlowInfo = /^https?:\/\//.test(sub.subUserinfo)
           ? await getFlowHeaders(undefined, undefined, undefined, sub.proxy, sub.subUserinfo)
           : sub.subUserinfo
       } catch (e) {
         $.error(`订阅 ${sub.name} 使用自定义流量链接 ${sub.subUserinfo} 获取流量信息时发生错误: ${e.message}`)
       }
-      const headers = normalizeFlowHeader([subUserInfo, flowInfo].filter(Boolean).join(';'), true)
-      if (headers?.['subscription-userinfo']) {
-        subInfo = headers['subscription-userinfo']
-      }
+      const merged = [customFlowInfo, flowInfo].filter(Boolean).join(';')
+      subInfo = pickUserinfo(merged) ?? subInfo
     }
 
-    // 累加
-    if (subInfo) {
-      const { total, usage: { upload, download }, expires } = parseFlowHeaders(subInfo)
-      if (upload > 0) uploadSum += upload
-      if (download > 0) downloadSum += download
-      if (total > 0) totalSum += total
-      if (expires && expires * 1000 > Date.now()) {
-        expire = expire ? Math.min(expire, expires) : expires
+    return subInfo
+  }
+
+  // 以固定并发数执行任务，结果按输入顺序返回（避免一次性并发打爆后端/触发限流）
+  async function mapWithConcurrency(items, worker, concurrency) {
+    const results = new Array(items.length)
+    let cursor = 0
+    async function runner() {
+      while (cursor < items.length) {
+        const i = cursor++
+        results[i] = await worker(items[i])
       }
+    }
+    const runners = Array.from({ length: Math.min(concurrency, items.length) }, runner)
+    await Promise.all(runners)
+    return results
+  }
+
+  // 并发拉取所有目标订阅的流量信息（2 线程），再统一累加（累加同步，无需并发）
+  const targetSubs = allSubs.filter(sub => subNames.has(sub.name))
+  const subInfos = await mapWithConcurrency(targetSubs, fetchSubInfo, 2)
+
+  for (const subInfo of subInfos) {
+    if (!subInfo) continue
+    const { total, usage: { upload, download }, expires } = parseFlowHeaders(subInfo)
+    if (upload > 0) uploadSum += upload
+    if (download > 0) downloadSum += download
+    if (total > 0) totalSum += total
+    if (expires && expires * 1000 > Date.now()) {
+      expire = expire ? Math.min(expire, expires) : expires
     }
   }
 
