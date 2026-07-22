@@ -18,7 +18,7 @@
  *
  * 探测参数
  * - api         测落地的 API  默认: http://ip-api.com/json?lang=zh-CN（返回 JSON，直接取 countryCode/isp）
- * - ipinfo_fallback_url META 成功后的 ipinfo Lite 兜底 API 默认: https://api.ipinfo.io/lite/me
+ * - ipinfo_fallback_url META 失败后的 ipinfo Lite 兜底 API 模板 默认: https://api.ipinfo.io/lite/{ip}
  * - e           环境变量式参数注入，格式: {IPINFO_API_TOKEN:xxx}
  * - method      请求方法      默认: get
  * - concurrency 并发数        默认: 10
@@ -133,7 +133,7 @@ async function operator(proxies = [], targetPlatform, context) {
 
     // 探测配置：通过节点出口请求 ip-api.com，直接取 countryCode/isp
     const api_url = $arguments.api || 'http://ip-api.com/json?lang=zh-CN&fields=status,country,countryCode,isp,query';
-    const ipinfo_fallback_url = $arguments.ipinfo_fallback_url || 'https://api.ipinfo.io/lite/me';
+    const ipinfo_fallback_url = $arguments.ipinfo_fallback_url || 'https://api.ipinfo.io/lite/{ip}';
     const injectedEnv = parseEnvMap($arguments.e ?? $arguments.env ?? '');
     // API Token（优先脚本参数，其次 e={IPINFO_API_TOKEN:...}，最后才兼容进程环境变量）
     const api_token = $arguments.ipinfo_api_token
@@ -350,19 +350,9 @@ async function operator(proxies = [], targetPlatform, context) {
         const cacheId = getProbeCacheId(proxy);
 
         try {
-            let geoData = await requestGeoApi(proxy, port, api_url, false);
-            let sourceApi = api_url;
-
-            if (!geoData && api_token && ipinfo_fallback_url && ipinfo_fallback_url !== api_url) {
-                $.info(`[PARSER][${proxy.name}] 主 Geo API 失败，尝试 ipinfo fallback`);
-                geoData = await requestGeoApi(proxy, port, ipinfo_fallback_url, true);
-                sourceApi = ipinfo_fallback_url;
-            } else if (!geoData && !api_token && ipinfo_fallback_url && ipinfo_fallback_url !== api_url) {
-                $.info(`[PARSER][${proxy.name}] 跳过 ipinfo fallback：未配置 IPINFO_API_TOKEN`);
-            }
-
+            const geoData = await requestGeoApi(proxy, port, api_url, false);
             if (!geoData) {
-                finishProbeFailure(proxy, proxies, onResult);
+                await finishProbeFailure(proxy, proxies, onResult);
                 return;
             }
 
@@ -370,12 +360,12 @@ async function operator(proxies = [], targetPlatform, context) {
             applyProbeResult(proxy, proxies, cached);
             setProbeCache(cacheId, cached);
             setFallbackProbeCache(proxy, cached);
-            $.info(`[PARSER][${proxy.name}] OK country=${geoData.countryCode} latency=${cached.latency}ms api=${sourceApi}`);
+            $.info(`[PARSER][${proxy.name}] OK country=${geoData.countryCode} latency=${cached.latency}ms api=${api_url}`);
             onResult(proxy, cached);
         } catch (e) {
             const latency = Date.now() - startedAt;
             $.error(`[PARSER][${proxy.name}] TIMEOUT/${latency}ms: ${e.message || e.reason || String(e) || 'unknown'}`);
-            finishProbeFailure(proxy, proxies, onResult);
+            await finishProbeFailure(proxy, proxies, onResult);
         }
     }
 
@@ -405,19 +395,7 @@ async function operator(proxies = [], targetPlatform, context) {
                 return null;
             }
 
-            let geoData;
-            try {
-                geoData = JSON.parse(String(res.body));
-            } catch (_) {
-                geoData = { country: String(res.body).trim(), isp: '', countryCode: 'ZZ' };
-            }
-            // 兼容 ipinfo.io 响应格式
-            if (geoData.country_code && !geoData.countryCode) {
-                geoData.countryCode = geoData.country_code;
-            }
-            if (geoData.as_name && !geoData.isp) {
-                geoData.isp = geoData.as_name;
-            }
+            const geoData = normalizeGeoApiBody(res.body);
             if (!geoData.countryCode) {
                 $.info(`[PARSER][${proxy.name}] Geo API FAIL empty countryCode latency=${Date.now() - startedAt}ms api=${url}`);
                 return null;
@@ -512,7 +490,16 @@ async function operator(proxies = [], targetPlatform, context) {
         });
     }
 
-    function finishProbeFailure(proxy, proxies, onResult) {
+    async function finishProbeFailure(proxy, proxies, onResult) {
+        const serverFallback = await requestServerIpInfoFallback(proxy);
+        if (serverFallback) {
+            applyProbeResult(proxy, proxies, serverFallback);
+            setFallbackProbeCache(proxy, serverFallback);
+            $.info(`[PARSER][${proxy.name}] META失败，使用 ipinfo server fallback country=${serverFallback.countryCode || ''} server=${proxy.server || ''}`);
+            onResult(proxy, serverFallback);
+            return;
+        }
+
         const fallback = getFallbackProbeCache(proxy);
         if (fallback) {
             applyProbeResult(proxy, proxies, fallback);
@@ -522,6 +509,52 @@ async function operator(proxies = [], targetPlatform, context) {
         }
         applyProbeResult(proxy, proxies, null);
         onResult(proxy, null);
+    }
+
+    async function requestServerIpInfoFallback(proxy) {
+        if (!api_token || !ipinfo_fallback_url) {
+            if (ipinfo_fallback_url) {
+                $.info(`[PARSER][${proxy.name}] 跳过 ipinfo server fallback：未配置 IPINFO_API_TOKEN`);
+            }
+            return null;
+        }
+
+        const server = String(proxy.server || '').trim();
+        if (!isIpAddress(server)) {
+            $.info(`[PARSER][${proxy.name}] 跳过 ipinfo server fallback：server 不是 IP (${server || 'empty'})`);
+            return null;
+        }
+
+        const url = ipinfo_fallback_url.replace(/\{ip\}/g, encodeURIComponent(server));
+        const startedAt = Date.now();
+        try {
+            const res = await httpRequest({
+                method: 'get',
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3.1 Mobile/15E148 Safari/604.1',
+                    Authorization: `Bearer ${api_token}`,
+                },
+                url,
+                timeout: http_meta_proxy_timeout,
+                retries: 0,
+            });
+
+            const status = parseInt(res.status || res.statusCode || 200);
+            if (status !== 200) {
+                $.info(`[PARSER][${proxy.name}] ipinfo server fallback FAIL status=${status} latency=${Date.now() - startedAt}ms api=${url}`);
+                return null;
+            }
+
+            const geoData = normalizeGeoApiBody(res.body);
+            if (!geoData.countryCode) {
+                $.info(`[PARSER][${proxy.name}] ipinfo server fallback FAIL empty countryCode latency=${Date.now() - startedAt}ms api=${url}`);
+                return null;
+            }
+            return { ...geoData, latency: Date.now() - startedAt, _serverIpFallback: true };
+        } catch (e) {
+            $.error(`[PARSER][${proxy.name}] ipinfo server fallback TIMEOUT/${Date.now() - startedAt}ms api=${url}: ${e.message || e.reason || String(e) || 'unknown'}`);
+            return null;
+        }
     }
 
     function needsFallbackProbeCache(proxy) {
@@ -1033,6 +1066,38 @@ function parseEnvMap(raw) {
         }
     }
     return map;
+}
+
+function normalizeGeoApiBody(body) {
+    let geoData;
+    try {
+        geoData = JSON.parse(String(body));
+    } catch (_) {
+        geoData = { country: String(body || '').trim(), isp: '', countryCode: 'ZZ' };
+    }
+
+    // ipinfo.io Lite
+    if (geoData.country_code && !geoData.countryCode) {
+        geoData.countryCode = geoData.country_code;
+    }
+    if (geoData.as_name && !geoData.isp) {
+        geoData.isp = geoData.as_name;
+    }
+    if (geoData.countryCode) {
+        geoData.countryCode = String(geoData.countryCode).toUpperCase();
+    }
+    return geoData;
+}
+
+function isIpAddress(value) {
+    const text = String(value || '').trim();
+    if (/^(?:\d{1,3}\.){3}\d{1,3}$/.test(text)) {
+        return text.split('.').every(part => {
+            const n = Number(part);
+            return Number.isInteger(n) && n >= 0 && n <= 255;
+        });
+    }
+    return /^[0-9a-f:]+$/i.test(text) && text.includes(':');
 }
 
 function toBoolean(value, defaultValue = false) {
