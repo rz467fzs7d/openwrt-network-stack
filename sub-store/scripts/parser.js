@@ -415,26 +415,14 @@ async function operator(proxies = [], targetPlatform, context) {
         let fallbackSuccess = 0;
         for (const proxy of internalProxies) {
             const cached = cache.get(getProbeCacheId(proxy));
-            if (!cached) {
-                pending.push(proxy);
-                continue;
-            }
-            if (cached.api) {
+            if (cached?.api) {
                 const result = { ...cached.api, _cached: true };
                 applyProbeResult(proxy, proxies, result);
                 $.info(`[PARSER][${proxy.name}] 预扫描命中成功缓存 country=${result.countryCode || ''}`);
                 success++;
                 directSuccess++;
             } else {
-                const fallback = getFallbackProbeCache(proxy);
-                if (fallback) {
-                    applyProbeResult(proxy, proxies, fallback);
-                    logFallbackProbeCache(proxy, fallback);
-                    $.info(`[PARSER][${proxy.name}] 预扫描命中兜底缓存 country=${fallback.countryCode || ''}`);
-                    success++;
-                    fallbackSuccess++;
-                    continue;
-                }
+                // fallback/name cache is only a last resort after live META probing fails.
                 pending.push(proxy);
             }
         }
