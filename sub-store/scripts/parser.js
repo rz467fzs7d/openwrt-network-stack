@@ -18,6 +18,8 @@
  *
  * 探测参数
  * - api         测落地的 API  默认: http://ip-api.com/json?lang=zh-CN（返回 JSON，直接取 countryCode/isp）
+ * - ipinfo_fallback_url META 成功后的 ipinfo Lite 兜底 API 默认: https://api.ipinfo.io/lite/me
+ * - e           环境变量式参数注入，格式: {IPINFO_API_TOKEN:xxx}
  * - method      请求方法      默认: get
  * - concurrency 并发数        默认: 10
  * - retries 请求重试次数 默认: 1
@@ -131,8 +133,12 @@ async function operator(proxies = [], targetPlatform, context) {
 
     // 探测配置：通过节点出口请求 ip-api.com，直接取 countryCode/isp
     const api_url = $arguments.api || 'http://ip-api.com/json?lang=zh-CN&fields=status,country,countryCode,isp,query';
-    // API Token（优先脚本参数，其次环境变量）
+    const ipinfo_fallback_url = $arguments.ipinfo_fallback_url || 'https://api.ipinfo.io/lite/me';
+    const injectedEnv = parseEnvMap($arguments.e ?? $arguments.env ?? '');
+    // API Token（优先脚本参数，其次 e={IPINFO_API_TOKEN:...}，最后才兼容进程环境变量）
     const api_token = $arguments.ipinfo_api_token
+        ?? injectedEnv.IPINFO_API_TOKEN
+        ?? injectedEnv.ipinfo_api_token
         ?? (typeof process !== 'undefined' ? process.env.IPINFO_API_TOKEN : null)
         ?? '';
     const method = $arguments.method || 'get';
@@ -344,58 +350,82 @@ async function operator(proxies = [], targetPlatform, context) {
         const cacheId = getProbeCacheId(proxy);
 
         try {
-            const headers = {
-                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3.1 Mobile/15E148 Safari/604.1',
-            };
-            if (api_token) {
-                headers['Authorization'] = `Bearer ${api_token}`;
+            let geoData = await requestGeoApi(proxy, port, api_url, false);
+            let sourceApi = api_url;
+
+            if (!geoData && api_token && ipinfo_fallback_url && ipinfo_fallback_url !== api_url) {
+                $.info(`[PARSER][${proxy.name}] 主 Geo API 失败，尝试 ipinfo fallback`);
+                geoData = await requestGeoApi(proxy, port, ipinfo_fallback_url, true);
+                sourceApi = ipinfo_fallback_url;
+            } else if (!geoData && !api_token && ipinfo_fallback_url && ipinfo_fallback_url !== api_url) {
+                $.info(`[PARSER][${proxy.name}] 跳过 ipinfo fallback：未配置 IPINFO_API_TOKEN`);
             }
+
+            if (!geoData) {
+                finishProbeFailure(proxy, proxies, onResult);
+                return;
+            }
+
+            const cached = { ...geoData, latency: Date.now() - startedAt };
+            applyProbeResult(proxy, proxies, cached);
+            setProbeCache(cacheId, cached);
+            setFallbackProbeCache(proxy, cached);
+            $.info(`[PARSER][${proxy.name}] OK country=${geoData.countryCode} latency=${cached.latency}ms api=${sourceApi}`);
+            onResult(proxy, cached);
+        } catch (e) {
+            const latency = Date.now() - startedAt;
+            $.error(`[PARSER][${proxy.name}] TIMEOUT/${latency}ms: ${e.message || e.reason || String(e) || 'unknown'}`);
+            finishProbeFailure(proxy, proxies, onResult);
+        }
+    }
+
+    async function requestGeoApi(proxy, port, url, useBearerToken) {
+        const startedAt = Date.now();
+        const headers = {
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3.1 Mobile/15E148 Safari/604.1',
+        };
+        if (useBearerToken && api_token) {
+            headers['Authorization'] = `Bearer ${api_token}`;
+        }
+
+        try {
             const res = await httpRequest({
                 proxy: `http://${http_meta_host}:${port}`,
                 method,
                 headers,
-                url: api_url,
+                url,
                 // 取出口 IP 的超时对齐单节点预估耗时，死节点不再因默认 5s+重试卡满 ~11s
                 timeout: http_meta_proxy_timeout,
                 retries: 0,
             });
 
-            const latency = Date.now() - startedAt;
             const status = parseInt(res.status || res.statusCode || 200);
-
-            if (status === 200) {
-                let geoData;
-                try {
-                    geoData = JSON.parse(String(res.body));
-                } catch (_) {
-                    geoData = { country: String(res.body).trim(), isp: '', countryCode: 'ZZ' };
-                }
-                // 兼容 ipinfo.io 响应格式
-                if (geoData.country_code && !geoData.countryCode) {
-                    geoData.countryCode = geoData.country_code;
-                }
-                if (geoData.as_name && !geoData.isp) {
-                    geoData.isp = geoData.as_name;
-                }
-                if (!geoData.countryCode) {
-                    $.info(`[PARSER][${proxy.name}] FAIL empty countryCode latency=${latency}ms`);
-                    finishProbeFailure(proxy, proxies, onResult);
-                    return;
-                }
-                const cached = { ...geoData, latency };
-                applyProbeResult(proxy, proxies, cached);
-                setProbeCache(cacheId, cached);
-                setFallbackProbeCache(proxy, cached);
-                $.info(`[PARSER][${proxy.name}] OK country=${geoData.countryCode} latency=${latency}ms`);
-                onResult(proxy, cached);
-            } else {
-                $.info(`[PARSER][${proxy.name}] FAIL status=${status}`);
-                finishProbeFailure(proxy, proxies, onResult);
+            if (status !== 200) {
+                $.info(`[PARSER][${proxy.name}] Geo API FAIL status=${status} latency=${Date.now() - startedAt}ms api=${url}`);
+                return null;
             }
+
+            let geoData;
+            try {
+                geoData = JSON.parse(String(res.body));
+            } catch (_) {
+                geoData = { country: String(res.body).trim(), isp: '', countryCode: 'ZZ' };
+            }
+            // 兼容 ipinfo.io 响应格式
+            if (geoData.country_code && !geoData.countryCode) {
+                geoData.countryCode = geoData.country_code;
+            }
+            if (geoData.as_name && !geoData.isp) {
+                geoData.isp = geoData.as_name;
+            }
+            if (!geoData.countryCode) {
+                $.info(`[PARSER][${proxy.name}] Geo API FAIL empty countryCode latency=${Date.now() - startedAt}ms api=${url}`);
+                return null;
+            }
+            return geoData;
         } catch (e) {
-            const latency = Date.now() - startedAt;
-            $.error(`[PARSER][${proxy.name}] TIMEOUT/${latency}ms: ${e.message || e.reason || String(e) || 'unknown'}`);
-            finishProbeFailure(proxy, proxies, onResult);
+            $.error(`[PARSER][${proxy.name}] Geo API TIMEOUT/${Date.now() - startedAt}ms api=${url}: ${e.message || e.reason || String(e) || 'unknown'}`);
+            return null;
         }
     }
 
@@ -982,6 +1012,25 @@ function parseFlatMap(raw) {
         const host = match[1].substring(0, colon).trim();
         const ips = match[1].substring(colon + 1).split(',').map(s => s.trim()).filter(Boolean);
         if (host && ips.length) map[host] = ips;
+    }
+    return map;
+}
+
+// 解析环境变量式参数: "{A:1}{B:2}" 或 "{A:1,B:2}" -> { A: "1", B: "2" }
+function parseEnvMap(raw) {
+    const map = {};
+    if (!raw) return map;
+    const regex = /\{([^}]+)\}/g;
+    let match;
+    while ((match = regex.exec(String(raw))) !== null) {
+        const entries = match[1].split(',');
+        for (const entry of entries) {
+            const colon = entry.indexOf(':');
+            if (colon === -1) continue;
+            const key = entry.substring(0, colon).trim();
+            const value = entry.substring(colon + 1).trim();
+            if (key) map[key] = value;
+        }
     }
     return map;
 }

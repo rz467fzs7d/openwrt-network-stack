@@ -51,6 +51,7 @@ function loadParserFunctions() {
     applyCompiledFormat: context.applyCompiledFormat,
     compileFormat: context.compileFormat,
     detectRegionFromName: context.detectRegionFromName,
+    parseEnvMap: context.parseEnvMap,
   };
 }
 
@@ -164,6 +165,12 @@ assert(h2['Authorization'] === undefined, '空 token 不应设置 Authorization'
 
 const h3 = buildHeaders(null);
 assert(h3['Authorization'] === undefined, 'null token 不应设置 Authorization');
+
+const { parseEnvMap } = loadParserFunctions();
+const envMap = parseEnvMap('{IPINFO_API_TOKEN:abc123,FOO:bar}{BAZ:qux}');
+assert(envMap.IPINFO_API_TOKEN === 'abc123', 'e 参数应解析 IPINFO_API_TOKEN');
+assert(envMap.FOO === 'bar', 'e 参数应支持同一花括号内多值');
+assert(envMap.BAZ === 'qux', 'e 参数应支持多个花括号');
 
 // ============================================================
 // 测试 3: ipinfo.io 响应映射
@@ -332,8 +339,67 @@ async function testMetaProbeFillsMissingNameRegion() {
   assert(result[0].name === 'US', '重命名结果应使用 META 探测到的 region');
 }
 
+async function testIpinfoFallbackAfterPrimaryGeoApiFails() {
+  const source = fs.readFileSync(path.join(__dirname, 'parser.js'), 'utf8');
+  const requestedUrls = [];
+  const context = {
+    console,
+    process,
+    $arguments: {
+      f: '{region}',
+      c: '-',
+      debug: false,
+      e: '{IPINFO_API_TOKEN:test-token}',
+    },
+    $substore: {
+      http: {
+        post: async opt => {
+          if (opt.url.endsWith('/start')) return { body: JSON.stringify({ ports: [10001], pid: 123 }) };
+          if (opt.url.endsWith('/stop')) return { body: '{}' };
+          throw new Error(`unexpected POST ${opt.url}`);
+        },
+        get: async opt => {
+          requestedUrls.push(opt.url);
+          if (opt.url.includes('ip-api.com')) {
+            return { status: 500, body: 'server error' };
+          }
+          if (opt.url.includes('api.ipinfo.io/lite/me')) {
+            return {
+              status: 200,
+              body: JSON.stringify({
+                ip: '176.122.167.187',
+                country_code: 'US',
+                country: 'United States',
+                as_name: 'IT7 Networks Inc',
+              }),
+            };
+          }
+          throw new Error(`unexpected GET ${opt.url}`);
+        },
+      },
+      wait: async () => {},
+      info: () => {},
+      log: () => {},
+      error: () => {},
+    },
+    $substore_env: {},
+    ProxyUtils: {
+      produce: nodes => nodes.map(node => ({ ...node })),
+    },
+  };
+  vm.createContext(context);
+  vm.runInContext(source, context);
+
+  const result = await context.operator([{ name: 'random-node 01', type: 'ss', server: 'example.com', port: 443 }]);
+  assert(requestedUrls.some(url => url.includes('ip-api.com')), '应先请求主 Geo API');
+  assert(requestedUrls.some(url => url.includes('api.ipinfo.io/lite/me')), '主 Geo API 失败后应请求 ipinfo fallback');
+  assert(result[0]._geo?.countryCode === 'US', 'ipinfo fallback 应回填 countryCode');
+  assert(result[0]._geo?.isp === 'IT7 Networks Inc', 'ipinfo fallback 应映射 as_name → isp');
+}
+
 async function runAsyncTests() {
   await testMetaProbeFillsMissingNameRegion();
+  await testIpinfoFallbackAfterPrimaryGeoApiFails();
 }
 
 // ============================================================
