@@ -155,6 +155,7 @@ async function operator(proxies = [], targetPlatform, context) {
     const sort = rawSort ? normalizePlaceholder(rawSort) : null;
     const forceGeoRegion = toBoolean($arguments.force_geo_region ?? $arguments.force_region_from_geo, false);
     const flatMap = parseFlatMap($arguments.flat ?? '');
+    const debugNodeKeyword = String($arguments.debug_node || '').toLowerCase();
 
     // ---- Step 1: 转换节点为 internal 格式 ----
     const internalProxies = [];
@@ -163,6 +164,10 @@ async function operator(proxies = [], targetPlatform, context) {
             const node = ProxyUtils.produce([{ ...proxy }], 'ClashMeta', 'internal', {
                 'include-unsupported-proxy': includeUnsupportedProxy,
             })?.[0];
+            if (debugNodeKeyword && String(proxy.name || '').toLowerCase().includes(debugNodeKeyword)) {
+                $.info(`[PARSER][DEBUG_NODE][raw] ${JSON.stringify(proxy)}`);
+                $.info(`[PARSER][DEBUG_NODE][internal] ${JSON.stringify(node)}`);
+            }
             if (node) {
                 // 保留原始 proxy 的 _ 开头字段
                 for (const key in proxy) {
