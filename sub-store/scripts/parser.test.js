@@ -342,6 +342,11 @@ async function testMetaProbeFillsMissingNameRegion() {
 async function testIpinfoServerFallbackAfterMetaFails() {
   const source = fs.readFileSync(path.join(__dirname, 'parser.js'), 'utf8');
   const requests = [];
+  const cacheStore = new Map();
+  const cache = {
+    get: key => cacheStore.get(key),
+    set: (key, value) => cacheStore.set(key, value),
+  };
   const context = {
     console,
     process,
@@ -351,6 +356,7 @@ async function testIpinfoServerFallbackAfterMetaFails() {
       debug: false,
       e: '{IPINFO_API_TOKEN:test-token}',
     },
+    scriptResourceCache: cache,
     $substore: {
       http: {
         post: async opt => {
@@ -399,6 +405,11 @@ async function testIpinfoServerFallbackAfterMetaFails() {
   assert(fallbackRequest.proxy === undefined, 'ipinfo server fallback 不应通过 http-meta 代理端口');
   assert(result[0]._geo?.countryCode === 'US', 'ipinfo server fallback 应回填 countryCode');
   assert(result[0]._geo?.isp === 'IT7 Networks Inc', 'ipinfo server fallback 应映射 as_name → isp');
+
+  requests.length = 0;
+  const secondResult = await context.operator([{ name: 'random-node 01', type: 'ss', server: '176.122.167.187', port: 443 }]);
+  assert(requests.length === 0, 'ipinfo server fallback 成功后应写入成功缓存，下一轮不应再请求 META/API');
+  assert(secondResult[0]._geo?.countryCode === 'US', '第二轮应从成功缓存回填 countryCode');
 }
 
 async function runAsyncTests() {

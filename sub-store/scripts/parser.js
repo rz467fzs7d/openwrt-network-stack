@@ -352,7 +352,7 @@ async function operator(proxies = [], targetPlatform, context) {
         try {
             const geoData = await requestGeoApi(proxy, port, api_url, false);
             if (!geoData) {
-                await finishProbeFailure(proxy, proxies, onResult);
+                await finishProbeFailure(proxy, proxies, onResult, cacheId);
                 return;
             }
 
@@ -365,7 +365,7 @@ async function operator(proxies = [], targetPlatform, context) {
         } catch (e) {
             const latency = Date.now() - startedAt;
             $.error(`[PARSER][${proxy.name}] TIMEOUT/${latency}ms: ${e.message || e.reason || String(e) || 'unknown'}`);
-            await finishProbeFailure(proxy, proxies, onResult);
+            await finishProbeFailure(proxy, proxies, onResult, cacheId);
         }
     }
 
@@ -490,10 +490,11 @@ async function operator(proxies = [], targetPlatform, context) {
         });
     }
 
-    async function finishProbeFailure(proxy, proxies, onResult) {
+    async function finishProbeFailure(proxy, proxies, onResult, cacheId) {
         const serverFallback = await requestServerIpInfoFallback(proxy);
         if (serverFallback) {
             applyProbeResult(proxy, proxies, serverFallback);
+            setProbeCache(cacheId, serverFallback);
             setFallbackProbeCache(proxy, serverFallback);
             $.info(`[PARSER][${proxy.name}] META失败，使用 ipinfo server fallback country=${serverFallback.countryCode || ''} server=${proxy.server || ''}`);
             onResult(proxy, serverFallback);
