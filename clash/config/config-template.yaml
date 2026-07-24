@@ -221,13 +221,6 @@ proxy-groups:
   - { name: Singapore, <<: *URL_TEST_GROUP_BASE, filter: *SINGAPORE_KEYWORDS }
   - { name: Others, <<: *URL_TEST_GROUP_BASE, exclude-filter: *OTHER_REGIONS_EXCLUDE_KEYWORDS }
 
-  # ==================== 特殊用途 ====================
-  - { name: Debug, <<: *PROXY_GROUP_BASE }
-  - name: Bootstrap
-    <<: *PROXY_GROUP_BASE
-    include-all: true
-    lazy: true
-
 # ============================================================
 # 规则提供者
 # ============================================================
