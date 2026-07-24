@@ -241,32 +241,12 @@ proxy-groups:
 # ============================================================
 # 规则提供者
 # ============================================================
-rule-providers:
-  CUSTOM-DIRECT:
-    <<: *RULE_PROVIDER_BASE
-    url: "https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/clash/rules/direct.yaml"
-    path: ./rule-providers/custom-direct.yaml
-
-  CUSTOM-PROXY:
-    <<: *RULE_PROVIDER_BASE
-    url: "https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/clash/rules/proxy.yaml"
-    path: ./rule-providers/custom-proxy.yaml
+rule-providers: {}
 
 # ============================================================
 # 路由规则（从上到下优先级）
 # ============================================================
 rules:
-  - RULE-SET,CUSTOM-DIRECT,DIRECT
-  - RULE-SET,CUSTOM-PROXY,PROXY
-
-  - DOMAIN,backoffice.zhihuiya.com,Office
-  - DOMAIN,git.patsnap.com,Office
-  - DOMAIN,confluence.zhihuiya.com,Office
-  - DOMAIN-SUFFIX,patsnap.info,Office
-  - DOMAIN-SUFFIX,patsnap.io,Office
-  - DOMAIN-KEYWORD,backoffice-service,Office
-  - DOMAIN-KEYWORD,synapse-strapi,Office
-
   - GEOIP,LAN,DIRECT,no-resolve
   - GEOIP,PRIVATE,DIRECT,no-resolve
 
