@@ -1,0 +1,299 @@
+# ============================================================
+# Clash Meta 配置模板（Sub-Store 托管）- Fake-IP 模式
+# 节点由 Sub-Store 在生成时注入（include-all），不再依赖本地
+# proxy-providers。用法见文末注释。
+# ============================================================
+
+# ------------------------------------------------------------
+# 节点筛选关键词
+# ------------------------------------------------------------
+x-keywords:
+  hong-kong: &HONG_KONG_KEYWORDS "HK"
+  taiwan: &TAIWAN_KEYWORDS "TW"
+  macao: &MACAO_KEYWORDS "MO"
+  japan: &JAPAN_KEYWORDS "JP"
+  united-states: &UNITED_STATES_KEYWORDS "US"
+  singapore: &SINGAPORE_KEYWORDS "SG"
+  office: &OFFICE_KEYWORDS "Office"
+  other-regions-exclude: &OTHER_REGIONS_EXCLUDE_KEYWORDS "HK|TW|JP|US|SG|Office"
+
+# ------------------------------------------------------------
+# 模板定义
+# ------------------------------------------------------------
+x-templates:
+  # 健康检查
+  health-check-url: &HEALTH_CHECK_URL "http://cp.cloudflare.com/generate_204"
+  expected-status: &EXPECTED_STATUS 204
+
+  # 代理组模板 - 关键：include-all 让 Sub-Store 注入的节点自动进入所有组
+  proxy-group: &PROXY_GROUP_BASE
+    type: select
+    include-all: true
+    lazy: true
+
+  fallback-group: &FALLBACK_GROUP_BASE
+    <<: *PROXY_GROUP_BASE
+    type: fallback
+    lazy: false
+
+  url-test-group: &URL_TEST_GROUP_BASE
+    <<: *PROXY_GROUP_BASE
+    type: url-test
+    tolerance: 50
+
+  overlay-group: &OVERLAY_GROUP_BASE
+    <<: *FALLBACK_GROUP_BASE
+    include-all: true
+    filter: *OFFICE_KEYWORDS
+    lazy: false
+
+  # 应用策略模板
+  application-policy: &APPLICATION_POLICY_BASE
+    type: select
+    proxies:
+      - Auto
+      - Select
+      - Hong Kong
+      - Taiwan
+      - Macao
+      - Japan
+      - United States
+      - Singapore
+      - Others
+      - Office
+      - DIRECT
+
+  application-policy-direct-first: &APPLICATION_POLICY_DIRECT_FIRST
+    type: select
+    proxies:
+      - DIRECT
+      - Auto
+      - Select
+      - Hong Kong
+      - Taiwan
+      - Macao
+      - Japan
+      - United States
+      - Singapore
+      - Others
+      - Office
+
+x-rule-provider-base: &RULE_PROVIDER_BASE
+  behavior: "classical"
+  type: http
+  interval: 86400
+
+# ============================================================
+# 核心配置
+# ============================================================
+mixed-port: 7890
+allow-lan: true
+ipv6: false
+unified-delay: false
+tcp-concurrent: true
+keep-alive-interval: 30
+external-controller: 127.0.0.1:9090
+external-ui: ui
+external-ui-url: "https://github.com/MetaCubeX/metacubexd/archive/refs/heads/gh-pages.zip"
+
+find-process-mode: strict
+global-client-fingerprint: chrome
+
+profile:
+  store-selected: true
+
+# ------------------------------------------------------------
+# DNS 配置 - Fake-IP 模式
+# ------------------------------------------------------------
+dns:
+  enable: true
+  ipv6: false
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+
+  default-nameserver:
+    - 223.5.5.5
+    - 119.29.29.29
+
+  nameserver:
+    - https://dns.alidns.com/dns-query
+    - https://doh.pub/dns-query
+
+  fake-ip-filter:
+    - "geosite:private"
+    - "geosite:cn"
+    - "geosite:apple"
+    - "geosite:microsoft@cn"
+    - "geosite:category-ntp"
+    - "+.push.apple.com"
+    - "+.mi.com"
+    - "+.xiaomi.com"
+    - "dlg.io.mi.com"
+    - "+.oray.com"
+    - "+.sunlogin.net"
+
+tun:
+  enable: true
+  stack: mixed
+  dns-hijack:
+    - "any:53"
+    - "tcp://any:53"
+  auto-route: true
+  auto-redirect: true
+  auto-detect-interface: true
+
+# ------------------------------------------------------------
+# 流量嗅探
+# ------------------------------------------------------------
+sniffer:
+  enable: true
+  force-dns-mapping: true
+  parse-pure-ip: true
+
+  sniff:
+    QUIC:
+      ports: [443]
+    TLS:
+      ports: [443]
+      override-destination: true
+    HTTP:
+      ports: [80]
+      override-destination: true
+
+  force-domain:
+    - "geosite:google"
+
+  skip-domain:
+    - "geosite:private"
+    - "geosite:cn"
+    - "geosite:apple"
+    - "geosite:microsoft@cn"
+    - "geosite:category-ntp"
+    - "+.push.apple.com"
+    - "+.mi.com"
+    - "+.xiaomi.com"
+    - "dlg.io.mi.com"
+    - "+.oray.com"
+    - "+.sunlogin.net"
+
+  skip-dst-address:
+    - 10.0.0.0/8
+    - 172.16.0.0/12
+    - 192.168.0.0/16
+
+# GeoIP/GeoSite 数据源
+geodata-mode: true
+geox-url:
+  geoip: "https://cdn.jsdelivr.net/gh/Loyalsoldier/geoip@release/geoip.dat"
+  geosite: "https://cdn.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geosite.dat"
+  mmdb: "https://cdn.jsdelivr.net/gh/Loyalsoldier/geoip@release/Country.mmdb"
+  asn: "https://cdn.jsdelivr.net/gh/Loyalsoldier/geoip@release/GeoLite2-ASN.mmdb"
+
+# ============================================================
+# 代理组
+# ============================================================
+proxy-groups:
+  # ==================== 核心 ====================
+  - { name: PROXY, <<: *APPLICATION_POLICY_BASE, type: select }
+
+  - name: Auto
+    <<: *FALLBACK_GROUP_BASE
+
+  - { name: Select, <<: *PROXY_GROUP_BASE }
+
+  - { name: FINAL, type: select, proxies: [DIRECT, PROXY, Select, Auto] }
+
+  # ==================== 应用 ====================
+  - name: Global DNS
+    <<: *FALLBACK_GROUP_BASE
+    include-all: true
+
+  - { name: YouTube, <<: *APPLICATION_POLICY_BASE }
+  - { name: Netflix, <<: *APPLICATION_POLICY_BASE }
+  - { name: Spotify, <<: *APPLICATION_POLICY_BASE }
+
+  - name: AI Services
+    <<: *FALLBACK_GROUP_BASE
+    proxies: [Singapore, United States, Japan, Office, Select, Auto]
+    include-all: false
+
+  - { name: Google Services, <<: *APPLICATION_POLICY_BASE }
+  - { name: Synology Services, <<: *APPLICATION_POLICY_DIRECT_FIRST }
+  - { name: Nintendo Services, <<: *APPLICATION_POLICY_DIRECT_FIRST }
+
+  # ==================== 地区 ====================
+  - { name: Hong Kong, <<: *URL_TEST_GROUP_BASE, filter: *HONG_KONG_KEYWORDS }
+  - { name: Taiwan, <<: *URL_TEST_GROUP_BASE, filter: *TAIWAN_KEYWORDS }
+  - { name: Macao, <<: *URL_TEST_GROUP_BASE, filter: *MACAO_KEYWORDS }
+  - { name: Japan, <<: *URL_TEST_GROUP_BASE, filter: *JAPAN_KEYWORDS }
+  - { name: United States, <<: *URL_TEST_GROUP_BASE, filter: *UNITED_STATES_KEYWORDS }
+  - { name: Singapore, <<: *URL_TEST_GROUP_BASE, filter: *SINGAPORE_KEYWORDS }
+  - { name: Others, <<: *URL_TEST_GROUP_BASE, exclude-filter: *OTHER_REGIONS_EXCLUDE_KEYWORDS }
+
+  # ==================== 特殊用途 ====================
+  - { name: Office, <<: *OVERLAY_GROUP_BASE }
+  - { name: Debug, <<: *PROXY_GROUP_BASE }
+  - name: Bootstrap
+    <<: *PROXY_GROUP_BASE
+    include-all: true
+    lazy: true
+
+# ============================================================
+# 规则提供者
+# ============================================================
+rule-providers:
+  CUSTOM-DIRECT:
+    <<: *RULE_PROVIDER_BASE
+    url: "https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/clash/rules/direct.yaml"
+    path: ./rule-providers/custom-direct.yaml
+
+  CUSTOM-PROXY:
+    <<: *RULE_PROVIDER_BASE
+    url: "https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/clash/rules/proxy.yaml"
+    path: ./rule-providers/custom-proxy.yaml
+
+# ============================================================
+# 路由规则（从上到下优先级）
+# ============================================================
+rules:
+  - RULE-SET,CUSTOM-DIRECT,DIRECT
+  - RULE-SET,CUSTOM-PROXY,PROXY
+
+  - DOMAIN,backoffice.zhihuiya.com,Office
+  - DOMAIN,git.patsnap.com,Office
+  - DOMAIN,confluence.zhihuiya.com,Office
+  - DOMAIN-SUFFIX,patsnap.info,Office
+  - DOMAIN-SUFFIX,patsnap.io,Office
+  - DOMAIN-KEYWORD,backoffice-service,Office
+  - DOMAIN-KEYWORD,synapse-strapi,Office
+
+  - GEOIP,LAN,DIRECT,no-resolve
+  - GEOIP,PRIVATE,DIRECT,no-resolve
+
+  - GEOSITE,steam@cn,DIRECT
+  - GEOSITE,microsoft@cn,DIRECT
+
+  - GEOSITE,netflix,Netflix
+  - GEOSITE,category-ai-!cn,AI Services
+  - GEOSITE,duckduckgo,PROXY
+  - GEOSITE,telegram,PROXY
+  - GEOSITE,category-dev,PROXY
+  - GEOSITE,spotify,Spotify
+  - GEOSITE,youtube,YouTube
+  - GEOSITE,google,Google Services
+  - GEOSITE,apple,DIRECT
+  - GEOSITE,icloud,DIRECT
+  - GEOSITE,nintendo,Nintendo Services
+  - GEOSITE,synology,Synology Services
+
+  - GEOSITE,cn,DIRECT
+  - GEOSITE,category-doh,Global DNS
+  - GEOSITE,geolocation-!cn,PROXY
+
+  - GEOIP,GOOGLE,Google Services
+  - GEOIP,TELEGRAM,PROXY
+  - GEOIP,TWITTER,PROXY
+  - GEOIP,FACEBOOK,PROXY
+  - GEOIP,JP,PROXY
+  - GEOIP,CN,DIRECT
+  - MATCH,FINAL
