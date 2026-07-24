@@ -14,8 +14,7 @@ x-keywords:
   japan: &JAPAN_KEYWORDS "JP"
   united-states: &UNITED_STATES_KEYWORDS "US"
   singapore: &SINGAPORE_KEYWORDS "SG"
-  office: &OFFICE_KEYWORDS "Office"
-  other-regions-exclude: &OTHER_REGIONS_EXCLUDE_KEYWORDS "HK|TW|JP|US|SG|Office"
+  other-regions-exclude: &OTHER_REGIONS_EXCLUDE_KEYWORDS "HK|TW|JP|US|SG"
 
 # ------------------------------------------------------------
 # 模板定义
@@ -41,12 +40,6 @@ x-templates:
     type: url-test
     tolerance: 50
 
-  overlay-group: &OVERLAY_GROUP_BASE
-    <<: *FALLBACK_GROUP_BASE
-    include-all: true
-    filter: *OFFICE_KEYWORDS
-    lazy: false
-
   # 应用策略模板
   application-policy: &APPLICATION_POLICY_BASE
     type: select
@@ -60,7 +53,6 @@ x-templates:
       - United States
       - Singapore
       - Others
-      - Office
       - DIRECT
 
   application-policy-direct-first: &APPLICATION_POLICY_DIRECT_FIRST
@@ -76,7 +68,6 @@ x-templates:
       - United States
       - Singapore
       - Others
-      - Office
 
 x-rule-provider-base: &RULE_PROVIDER_BASE
   behavior: "classical"
@@ -214,7 +205,7 @@ proxy-groups:
 
   - name: AI Services
     <<: *FALLBACK_GROUP_BASE
-    proxies: [Singapore, United States, Japan, Office, Select, Auto]
+    proxies: [Singapore, United States, Japan, Select, Auto]
     include-all: false
 
   - { name: Google Services, <<: *APPLICATION_POLICY_BASE }
@@ -231,7 +222,6 @@ proxy-groups:
   - { name: Others, <<: *URL_TEST_GROUP_BASE, exclude-filter: *OTHER_REGIONS_EXCLUDE_KEYWORDS }
 
   # ==================== 特殊用途 ====================
-  - { name: Office, <<: *OVERLAY_GROUP_BASE }
   - { name: Debug, <<: *PROXY_GROUP_BASE }
   - name: Bootstrap
     <<: *PROXY_GROUP_BASE
