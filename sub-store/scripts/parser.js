@@ -33,6 +33,10 @@
  *
  * Rename 参数
  * - format / f   格式化模板    默认: {region_code}
+ *                 占位符: region_code/region_name/region_name_cn/region_flag/
+ *                 tag/index/i(2d 补零)/original/name/countryCode/country/isp/latency/
+ *                 tag:XXX 或 tag:Output=kw1|kw2（关键字命中才输出）/
+ *                 prefix:XXX（固定前缀文本，参与 connector 拼接，不是静态文本）
  * - connector / c 占位符连接符 默认: -
  *
  * Sort 参数（不支持 latency 排序）
@@ -108,6 +112,13 @@ const REGION_NAME_LOCALES = ['en', 'zh-CN', 'zh-TW'];
 let REGION_NAME_HINTS = null;
 // 按 locale 缓存 Intl.DisplayNames，避免每次查询都 new（hints 构建 + 每节点元数据是热点）
 const REGION_NAME_FORMATTERS = {};
+
+// getRegionNameHints() 需遍历 676 个候选双字母代码、每个最多 3 次 Intl.DisplayNames.of()，
+// 单次构建耗时 25~80ms；REGION_NAME_HINTS 只是模块级变量，脚本引擎每次调用都会重新执行整个
+// 模块（不像常驻进程那样跨请求保留闭包状态），故额外持久化一份到 scriptResourceCache，
+// 跨调用复用，避免每次刷新订阅都重建整张表。
+const REGION_HINTS_CACHE_KEY = 'parser:region_name_hints:v1';
+const REGION_HINTS_CACHE_TTL = 30 * 24 * 60 * 60 * 1000; // 30 天
 
 // ============================================================
 // 主入口
@@ -661,6 +672,11 @@ function resolvePlaceholder(proxy, placeholder, conn) {
         return output && matchTagKeywords(lowerName, keywords) ? output : '';
     }
 
+    // {prefix:XXX} - 固定前缀占位符，参与 connector 智能拼接（不作为静态文本）
+    if (placeholder.startsWith('prefix:')) {
+        return placeholder.substring(7);
+    }
+
     // {index:2d} / {i:2d}
     if ((placeholder.startsWith('index:') || placeholder.startsWith('i:')) && placeholder.endsWith('d')) {
         const width = parseInt(placeholder.substring(placeholder.indexOf(':') + 1, placeholder.length - 1));
@@ -960,6 +976,17 @@ function getRegionDisplayName(code, locale) {
 function getRegionNameHints() {
     if (REGION_NAME_HINTS) return REGION_NAME_HINTS;
 
+    // 跨调用持久化缓存：模块级变量在每次脚本调用间不会保留，
+    // 命中时可跳过 676 个候选代码 x 最多 3 次 Intl.DisplayNames.of() 的重建开销。
+    const persistentCache = typeof scriptResourceCache !== 'undefined' ? scriptResourceCache : null;
+    if (persistentCache) {
+        const cached = persistentCache.get(REGION_HINTS_CACHE_KEY);
+        if (Array.isArray(cached) && cached.length > 0) {
+            REGION_NAME_HINTS = cached;
+            return REGION_NAME_HINTS;
+        }
+    }
+
     const hints = [];
     for (let first = 65; first <= 90; first++) {
         for (let second = 65; second <= 90; second++) {
@@ -984,6 +1011,9 @@ function getRegionNameHints() {
     }
 
     REGION_NAME_HINTS = hints;
+    if (persistentCache) {
+        persistentCache.set(REGION_HINTS_CACHE_KEY, hints, REGION_HINTS_CACHE_TTL);
+    }
     return REGION_NAME_HINTS;
 }
 
