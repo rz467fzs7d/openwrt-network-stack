@@ -125,6 +125,7 @@ const REGION_HINTS_CACHE_TTL = 30 * 24 * 60 * 60 * 1000; // 30 天
 // ============================================================
 async function operator(proxies = [], targetPlatform, context) {
     const $ = $substore;
+    const __startedAt = Date.now();
 
     // 命名约定：与 $arguments 入参同名的局部变量保留 snake_case（便于和入参对照），
     // 由入参派生的内部状态用 camelCase。
@@ -203,7 +204,10 @@ async function operator(proxies = [], targetPlatform, context) {
 
     $.info(`[PARSER] 核心支持节点数: ${internalProxies.length}/${proxies.length}`);
     log(`[DEBUG] input=${proxies.length} internal=${internalProxies.length} incompatible=${proxies.length - internalProxies.length}`);
-    if (!internalProxies.length) return proxies;
+    if (!internalProxies.length) {
+        $.info(`[PARSER] 总耗时: ${Date.now() - __startedAt}ms（无支持节点，提前返回）`);
+        return proxies;
+    }
 
     // ---- Step 2: 统一 META 探测，以落地结果作为 region 来源 ----
     let probeSuccess = 0;
@@ -304,6 +308,7 @@ async function operator(proxies = [], targetPlatform, context) {
     }
 
     persistNameRegionCache();
+    $.info(`[PARSER] 总耗时: ${Date.now() - __startedAt}ms（节点数: ${proxies.length}）`);
     return proxies;
 
     // ============================================================
