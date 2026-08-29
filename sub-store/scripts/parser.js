@@ -608,12 +608,8 @@ function prepareProxyMetadata(proxy, groupIndex = 0, forceGeoRegion = false) {
     // 检测 tag
     proxy.tag = detectTag(lowerName);
 
-    // groupIndex 来自外部重排，原始 index 备用
+    // groupIndex 来自外部重排
     proxy.index = groupIndex;
-    proxy._rawIndex = (() => {
-        const m = [...originalName.matchAll(/\d+/g)];
-        return m.length > 0 ? parseInt(m[m.length - 1][0]) : 0;
-    })();
 }
 
 // 编译 format 模板，避免整批节点重复解析字符串
@@ -933,6 +929,9 @@ function detectRegionFromName(name) {
     return null;
 }
 
+// region_flag/region_name/region_name_cn 只由 code 决定，按 code 缓存避免同批节点里
+// 重复 region（如多个 SG 节点）反复调用 getRegionDisplayName
+const REGION_METADATA_CACHE = new Map();
 function setRegionMetadata(proxy, code) {
     if (!/^[A-Z]{2}$/.test(code || '') || code === 'ZZ') {
         proxy.region_code = 'ZZ';
@@ -942,10 +941,19 @@ function setRegionMetadata(proxy, code) {
         return;
     }
 
+    let meta = REGION_METADATA_CACHE.get(code);
+    if (!meta) {
+        meta = {
+            region_flag: getRegionFlag(code),
+            region_name: getRegionDisplayName(code, 'en') || code,
+            region_name_cn: getRegionDisplayName(code, 'zh-CN') || '未知',
+        };
+        REGION_METADATA_CACHE.set(code, meta);
+    }
     proxy.region_code = code;
-    proxy.region_flag = getRegionFlag(code);
-    proxy.region_name = getRegionDisplayName(code, 'en') || code;
-    proxy.region_name_cn = getRegionDisplayName(code, 'zh-CN') || '未知';
+    proxy.region_flag = meta.region_flag;
+    proxy.region_name = meta.region_name;
+    proxy.region_name_cn = meta.region_name_cn;
 }
 
 function isValidRegionCode(code) {
