@@ -8,27 +8,37 @@
  * - 支持 format 模板（兼容既有占位符写法）
  * - 支持高级排序，按 region 分组编号
  *
- * HTTP META 参数
- * - http_meta_protocol    协议            默认: http
- * - http_meta_host        服务地址        默认: 127.0.0.1
- * - http_meta_port         端口            默认: 9876
- * - http_meta_authorization Authorization 默认: 空
- * - http_meta_start_delay 初始延时(ms)    默认: 3000
- * - http_meta_proxy_timeout 每节点预估耗时(ms) 默认: 3000
+ * 参数命名规则：按功能分组加前缀，同组参数一眼可辨。
+ * - meta_*  : HTTP META 探测服务进程本身（host/port/protocol/auth/启动延时）
+ * - probe_* : 探测流程（是否全探、请求 API、并发、重试、单节点超时）
+ * - cache*  : 脚本缓存开关
+ * - 无前缀的 format/connector/sort/debug 是最常用参数，保留短别名 f/c/s/d
+ *
+ * Meta 服务参数（HTTP META 子进程）
+ * - meta_protocol    协议            默认: http
+ * - meta_host        服务地址        默认: 127.0.0.1
+ * - meta_port        端口            默认: 9876
+ * - meta_auth        Authorization   默认: 空
+ * - meta_start_delay 启动后等待多久开始探测(ms) 默认: 3000
  *
  * 探测参数
- * - api         测落地的 API  默认: http://ip-api.com/json?lang=zh-CN（返回 JSON，直接取 countryCode/isp）
- * - ipinfo_fallback_url META 失败后的 ipinfo Lite 兜底 API 模板 默认: https://api.ipinfo.io/lite/{ip}
- * - e           环境变量式参数注入，格式: {IPINFO_API_TOKEN:xxx}
- * - method      请求方法      默认: get
- * - concurrency 并发数        默认: 10
- * - retries 请求重试次数 默认: 1
- * - retry_delay 请求重试间隔(ms) 默认: 1000
- *   （单节点探测超时由 http_meta_proxy_timeout 控制，见上）
- * - probe_all 对所有节点强制探测（默认 false：节点名可识别 region 时跳过探测）
- * - include_unsupported_proxy 传递给运行环境时包含官方/商店版不支持的协议 默认: false
- * - cache 使用 Sub-Store 脚本缓存 默认: true
- * - fallback_cache 探测失败时使用节点身份兜底缓存 默认: true
+ * - probe_all     对所有节点强制探测（默认 false：节点名可识别 region 时跳过探测）
+ * - probe_api     测落地的 API  默认: http://ip-api.com/json?lang=zh-CN（返回 JSON，直接取 countryCode/isp）
+ * - probe_method  请求方法      默认: get
+ * - probe_concurrency 并发数    默认: 10
+ * - probe_retries 请求重试次数  默认: 1
+ * - probe_retry_delay 请求重试间隔(ms) 默认: 1000
+ * - probe_timeout 单节点预估耗时(ms)，同时用作单次请求超时 默认: 3000
+ * - ipinfo_url    META 失败后的 ipinfo Lite 兜底 API 模板 默认: https://api.ipinfo.io/lite/{ip}
+ * - ipinfo_token  ipinfo API Token（优先于 env 注入，优先于进程环境变量）
+ * - env / e       环境变量式参数注入，格式: {IPINFO_API_TOKEN:xxx}
+ * - include_unsupported 传递给运行环境时包含官方/商店版不支持的协议 默认: false
+ *
+ * 缓存参数
+ * - cache          使用 Sub-Store 脚本缓存 默认: true（设为 false 等价于旧版 noCache=true）
+ * - cache_fallback 探测失败时使用节点身份兜底缓存 默认: true
+ *
+ * Region 参数
  * - force_geo_region 强制使用 API 探测的 countryCode 作为 region 默认: false
  *
  * Rename 参数
@@ -52,6 +62,10 @@
  *                 例: HK-01-1.2.3.4（connector='-'）
  *                 不在映射中的节点原样保留
  *
+ * 调试参数
+ * - debug / d      调试日志 默认: true
+ * - debug_node     只打印名称含此关键字的节点的原始/internal 数据
+ *
  * 过滤参数
  * - 探测失败的节点会被标记 _failed=true（不在此移除，交由下游环节处理）
  *
@@ -60,7 +74,7 @@
  */
 
 // ============================================================
-// 参数别名（对外提供的入参别名）
+// 参数别名（对外提供的入参别名，统一在此注册——不要在读取处再手写 ?? 兼容别名）
 // ============================================================
 // 注意：不使用单字母短名称（如 l），避免与 Sub-Store 内部参数（c/f/s）冲突
 const PARAM_ALIAS = {
@@ -68,7 +82,13 @@ const PARAM_ALIAS = {
     connector: 'c',
     sort: 's',
     debug: 'd',
+    env: 'e',
 };
+
+// 统一读取 $arguments：优先取规范名，其次取别名
+function getArg(name) {
+    return $arguments[name] ?? $arguments[PARAM_ALIAS[name]];
+}
 
 // 占位符别名
 const PLACEHOLDER_ALIAS = {
@@ -128,50 +148,50 @@ async function operator(proxies = [], targetPlatform, context) {
     const __startedAt = Date.now();
 
     // 命名约定：与 $arguments 入参同名的局部变量保留 snake_case（便于和入参对照），
-    // 由入参派生的内部状态用 camelCase。
+    // 由入参派生的内部状态用 camelCase。别名统一通过 getArg() 读取，不在这里手写 ?? 兼容。
 
     // 来源信息（用于日志标识）
     const source = context?.source || {};
     const sourceName = source._collection?.displayName || source._collection?.name || source.name || $arguments._sourceName || 'unknown';
 
-    // HTTP META 配置
-    const http_meta_host = $arguments.http_meta_host ?? '127.0.0.1';
-    const http_meta_port = parsePositiveInt($arguments.http_meta_port, 9876);
-    const http_meta_protocol = $arguments.http_meta_protocol ?? 'http';
-    const http_meta_authorization = $arguments.http_meta_authorization ?? '';
-    const http_meta_api = `${http_meta_protocol}://${http_meta_host}:${http_meta_port}`;
-    const http_meta_start_delay = parsePositiveNumber($arguments.http_meta_start_delay, 3000);
-    const http_meta_proxy_timeout = parsePositiveNumber($arguments.http_meta_proxy_timeout, 3000);
+    // Meta 服务配置（HTTP META 子进程本身）
+    const meta_host = $arguments.meta_host ?? '127.0.0.1';
+    const meta_port = parsePositiveInt($arguments.meta_port, 9876);
+    const meta_protocol = $arguments.meta_protocol ?? 'http';
+    const meta_auth = $arguments.meta_auth ?? '';
+    const meta_api = `${meta_protocol}://${meta_host}:${meta_port}`;
+    const meta_start_delay = parsePositiveNumber($arguments.meta_start_delay, 3000);
 
     // 探测配置：通过节点出口请求 ip-api.com，直接取 countryCode/isp
-    const api_url = $arguments.api || 'http://ip-api.com/json?lang=zh-CN&fields=status,country,countryCode,isp,query';
-    const ipinfo_fallback_url = $arguments.ipinfo_fallback_url || 'https://api.ipinfo.io/lite/{ip}';
-    const injectedEnv = parseEnvMap($arguments.e ?? $arguments.env ?? '');
-    // API Token（优先脚本参数，其次 e={IPINFO_API_TOKEN:...}，最后才兼容进程环境变量）
-    const api_token = $arguments.ipinfo_api_token
+    const probe_timeout = parsePositiveNumber($arguments.probe_timeout, 3000);
+    const probe_api = $arguments.probe_api || 'http://ip-api.com/json?lang=zh-CN&fields=status,country,countryCode,isp,query';
+    const probe_method = $arguments.probe_method || 'get';
+    const probe_concurrency = parsePositiveInt($arguments.probe_concurrency, 10);
+    const ipinfo_url = $arguments.ipinfo_url || 'https://api.ipinfo.io/lite/{ip}';
+    const injectedEnv = parseEnvMap(getArg('env') ?? '');
+    // ipinfo Token（优先脚本参数，其次 env={IPINFO_API_TOKEN:...}，最后才兼容进程环境变量）
+    const ipinfo_token = $arguments.ipinfo_token
         ?? injectedEnv.IPINFO_API_TOKEN
         ?? injectedEnv.ipinfo_api_token
         ?? (typeof process !== 'undefined' ? process.env.IPINFO_API_TOKEN : null)
         ?? '';
-    const method = $arguments.method || 'get';
-    const concurrency = parsePositiveInt($arguments.concurrency, 10);
-    const cacheEnabled = toBoolean($arguments.cache, true) && !toBoolean($arguments.noCache, false);
+    const cacheEnabled = toBoolean($arguments.cache, true);
     const cache = typeof scriptResourceCache !== 'undefined' ? scriptResourceCache : null;
-    const fallbackCacheEnabled = cacheEnabled && toBoolean($arguments.fallback_cache, true);
-    const includeUnsupportedProxy = toBoolean($arguments.include_unsupported_proxy, false);
+    const fallbackCacheEnabled = cacheEnabled && toBoolean($arguments.cache_fallback, true);
+    const includeUnsupportedProxy = toBoolean($arguments.include_unsupported, false);
 
     // 调试日志
-    const debug = $arguments.debug ?? $arguments[PARAM_ALIAS.debug] ?? true;
+    const debug = getArg('debug') ?? true;
     const log = debug ? $.info.bind($) : () => {};
 
-    // Rename 配置（入参别名统一在此处理）
-    const rawFormat = $arguments.format ?? $arguments[PARAM_ALIAS.format] ?? '{region_code}';
+    // Rename 配置
+    const rawFormat = getArg('format') ?? '{region_code}';
     const format = normalizePlaceholder(rawFormat);
     const compiledFormat = format ? compileFormat(format) : null;
-    const connector = $arguments.connector ?? $arguments[PARAM_ALIAS.connector] ?? '-';
-    const rawSort = $arguments.sort ?? $arguments[PARAM_ALIAS.sort] ?? null;
+    const connector = getArg('connector') ?? '-';
+    const rawSort = getArg('sort') ?? null;
     const sort = rawSort ? normalizePlaceholder(rawSort) : null;
-    const forceGeoRegion = toBoolean($arguments.force_geo_region ?? $arguments.force_region_from_geo, false);
+    const forceGeoRegion = toBoolean($arguments.force_geo_region, false);
     const flatMap = parseFlatMap($arguments.flat ?? '');
     const debugNodeKeyword = String($arguments.debug_node || '').toLowerCase();
 
@@ -319,14 +339,14 @@ async function operator(proxies = [], targetPlatform, context) {
             return { ports: null, pid: null };
         }
 
-        const timeout = http_meta_start_delay + internalProxies.length * http_meta_proxy_timeout;
+        const timeout = meta_start_delay + internalProxies.length * probe_timeout;
 
         const startRes = await httpRequest({
             method: 'post',
-            url: `${http_meta_api}/start`,
+            url: `${meta_api}/start`,
             headers: {
                 'Content-type': 'application/json',
-                Authorization: http_meta_authorization,
+                Authorization: meta_auth,
             },
             body: JSON.stringify({ proxies: internalProxies, timeout }),
             timeout: 10000,
@@ -338,18 +358,18 @@ async function operator(proxies = [], targetPlatform, context) {
         if (!pid || !ports) throw new Error(`HTTP META 启动失败: ${body}`);
 
         $.info(`[PARSER] HTTP META 启动 [端口: ${ports}] [PID: ${pid}] [超时: ${timeout}ms]`);
-        await $.wait(http_meta_start_delay);
+        await $.wait(meta_start_delay);
 
         await executeAsyncTasks(
             internalProxies.map((proxy, i) => () => probeOne(proxy, proxies, ports[i], onResult)),
-            { concurrency }
+            { concurrency: probe_concurrency }
         );
 
         try {
             await httpRequest({
                 method: 'post',
-                url: `${http_meta_api}/stop`,
-                headers: { 'Content-type': 'application/json', Authorization: http_meta_authorization },
+                url: `${meta_api}/stop`,
+                headers: { 'Content-type': 'application/json', Authorization: meta_auth },
                 body: JSON.stringify({ pid: [pid] }),
                 timeout: 5000,
             });
@@ -370,7 +390,7 @@ async function operator(proxies = [], targetPlatform, context) {
         const cacheId = getProbeCacheId(proxy);
 
         try {
-            const geoData = await requestGeoApi(proxy, port, api_url, false);
+            const geoData = await requestGeoApi(proxy, port, probe_api, false);
             if (!geoData) {
                 await finishProbeFailure(proxy, proxies, onResult, cacheId);
                 return;
@@ -380,7 +400,7 @@ async function operator(proxies = [], targetPlatform, context) {
             applyProbeResult(proxy, proxies, cached);
             setProbeCache(cacheId, cached);
             setFallbackProbeCache(proxy, cached);
-            $.info(`[PARSER][${proxy.name}] OK country=${geoData.countryCode} latency=${cached.latency}ms api=${api_url}`);
+            $.info(`[PARSER][${proxy.name}] OK country=${geoData.countryCode} latency=${cached.latency}ms api=${probe_api}`);
             onResult(proxy, cached);
         } catch (e) {
             const latency = Date.now() - startedAt;
@@ -394,18 +414,18 @@ async function operator(proxies = [], targetPlatform, context) {
         const headers = {
             'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3.1 Mobile/15E148 Safari/604.1',
         };
-        if (useBearerToken && api_token) {
-            headers['Authorization'] = `Bearer ${api_token}`;
+        if (useBearerToken && ipinfo_token) {
+            headers['Authorization'] = `Bearer ${ipinfo_token}`;
         }
 
         try {
             const res = await httpRequest({
-                proxy: `http://${http_meta_host}:${port}`,
-                method,
+                proxy: `http://${meta_host}:${port}`,
+                method: probe_method,
                 headers,
                 url,
                 // 取出口 IP 的超时对齐单节点预估耗时，死节点不再因默认 5s+重试卡满 ~11s
-                timeout: http_meta_proxy_timeout,
+                timeout: probe_timeout,
                 retries: 0,
             });
 
@@ -471,7 +491,7 @@ async function operator(proxies = [], targetPlatform, context) {
         const stableProxy = Object.fromEntries(
             Object.entries(proxy).filter(([key]) => !/^(collectionName|subName|id|_.*)$/i.test(key))
         );
-        return `parser:http-meta:geo:${api_url}:${JSON.stringify(stableProxy)}`;
+        return `parser:http-meta:geo:${probe_api}:${JSON.stringify(stableProxy)}`;
     }
 
     function setProbeCache(id, api) {
@@ -485,7 +505,7 @@ async function operator(proxies = [], targetPlatform, context) {
             name: proxy.name || '',
             type: proxy.type || '',
         };
-        return `parser:http-meta:geo:fallback:${api_url}:${JSON.stringify(identity)}`;
+        return `parser:http-meta:geo:fallback:${probe_api}:${JSON.stringify(identity)}`;
     }
 
     function getFallbackProbeCache(proxy) {
@@ -533,8 +553,8 @@ async function operator(proxies = [], targetPlatform, context) {
     }
 
     async function requestServerIpInfoFallback(proxy) {
-        if (!api_token || !ipinfo_fallback_url) {
-            if (ipinfo_fallback_url) {
+        if (!ipinfo_token || !ipinfo_url) {
+            if (ipinfo_url) {
                 $.info(`[PARSER][${proxy.name}] 跳过 ipinfo server fallback：未配置 IPINFO_API_TOKEN`);
             }
             return null;
@@ -546,17 +566,17 @@ async function operator(proxies = [], targetPlatform, context) {
             return null;
         }
 
-        const url = ipinfo_fallback_url.replace(/\{ip\}/g, encodeURIComponent(server));
+        const url = ipinfo_url.replace(/\{ip\}/g, encodeURIComponent(server));
         const startedAt = Date.now();
         try {
             const res = await httpRequest({
                 method: 'get',
                 headers: {
                     'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3.1 Mobile/15E148 Safari/604.1',
-                    Authorization: `Bearer ${api_token}`,
+                    Authorization: `Bearer ${ipinfo_token}`,
                 },
                 url,
-                timeout: http_meta_proxy_timeout,
+                timeout: probe_timeout,
                 retries: 0,
             });
 
@@ -1222,8 +1242,8 @@ function parseNonNegativeInt(value, defaultValue) {
 async function httpRequest(opt = {}) {
     const reqMethod = opt.method || 'get';
     const reqTimeout = parsePositiveNumber(opt.timeout, 5000);
-    const reqRetries = parseNonNegativeInt(opt.retries ?? $arguments.retries, 1);
-    const reqRetryDelay = parsePositiveNumber(opt.retry_delay ?? $arguments.retry_delay, 1000);
+    const reqRetries = parseNonNegativeInt(opt.retries ?? $arguments.probe_retries, 1);
+    const reqRetryDelay = parsePositiveNumber(opt.retry_delay ?? $arguments.probe_retry_delay, 1000);
 
     let count = 0;
     const fn = async () => {
