@@ -303,6 +303,7 @@ async function operator(proxies = [], targetPlatform, context) {
         $.info(`[PARSER] 标记失败节点: ${failedCount}/${proxies.length}（_failed=true，移除交由下游）`);
     }
 
+    persistNameRegionCache();
     return proxies;
 
     // ============================================================
@@ -908,8 +909,51 @@ function reassignGroupIndex(proxies) {
 // ============================================================
 // 工具函数
 // ============================================================
+// 从节点名称识别 region 的结果只由 name 本身决定，且同一订阅的节点名跨刷新基本不变，
+// 按 name 持久化缓存后可将命中前的线性扫描（263 个候选 x 多个关键字）降为一次 Map 查找。
+const NAME_REGION_CACHE = new Map();
+const NAME_REGION_PERSIST_KEY = 'parser:name_region:v1';
+const NAME_REGION_PERSIST_TTL = 30 * 24 * 60 * 60 * 1000; // 30 天
+let nameRegionCacheDirty = false;
+let nameRegionPersistLoaded = false;
+
+function loadNameRegionPersistCache() {
+    if (nameRegionPersistLoaded) return;
+    nameRegionPersistLoaded = true;
+    const persistentCache = typeof scriptResourceCache !== 'undefined' ? scriptResourceCache : null;
+    if (!persistentCache) return;
+    const cached = persistentCache.get(NAME_REGION_PERSIST_KEY);
+    if (cached && typeof cached === 'object') {
+        for (const [k, v] of Object.entries(cached)) {
+            NAME_REGION_CACHE.set(k, v);
+        }
+    }
+}
+
+// operator() 主流程结束前调用一次，把本次新识别的 name->region 写回持久化缓存
+function persistNameRegionCache() {
+    if (!nameRegionCacheDirty) return;
+    const persistentCache = typeof scriptResourceCache !== 'undefined' ? scriptResourceCache : null;
+    if (!persistentCache) return;
+    persistentCache.set(NAME_REGION_PERSIST_KEY, Object.fromEntries(NAME_REGION_CACHE), NAME_REGION_PERSIST_TTL);
+    nameRegionCacheDirty = false;
+}
+
 // 从节点名称识别 region
 function detectRegionFromName(name) {
+    loadNameRegionPersistCache();
+    const cacheKey = String(name || '').toLowerCase();
+    if (NAME_REGION_CACHE.has(cacheKey)) {
+        return NAME_REGION_CACHE.get(cacheKey);
+    }
+
+    const result = detectRegionFromNameUncached(name);
+    NAME_REGION_CACHE.set(cacheKey, result);
+    nameRegionCacheDirty = true;
+    return result;
+}
+
+function detectRegionFromNameUncached(name) {
     const codeFromFlag = detectRegionCodeFromFlag(name);
     if (codeFromFlag) return { code: codeFromFlag };
 
