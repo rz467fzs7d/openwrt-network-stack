@@ -215,7 +215,10 @@ async function operator(proxies = [], targetPlatform, context) {
     const needProbe = [];
     for (const proxy of internalProxies) {
         const p = proxies[proxy._proxies_index];
-        if (!probeAllNodes && detectRegionFromName(p?.name || proxy.name || '')) {
+        // 结果缓存到 p._nameRegionInfo，供下方 prepareProxyMetadata 复用，避免同一节点名重复扫描 region 提示表
+        const nameRegionInfo = probeAllNodes ? null : detectRegionFromName(p?.name || proxy.name || '');
+        if (nameRegionInfo) {
+            p._nameRegionInfo = nameRegionInfo;
             skipByNameCount++;
         } else {
             needProbe.push(proxy);
@@ -596,7 +599,10 @@ function prepareProxyMetadata(proxy, groupIndex = 0, forceGeoRegion = false) {
     proxy.originalName = originalName;
 
     const geoCountryCode = proxy._geo?.countryCode || '';
-    const nameRegionInfo = forceGeoRegion ? null : detectRegionFromName(originalName);
+    // 复用上方 skip-check 循环缓存的结果（如有），避免重复调用 detectRegionFromName
+    const nameRegionInfo = forceGeoRegion
+        ? null
+        : (proxy._nameRegionInfo !== undefined ? proxy._nameRegionInfo : detectRegionFromName(originalName));
     setRegionMetadata(proxy, nameRegionInfo?.code || geoCountryCode || 'ZZ');
 
     // 检测 tag
