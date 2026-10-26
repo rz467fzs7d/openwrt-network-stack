@@ -56,6 +56,23 @@ test('exit_is_cn marker attaches without a separator, only for explicit Chinese 
     assert.equal(c.applyCompiledFormat({ ...node, tag: 'Home', _googleCheck: { youtube: { status: 'cn' } } }, format, '-'), 'ENET-HK-02-Home*');
 });
 
+test('region* is a single decorated field and obeys normal connector behavior', async () => {
+    const { context: c } = harness();
+    const format = c.compileFormat('{prefix:ENET}{region*}{i:2d}{tag}');
+    const node = { region_code: 'HK', index: 1, tag: 'Home', _googleCheck: { play: { status: 'detected', region: 'China ' } } };
+    assert.equal(c.applyCompiledFormat(node, format, '-'), 'ENET-HK*-01-Home');
+    assert.equal(c.applyCompiledFormat(node, format, '_'), 'ENET_HK*_01_Home');
+    assert.equal(c.applyCompiledFormat(node, c.compileFormat('{region*}-{i:2d}'), '-'), 'HK*-01');
+    assert.equal(c.applyCompiledFormat({ ...node, _googleCheck: undefined }, format, '-'), 'ENET-HK-01-Home');
+    assert.equal(c.applyCompiledFormat({ ...node, _googleCheck: { play: { status: 'unknown' } } }, format, '-'), 'ENET-HK-01-Home');
+    assert.equal(node.region_code, 'HK');
+    const h = harness({ f: '{prefix:ENET}{region*}{i:2d}{tag:Home=家宽|home}' }, opt => ({ status: 200,
+        body: opt.url.includes('youtube') ? 'www.google.cn' : '<div class="yVZQTb">China</div>' }));
+    const result = await h.context.operator([{ name: 'HK Home', type: 'ss', server: 'example.com', port: 443 }]);
+    assert.equal(result[0].name, 'ENET-HK*-01-Home');
+    assert.equal(result[0].region_code, 'HK');
+});
+
 test('explicitly disabled; include/exclude apply to original names independently of GeoIP skip', async () => {
     const off = harness({ exit_is_cn_check: '' }); await off.context.operator(nodes());
     assert.equal(off.requests.length, 0); assert.equal(off.starts.length, 0);
