@@ -29,6 +29,12 @@
  * - probe_retries 请求重试次数  默认: 1
  * - probe_retry_delay 请求重试间隔(ms) 默认: 1000
  * - probe_timeout 单节点预估耗时(ms)，同时用作单次请求超时 默认: 3000
+ * - cn_check     Google 检测范围（原始节点名正则，忽略大小写）；空=关闭，.*=明确全量
+ * - cn_check_exclude 排除原始节点名正则，优先于 cn_check
+ * - cn_check_timeout 单个 Google/YouTube 请求超时(ms)，默认 5000
+ * - cn_check_concurrency 并发节点数，默认 2
+ * - cn_check_cache_ttl 明确结果缓存(ms)，默认 21600000；失败缓存最长 600000
+ * - 检测仅写 _googleCheck，不改 region/_failed；模板支持 youtube_region/youtube_status/google_play_region
  * - ipinfo_url    META 失败后的 ipinfo Lite 兜底 API 模板 默认: https://api.ipinfo.io/lite/{ip}
  * - ipinfo_token  ipinfo API Token（优先于 env 注入，优先于进程环境变量）
  * - env / e       环境变量式参数注入，格式: {IPINFO_API_TOKEN:xxx}
@@ -140,6 +146,36 @@ const REGION_NAME_FORMATTERS = {};
 const REGION_HINTS_CACHE_KEY = 'parser:region_name_hints:v1';
 const REGION_HINTS_CACHE_TTL = 30 * 24 * 60 * 60 * 1000; // 30 天
 
+// Google check parsers ported from lmc999/RegionRestrictionCheck (AGPL-3.0),
+// check.sh@1a856acc4bf42e27fec3ff64b1e9731892b5c3bb, 2026-10-26.
+// See THIRD_PARTY_NOTICES.md and LICENSE.RegionRestrictionCheck.
+const GOOGLE_CHECK_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
+const GOOGLE_CHECK_COOKIE = 'YSC=FSCWhKo2Zgw; VISITOR_PRIVACY_METADATA=CgJERRIEEgAgYQ%3D%3D; PREF=f7=4000; __Secure-YEC=CgtRWTBGTFExeV9Iayjele2yBjIKCgJERRIEEgAgYQ%3D%3D; SOCS=CAISOAgDEitib3FfaWRlbnRpdHlmcm9udGVuZHVpc2VydmVyXzIwMjQwNTI2LjAxX3AwGgV6aC1DTiACGgYIgMnpsgY; VISITOR_INFO1_LIVE=Di84mAIbgKY; __Secure-BUCKET=CGQ';
+
+function compileCheckScope(value, name) {
+    if (!String(value ?? '').trim()) return null;
+    try { return new RegExp(String(value), 'i'); }
+    catch (_) { throw new Error(`Invalid ${name} regular expression`); }
+}
+
+function parseYoutubePremium(body) {
+    if (!body) return { status: 'unknown', region: '', reason: 'empty_response' };
+    if (body.includes('www.google.cn')) return { status: 'cn', region: 'CN', reason: 'www.google.cn' };
+    if (/Premium is not available in your country/i.test(body)) return { status: 'unavailable', region: '', reason: 'premium_unavailable' };
+    const region = body.match(/"INNERTUBE_CONTEXT_GL"\s*:\s*"([^"]+)"/)?.[1] || 'UNKNOWN';
+    if (/ad-free/i.test(body)) return { status: 'available', region, reason: 'ad-free' };
+    return { status: 'unknown', region: '', reason: 'page_error' };
+}
+
+function parseGooglePlay(body) {
+    const region = body.match(/<div class="yVZQTb">([^<(]+)/)?.[1] || '';
+    return { status: region ? 'detected' : 'unknown', region, reason: region ? 'yVZQTb' : 'region_not_found' };
+}
+
+function googleResultKnown(result) {
+    return result.youtube?.status !== 'unknown' && result.play?.status === 'detected';
+}
+
 // ============================================================
 // 主入口
 // ============================================================
@@ -179,6 +215,11 @@ async function operator(proxies = [], targetPlatform, context) {
     const cache = typeof scriptResourceCache !== 'undefined' ? scriptResourceCache : null;
     const fallbackCacheEnabled = cacheEnabled && toBoolean($arguments.cache_fallback, true);
     const includeUnsupportedProxy = toBoolean($arguments.include_unsupported, false);
+    const cnScope = compileCheckScope($arguments.cn_check, 'cn_check');
+    const cnExclude = compileCheckScope($arguments.cn_check_exclude, 'cn_check_exclude');
+    const cnTimeout = parsePositiveNumber($arguments.cn_check_timeout, 5000);
+    const cnConcurrency = parsePositiveInt($arguments.cn_check_concurrency, 2);
+    const cnCacheTtl = parsePositiveNumber($arguments.cn_check_cache_ttl, 21600000);
 
     // 调试日志
     const debug = getArg('debug') ?? true;
@@ -198,6 +239,7 @@ async function operator(proxies = [], targetPlatform, context) {
     // ---- Step 1: 转换节点为 internal 格式 ----
     const internalProxies = [];
     proxies.forEach((proxy, index) => {
+        delete proxy._googleCheck;
         try {
             const node = ProxyUtils.produce([{ ...proxy }], 'ClashMeta', 'internal', {
                 'include-unsupported-proxy': includeUnsupportedProxy,
@@ -269,6 +311,40 @@ async function operator(proxies = [], targetPlatform, context) {
 
     $.info(`[PARSER] 探测完成: 成功 ${probeSuccess}, 失败 ${probeFail}`);
 
+    // Service-region checks must not inherit the name/GeoIP skip or fallback cache.
+    if (cnScope) {
+        const selected = internalProxies.filter(proxy => cnScope.test(proxy.name || '') && !cnExclude?.test(proxy.name || ''));
+        const pending = [];
+        let cacheHits = 0;
+        for (const proxy of selected) {
+            const saved = cacheEnabled && cache ? cache.get(googleCacheKey(proxy)) : null;
+            const ttl = saved && googleResultKnown(saved) ? cnCacheTtl : Math.min(cnCacheTtl, 600000);
+            if (saved && Number.isFinite(saved.checkedAt) && Date.now() - saved.checkedAt >= 0 && Date.now() - saved.checkedAt < ttl) {
+                proxies[proxy._proxies_index]._googleCheck = { ...saved, cached: true };
+                cacheHits++;
+                logGoogleResult(proxy, saved, true);
+            } else {
+                pending.push(proxy);
+            }
+        }
+        $.info(`[PARSER][GOOGLE] selected=${selected.length}/${internalProxies.length} cached=${cacheHits} pending=${pending.length}`);
+        if (pending.length) {
+            try {
+                await probeAll(pending, proxies, null, checkGoogleNode, cnTimeout * 2, cnConcurrency);
+            } catch (error) {
+                $.error(`[PARSER][GOOGLE] META check failed: ${error.message || error}`);
+                for (const proxy of pending) {
+                    const p = proxies[proxy._proxies_index];
+                    if (!p._googleCheck) {
+                        const unknown = { status: 'unknown', region: '', reason: 'meta_failed' };
+                        p._googleCheck = { youtube: { ...unknown }, play: { ...unknown }, checkedAt: Date.now(), cached: false };
+                        logGoogleResult(proxy, p._googleCheck, false);
+                    }
+                }
+            }
+        }
+    }
+
     // ---- Step 3: 提取元数据 ----
     proxies.forEach(proxy => prepareProxyMetadata(proxy, 0, forceGeoRegion));
 
@@ -310,6 +386,8 @@ async function operator(proxies = [], targetPlatform, context) {
                 for (const ip of ips) {
                     const cloned = JSON.parse(JSON.stringify(proxy));
                     cloned.server = ip;
+                    // A different endpoint has not been checked through Google.
+                    delete cloned._googleCheck;
                     cloned.name = proxy.name + connector + ip;
                     expanded.push(cloned);
                 }
@@ -334,12 +412,12 @@ async function operator(proxies = [], targetPlatform, context) {
     // ============================================================
     // 统一探测：META
     // ============================================================
-    async function probeAll(internalProxies, proxies, onResult) {
+    async function probeAll(internalProxies, proxies, onResult, worker = probeOne, nodeTimeout = probe_timeout, concurrency = probe_concurrency) {
         if (internalProxies.length === 0) {
             return { ports: null, pid: null };
         }
 
-        const timeout = meta_start_delay + internalProxies.length * probe_timeout;
+        const timeout = meta_start_delay + internalProxies.length * nodeTimeout;
 
         const startRes = await httpRequest({
             method: 'post',
@@ -358,26 +436,58 @@ async function operator(proxies = [], targetPlatform, context) {
         if (!pid || !ports) throw new Error(`HTTP META 启动失败: ${body}`);
 
         $.info(`[PARSER] HTTP META 启动 [端口: ${ports}] [PID: ${pid}] [超时: ${timeout}ms]`);
-        await $.wait(meta_start_delay);
-
-        await executeAsyncTasks(
-            internalProxies.map((proxy, i) => () => probeOne(proxy, proxies, ports[i], onResult)),
-            { concurrency: probe_concurrency }
-        );
-
         try {
-            await httpRequest({
-                method: 'post',
-                url: `${meta_api}/stop`,
-                headers: { 'Content-type': 'application/json', Authorization: meta_auth },
-                body: JSON.stringify({ pid: [pid] }),
-                timeout: 5000,
-            });
-        } catch (e) {
-            $.error(`[PARSER] 关闭 HTTP META 失败: ${e.message}`);
+            await $.wait(meta_start_delay);
+            await executeAsyncTasks(
+                internalProxies.map((proxy, i) => () => worker(proxy, proxies, ports[i], onResult)),
+                { concurrency }
+            );
+        } finally {
+            try {
+                await httpRequest({
+                    method: 'post',
+                    url: `${meta_api}/stop`,
+                    headers: { 'Content-type': 'application/json', Authorization: meta_auth },
+                    body: JSON.stringify({ pid: [pid] }),
+                    timeout: 5000,
+                });
+            } catch (e) {
+                $.error(`[PARSER] 关闭 HTTP META 失败: ${e.message}`);
+            }
         }
 
         return { ports, pid };
+    }
+
+    function googleCacheKey(proxy) {
+        return `parser:google-check:rrc-1a856acc-v1:${getProbeCacheId(proxy)}`;
+    }
+
+    function logGoogleResult(proxy, result, cached) {
+        $.info(`[PARSER][GOOGLE][${proxy.name}] youtube=${result.youtube.status} region=${result.youtube.region || '-'} reason=${result.youtube.reason} play=${result.play.status} region=${result.play.region || '-'} reason=${result.play.reason} cached=${cached} checkedAt=${result.checkedAt}`);
+    }
+
+    async function checkGoogleNode(proxy, proxies, port) {
+        async function request(url, parse, cookie) {
+            try {
+                if (!Number.isInteger(Number(port)) || Number(port) < 1 || Number(port) > 65535) throw new Error('invalid_meta_port');
+                const headers = { 'User-Agent': GOOGLE_CHECK_UA, 'accept-language': 'en-US,en;q=0.9' };
+                if (cookie) headers.cookie = cookie;
+                const res = await httpRequest({ method: 'get', url, headers,
+                    proxy: `http://${meta_host}:${port}`, timeout: cnTimeout, retries: 0 });
+                const status = Number(res.status ?? res.statusCode);
+                if (status !== 200) return { status: 'unknown', region: '', reason: `http_${status}` };
+                return parse(typeof res.body === 'string' ? res.body : '');
+            } catch (error) {
+                return { status: 'unknown', region: '', reason: error.message || 'request_failed' };
+            }
+        }
+        const youtube = await request('https://www.youtube.com/premium', parseYoutubePremium, GOOGLE_CHECK_COOKIE);
+        const play = await request('https://play.google.com/', parseGooglePlay);
+        const result = { youtube, play, checkedAt: Date.now(), cached: false };
+        proxies[proxy._proxies_index]._googleCheck = result;
+        if (cacheEnabled && cache) cache.set(googleCacheKey(proxy), result);
+        logGoogleResult(proxy, result, false);
     }
 
     // ============================================================
@@ -685,6 +795,9 @@ function resolvePlaceholder(proxy, placeholder, conn) {
     if (placeholder === 'country') return geo.country || '';
     if (placeholder === 'isp') return geo.isp || '';
     if (placeholder === 'latency') return String(geo.latency !== undefined && geo.latency !== null ? geo.latency : 0);
+    if (placeholder === 'youtube_region') return proxy._googleCheck?.youtube?.region || '';
+    if (placeholder === 'youtube_status') return proxy._googleCheck?.youtube?.status || '';
+    if (placeholder === 'google_play_region') return proxy._googleCheck?.play?.region || '';
 
     // {tag:XXX} / {tag:Output=keyword1|keyword2}
     if (placeholder.startsWith('tag:')) {

@@ -34,7 +34,46 @@ https://fastly.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@0be4c6f/sub-stor
 
 更多参数（`meta_host`/`meta_port`/`probe_api`/`ipinfo_url`/`ipinfo_token`/`flat`/`debug_node` 等）见脚本头部的 JSDoc。
 
-### 占位符
+### Google / YouTube 送中检测（可选）
+
+检测方法移植自 RegionRestrictionCheck，来源与许可证见
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。不使用普通 GeoIP 国家推断 Google 地区。
+
+| 参数 | 说明 | 默认值 |
+| --- | --- | --- |
+| `cn_check` | 检测范围：匹配重命名前节点名的正则，忽略大小写；只有显式 `.*` 才是全量 | 空，关闭 |
+| `cn_check_exclude` | 排除节点名正则，优先于包含范围 | 空 |
+| `cn_check_timeout` | 每个请求超时，毫秒 | `5000` |
+| `cn_check_concurrency` | 同时检测的节点数 | `2` |
+| `cn_check_cache_ttl` | 明确结果缓存时长，毫秒；任一检测未知时最长缓存 10 分钟 | `21600000`（6 小时） |
+
+例如参数：
+
+```text
+cn_check=JP|日本&cn_check_exclude=Office|Local
+```
+
+匹配对象是进入 parser 的节点名，不是 `{region}` 格式化后的名字。
+无匹配时不启动检测。名称已识别国家或已命中 GeoIP 缓存不会跳过该检测。
+每个待测节点通过自己的 HTTP META 代理端口访问 YouTube Premium 和 Google Play，
+不会切换 OpenClash 的在用节点。额外两次请求可能增加冷缓存刷新耗时。
+
+结果保存在 `_googleCheck.youtube` / `_googleCheck.play`，包含 `status`、`region`、
+`reason`；并输出 `[PARSER][GOOGLE]` 日志、缓存来源与检测时间。
+YouTube 状态为 `cn`、`available`、`unavailable`、`unknown`；Play 为 `detected` / `unknown`。
+保留上游语义：页面包含 `www.google.cn` 标记为 `cn`；Premium 不支持不等于 CN；
+无地区但存在上游可用标记时地区为 `UNKNOWN`。HTTP 错误、超时、无有效页面为未知。
+Play 原样返回页面地区文字，不强制换算国家码；两者不合并成自行设计的判定。
+
+不会改写原来的节点地区、设置 `_failed` 或删除节点。可选模板占位符：
+`{youtube_region}`、`{youtube_status}`、`{google_play_region}`。
+未启用或未命中范围时这些占位符为空；默认模板不变。
+缓存按节点配置隔离，不使用地区探测的身份兜底缓存；`cache=false` 也关闭这项缓存。
+`flat` 派生的其他服务器地址不继承 Google 检测结果。
+
+测试：`node --test sub-store/scripts/parser.google.test.js`。
+
+### 命名占位符
 
 | 占位符 | 说明 |
 |--------|------|
