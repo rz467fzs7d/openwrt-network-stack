@@ -43,9 +43,9 @@ test('upstream YouTube classifications and Play text extraction', () => {
     assert.equal(c.applyCompiledFormat({ _googleCheck: { play: { region: 'China ' } } }, c.compileFormat('{google_play_region}'), '-'), 'China');
 });
 
-test('cn marker attaches without a separator, only for explicit Chinese results', () => {
+test('exit_is_cn marker attaches without a separator, only for explicit Chinese results', () => {
     const { context: c } = harness();
-    const format = c.compileFormat('{prefix:ENET}{region}{i:2d}{tag}{cn}');
+    const format = c.compileFormat('{prefix:ENET}{region}{i:2d}{tag}{exit_is_cn}');
     const node = { region_code: 'HK', index: 2, tag: '' };
     const render = check => c.applyCompiledFormat({ ...node, _googleCheck: check }, format, '-');
     assert.equal(render({ play: { status: 'detected', region: 'China ' } }), 'ENET-HK-02*');

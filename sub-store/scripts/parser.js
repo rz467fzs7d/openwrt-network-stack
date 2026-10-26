@@ -34,7 +34,7 @@
  * - cn_check_timeout 单个 Google/YouTube 请求超时(ms)，默认 5000
  * - cn_check_concurrency 并发节点数，默认 2
  * - cn_check_cache_ttl 明确结果缓存(ms)，默认 21600000；失败缓存最长 600000
- * - 检测仅写 _googleCheck，不改 region/_failed；模板 {cn} 在中国结果后贴附 *，另支持 youtube_region/youtube_status/google_play_region
+ * - 检测仅写 _googleCheck，不改 region/_failed；模板 {exit_is_cn} 在中国结果后贴附 *，另支持 youtube_region/youtube_status/google_play_region
  * - ipinfo_url    META 失败后的 ipinfo Lite 兜底 API 模板 默认: https://api.ipinfo.io/lite/{ip}
  * - ipinfo_token  ipinfo API Token（优先于 env 注入，优先于进程环境变量）
  * - env / e       环境变量式参数注入，格式: {IPINFO_API_TOKEN:xxx}
@@ -778,7 +778,7 @@ function applyCompiledFormat(proxy, compiledFormat, connectorStr) {
     const resultParts = [];
     for (const part of compiledFormat.parts) {
         const value = part.type === 'text' ? part.value : resolvePlaceholder(proxy, part.value, conn);
-        if (part.type === 'placeholder' && part.value === 'cn' && value) {
+        if (part.type === 'placeholder' && part.value === 'exit_is_cn' && value) {
             // The marker attaches to the preceding visible part, without a connector.
             let previous = resultParts.length - 1;
             while (previous >= 0 && !resultParts[previous]?.trim()) previous--;
@@ -809,7 +809,7 @@ function resolvePlaceholder(proxy, placeholder, conn) {
     if (placeholder === 'youtube_region') return proxy._googleCheck?.youtube?.region || '';
     if (placeholder === 'youtube_status') return proxy._googleCheck?.youtube?.status || '';
     if (placeholder === 'google_play_region') return (proxy._googleCheck?.play?.region || '').trim();
-    if (placeholder === 'cn') {
+    if (placeholder === 'exit_is_cn') {
         const check = proxy._googleCheck;
         const playChina = check?.play?.status === 'detected' && /^(china|cn)$/i.test(check.play.region?.trim() || '');
         return check?.youtube?.status === 'cn' || playChina ? '*' : '';
