@@ -40,6 +40,7 @@ test('upstream YouTube classifications and Play text extraction', () => {
     assert.equal(c.parseYoutubePremium('').status, 'unknown');
     assert.equal(c.parseGooglePlay('<div class="yVZQTb">Japan (English)</div>').region, 'Japan ');
     assert.equal(c.parseGooglePlay('captcha').status, 'unknown');
+    assert.equal(c.applyCompiledFormat({ _googleCheck: { play: { region: 'China ' } } }, c.compileFormat('{google_play_region}'), '-'), 'China');
 });
 
 test('explicitly disabled; include/exclude apply to original names independently of GeoIP skip', async () => {

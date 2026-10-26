@@ -799,7 +799,7 @@ function resolvePlaceholder(proxy, placeholder, conn) {
     if (placeholder === 'latency') return String(geo.latency !== undefined && geo.latency !== null ? geo.latency : 0);
     if (placeholder === 'youtube_region') return proxy._googleCheck?.youtube?.region || '';
     if (placeholder === 'youtube_status') return proxy._googleCheck?.youtube?.status || '';
-    if (placeholder === 'google_play_region') return proxy._googleCheck?.play?.region || '';
+    if (placeholder === 'google_play_region') return (proxy._googleCheck?.play?.region || '').trim();
 
     // {tag:XXX} / {tag:Output=keyword1|keyword2}
     if (placeholder.startsWith('tag:')) {
