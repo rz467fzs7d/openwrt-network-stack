@@ -73,6 +73,11 @@ Play 原样返回页面地区文字，不强制换算国家码；两者不合并
 缓存按节点配置隔离，不使用地区探测的身份兜底缓存；`cache=false` 也关闭这项缓存。
 `flat` 派生的其他服务器地址不继承 Google 检测结果。
 
+`{cn}` 为紧凑标记：仅当已有 YouTube 结果为 `cn`，或 Google Play 明确返回
+`China` / `CN` 时输出 `*`，贴附前一个非空命名字段，不额外添加连接符。
+例如 `f={prefix:ENET}{region}{i:2d}{tag:Home=家宽|home}{cn}` 输出
+`ENET-HK-02*`；正常、未知或未检测时名称不变。此为已有结果的展示，不新增网络检测方法。
+
 测试：`node --test sub-store/scripts/parser.google.test.js`。
 
 ### 命名占位符

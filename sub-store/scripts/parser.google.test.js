@@ -43,6 +43,19 @@ test('upstream YouTube classifications and Play text extraction', () => {
     assert.equal(c.applyCompiledFormat({ _googleCheck: { play: { region: 'China ' } } }, c.compileFormat('{google_play_region}'), '-'), 'China');
 });
 
+test('cn marker attaches without a separator, only for explicit Chinese results', () => {
+    const { context: c } = harness();
+    const format = c.compileFormat('{prefix:ENET}{region}{i:2d}{tag}{cn}');
+    const node = { region_code: 'HK', index: 2, tag: '' };
+    const render = check => c.applyCompiledFormat({ ...node, _googleCheck: check }, format, '-');
+    assert.equal(render({ play: { status: 'detected', region: 'China ' } }), 'ENET-HK-02*');
+    assert.equal(render({ youtube: { status: 'cn' } }), 'ENET-HK-02*');
+    assert.equal(render({ play: { status: 'detected', region: 'Hong Kong ' } }), 'ENET-HK-02');
+    assert.equal(render({ youtube: { status: 'unavailable' }, play: { status: 'unknown' } }), 'ENET-HK-02');
+    assert.equal(render(undefined), 'ENET-HK-02');
+    assert.equal(c.applyCompiledFormat({ ...node, tag: 'Home', _googleCheck: { youtube: { status: 'cn' } } }, format, '-'), 'ENET-HK-02-Home*');
+});
+
 test('explicitly disabled; include/exclude apply to original names independently of GeoIP skip', async () => {
     const off = harness({ cn_check: '' }); await off.context.operator(nodes());
     assert.equal(off.requests.length, 0); assert.equal(off.starts.length, 0);
