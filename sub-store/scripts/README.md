@@ -41,21 +41,21 @@ https://fastly.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@0be4c6f/sub-stor
 
 | 参数 | 说明 | 默认值 |
 | --- | --- | --- |
-| `cn_check` | 默认按现有名称地区识别检测亚洲地区（含港澳台）；可覆盖为原始节点名正则，忽略大小写；显式空值关闭，`.*` 全量 | 亚洲 |
-| `cn_check_exclude` | 排除节点名正则，优先于包含范围 | 空 |
-| `cn_check_timeout` | 每个请求超时，毫秒 | `5000` |
-| `cn_check_concurrency` | 同时检测的节点数 | `2` |
-| `cn_check_cache_ttl` | 明确结果缓存时长，毫秒；任一检测未知时最长缓存 10 分钟 | `21600000`（6 小时） |
+| `exit_is_cn_check` | 默认按现有名称地区识别检测亚洲地区（含港澳台）；可覆盖为原始节点名正则，忽略大小写；显式空值关闭，`.*` 全量 | 亚洲 |
+| `exit_is_cn_check_exclude` | 排除节点名正则，优先于包含范围 | 空 |
+| `exit_is_cn_check_timeout` | 每个请求超时，毫秒 | `5000` |
+| `exit_is_cn_check_concurrency` | 同时检测的节点数 | `2` |
+| `exit_is_cn_check_cache_ttl` | 明确结果缓存时长，毫秒；任一检测未知时最长缓存 10 分钟 | `21600000`（6 小时） |
 
 例如参数：
 
 ```text
-cn_check=JP|日本&cn_check_exclude=Office|Local
+exit_is_cn_check=JP|日本&exit_is_cn_check_exclude=Office|Local
 ```
 
-不传 `cn_check` 时默认检测亚洲地区（含港澳台、中亚、中东），复用现有名称地区识别（代码、中文名称、旗帜等）。
+不传 `exit_is_cn_check` 时默认检测亚洲地区（含港澳台、中亚、中东），复用现有名称地区识别（代码、中文名称、旗帜等）。
 范围代码见 `GOOGLE_CHECK_ASIA_REGIONS`；不包含俄罗斯、澳大利亚、新西兰、欧洲和美洲地区。
-显式传 `cn_check=` 关闭；传自定义正则覆盖默认范围，而不是叠加。
+显式传 `exit_is_cn_check=` 关闭；传自定义正则覆盖默认范围，而不是叠加。
 匹配对象是进入 parser 的节点名，不是 `{region}` 格式化后的名字。
 无匹配时不启动检测。名称已识别国家或已命中 GeoIP 缓存不会跳过该检测。
 每个待测节点通过自己的 HTTP META 代理端口访问 YouTube Premium 和 Google Play，

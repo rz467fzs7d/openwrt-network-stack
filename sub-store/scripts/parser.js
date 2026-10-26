@@ -29,11 +29,11 @@
  * - probe_retries 请求重试次数  默认: 1
  * - probe_retry_delay 请求重试间隔(ms) 默认: 1000
  * - probe_timeout 单节点预估耗时(ms)，同时用作单次请求超时 默认: 3000
- * - cn_check     Google 检测范围：默认亚洲地区（含港澳台，复用名称地区识别）；自定义原始节点名正则，空=关闭，.*=全量
- * - cn_check_exclude 排除原始节点名正则，优先于 cn_check
- * - cn_check_timeout 单个 Google/YouTube 请求超时(ms)，默认 5000
- * - cn_check_concurrency 并发节点数，默认 2
- * - cn_check_cache_ttl 明确结果缓存(ms)，默认 21600000；失败缓存最长 600000
+ * - exit_is_cn_check     Google 检测范围：默认亚洲地区（含港澳台，复用名称地区识别）；自定义原始节点名正则，空=关闭，.*=全量
+ * - exit_is_cn_check_exclude 排除原始节点名正则，优先于 exit_is_cn_check
+ * - exit_is_cn_check_timeout 单个 Google/YouTube 请求超时(ms)，默认 5000
+ * - exit_is_cn_check_concurrency 并发节点数，默认 2
+ * - exit_is_cn_check_cache_ttl 明确结果缓存(ms)，默认 21600000；失败缓存最长 600000
  * - 检测仅写 _googleCheck，不改 region/_failed；模板 {exit_is_cn} 在中国结果后贴附 *，另支持 youtube_region/youtube_status/google_play_region
  * - ipinfo_url    META 失败后的 ipinfo Lite 兜底 API 模板 默认: https://api.ipinfo.io/lite/{ip}
  * - ipinfo_token  ipinfo API Token（优先于 env 注入，优先于进程环境变量）
@@ -216,13 +216,13 @@ async function operator(proxies = [], targetPlatform, context) {
     const cache = typeof scriptResourceCache !== 'undefined' ? scriptResourceCache : null;
     const fallbackCacheEnabled = cacheEnabled && toBoolean($arguments.cache_fallback, true);
     const includeUnsupportedProxy = toBoolean($arguments.include_unsupported, false);
-    const cnScope = $arguments.cn_check == null
+    const cnScope = $arguments.exit_is_cn_check == null
         ? { test: name => GOOGLE_CHECK_ASIA_REGIONS.has(detectRegionFromName(name)?.code) }
-        : compileCheckScope($arguments.cn_check, 'cn_check');
-    const cnExclude = compileCheckScope($arguments.cn_check_exclude, 'cn_check_exclude');
-    const cnTimeout = parsePositiveNumber($arguments.cn_check_timeout, 5000);
-    const cnConcurrency = parsePositiveInt($arguments.cn_check_concurrency, 2);
-    const cnCacheTtl = parsePositiveNumber($arguments.cn_check_cache_ttl, 21600000);
+        : compileCheckScope($arguments.exit_is_cn_check, 'exit_is_cn_check');
+    const cnExclude = compileCheckScope($arguments.exit_is_cn_check_exclude, 'exit_is_cn_check_exclude');
+    const cnTimeout = parsePositiveNumber($arguments.exit_is_cn_check_timeout, 5000);
+    const cnConcurrency = parsePositiveInt($arguments.exit_is_cn_check_concurrency, 2);
+    const cnCacheTtl = parsePositiveNumber($arguments.exit_is_cn_check_cache_ttl, 21600000);
 
     // 调试日志
     const debug = getArg('debug') ?? true;

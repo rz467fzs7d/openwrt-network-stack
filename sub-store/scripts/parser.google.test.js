@@ -57,9 +57,9 @@ test('exit_is_cn marker attaches without a separator, only for explicit Chinese 
 });
 
 test('explicitly disabled; include/exclude apply to original names independently of GeoIP skip', async () => {
-    const off = harness({ cn_check: '' }); await off.context.operator(nodes());
+    const off = harness({ exit_is_cn_check: '' }); await off.context.operator(nodes());
     assert.equal(off.requests.length, 0); assert.equal(off.starts.length, 0);
-    const h = harness({ cn_check: 'JP', cn_check_exclude: 'Office', f: '{region}{youtube_region}' },
+    const h = harness({ exit_is_cn_check: 'JP', exit_is_cn_check_exclude: 'Office', f: '{region}{youtube_region}' },
         opt => ({ status: 200, body: opt.url.includes('youtube') ? 'ad-free "INNERTUBE_CONTEXT_GL":"CN"' : '<div class="yVZQTb">China</div>' }));
     const result = await h.context.operator(nodes());
     assert.equal(h.starts.length, 1); assert.equal(h.starts[0].proxies.length, 1);
@@ -87,15 +87,15 @@ test('default scope includes Asian regions but excludes Europe, Oceania and Amer
 });
 
 test('bad scope fails before network; unmatched scope starts no META', async () => {
-    const bad = harness({ cn_check: '[' });
-    await assert.rejects(bad.context.operator(nodes()), /cn_check/);
+    const bad = harness({ exit_is_cn_check: '[' });
+    await assert.rejects(bad.context.operator(nodes()), /exit_is_cn_check/);
     assert.equal(bad.starts.length, 0);
-    const none = harness({ cn_check: 'US' }); await none.context.operator(nodes());
+    const none = harness({ exit_is_cn_check: 'US' }); await none.context.operator(nodes());
     assert.equal(none.starts.length, 0);
 });
 
 test('HTTP failures and exceptions remain unknown, never remove nodes; META stops', async () => {
-    const h = harness({ cn_check: 'JP', cn_check_exclude: 'Office' }, opt => {
+    const h = harness({ exit_is_cn_check: 'JP', exit_is_cn_check_exclude: 'Office' }, opt => {
         if (opt.url.includes('youtube')) throw new Error('timeout');
         return { status: 403, body: 'www.google.cn' };
     });
@@ -110,7 +110,7 @@ test('HTTP failures and exceptions remain unknown, never remove nodes; META stop
 
 test('endpoint changes invalidate cache; disabling cache forces fresh checks', async () => {
     const response = opt => ({ status: 200, body: opt.url.includes('youtube') ? 'ad-free "INNERTUBE_CONTEXT_GL":"JP"' : '<div class="yVZQTb">Japan</div>' });
-    const h = harness({ cn_check: '^JP Home$' }, response);
+    const h = harness({ exit_is_cn_check: '^JP Home$' }, response);
     await h.context.operator(nodes());
     const changed = nodes(); changed[0].server = 'new.example.com';
     await h.context.operator(changed); assert.equal(h.requests.length, 4);
@@ -123,7 +123,7 @@ test('endpoint changes invalidate cache; disabling cache forces fresh checks', a
 
 test('explicit all scope obeys concurrency and META lease; flat endpoints do not inherit results', async () => {
     let active = 0, peak = 0;
-    const h = harness({ cn_check: '.*', cn_check_concurrency: 1, flat: '{example.com:192.0.2.1}' }, async opt => {
+    const h = harness({ exit_is_cn_check: '.*', exit_is_cn_check_concurrency: 1, flat: '{example.com:192.0.2.1}' }, async opt => {
         active++; peak = Math.max(peak, active);
         await new Promise(resolve => setImmediate(resolve)); active--;
         return { status: 200, body: opt.url.includes('youtube') ? 'www.google.cn' : '<div class="yVZQTb">China</div>' };
@@ -136,7 +136,7 @@ test('explicit all scope obeys concurrency and META lease; flat endpoints do not
 });
 
 test('optional META startup failure leaves subscription intact with unknown checks', async () => {
-    const h = harness({ cn_check: 'JP' });
+    const h = harness({ exit_is_cn_check: 'JP' });
     h.context.$substore.http.post = async () => { throw new Error('connection refused'); };
     const result = await h.context.operator(nodes());
     assert.equal(result.length, 3);
