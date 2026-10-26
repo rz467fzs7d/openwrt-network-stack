@@ -29,7 +29,7 @@
  * - probe_retries 请求重试次数  默认: 1
  * - probe_retry_delay 请求重试间隔(ms) 默认: 1000
  * - probe_timeout 单节点预估耗时(ms)，同时用作单次请求超时 默认: 3000
- * - cn_check     Google 检测范围：默认仅港澳台（复用名称地区识别）；自定义原始节点名正则，空=关闭，.*=全量
+ * - cn_check     Google 检测范围：默认亚洲地区（含港澳台，复用名称地区识别）；自定义原始节点名正则，空=关闭，.*=全量
  * - cn_check_exclude 排除原始节点名正则，优先于 cn_check
  * - cn_check_timeout 单个 Google/YouTube 请求超时(ms)，默认 5000
  * - cn_check_concurrency 并发节点数，默认 2
@@ -151,6 +151,7 @@ const REGION_HINTS_CACHE_TTL = 30 * 24 * 60 * 60 * 1000; // 30 天
 // See THIRD_PARTY_NOTICES.md and LICENSE.RegionRestrictionCheck.
 const GOOGLE_CHECK_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
 const GOOGLE_CHECK_COOKIE = 'YSC=FSCWhKo2Zgw; VISITOR_PRIVACY_METADATA=CgJERRIEEgAgYQ%3D%3D; PREF=f7=4000; __Secure-YEC=CgtRWTBGTFExeV9Iayjele2yBjIKCgJERRIEEgAgYQ%3D%3D; SOCS=CAISOAgDEitib3FfaWRlbnRpdHlmcm9udGVuZHVpc2VydmVyXzIwMjQwNTI2LjAxX3AwGgV6aC1DTiACGgYIgMnpsgY; VISITOR_INFO1_LIVE=Di84mAIbgKY; __Secure-BUCKET=CGQ';
+const GOOGLE_CHECK_ASIA_REGIONS = new Set('AF AM AZ BH BD BT BN KH CN CY GE HK IN ID IR IQ IL JP JO KZ KW KG LA LB MO MY MV MN MM NP KP OM PK PS PH QA SA SG KR LK SY TW TJ TH TL TR TM AE UZ VN YE'.split(' '));
 
 function compileCheckScope(value, name) {
     if (!String(value ?? '').trim()) return null;
@@ -216,7 +217,7 @@ async function operator(proxies = [], targetPlatform, context) {
     const fallbackCacheEnabled = cacheEnabled && toBoolean($arguments.cache_fallback, true);
     const includeUnsupportedProxy = toBoolean($arguments.include_unsupported, false);
     const cnScope = $arguments.cn_check == null
-        ? { test: name => ['HK', 'MO', 'TW'].includes(detectRegionFromName(name)?.code) }
+        ? { test: name => GOOGLE_CHECK_ASIA_REGIONS.has(detectRegionFromName(name)?.code) }
         : compileCheckScope($arguments.cn_check, 'cn_check');
     const cnExclude = compileCheckScope($arguments.cn_check_exclude, 'cn_check_exclude');
     const cnTimeout = parsePositiveNumber($arguments.cn_check_timeout, 5000);

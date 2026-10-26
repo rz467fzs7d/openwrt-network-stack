@@ -74,16 +74,16 @@ test('explicitly disabled; include/exclude apply to original names independently
     await h.context.operator(nodes()); assert.equal(h.requests.length, 4);
 });
 
-test('default scope checks only Hong Kong, Macao and Taiwan using existing region recognition', async () => {
+test('default scope includes Asian regions but excludes Europe, Oceania and Americas', async () => {
     const h = harness();
-    const input = ['HK-01', '澳门家宽', '台灣 01', '🇭🇰 Home', 'JP Home', 'Australia AU', 'US Home']
+    const input = ['HK-01', '澳门家宽', '台灣 01', '🇭🇰 Home', 'JP Home', 'SG Home', 'IN Home', 'TH Home', 'AE Home', 'Australia AU', 'US Home', 'GB Home']
         .map(name => ({ name, type: 'ss', server: 'example.com', port: 443 }));
     const result = await h.context.operator(input);
     assert.equal(h.starts.length, 1);
-    assert.equal(h.starts[0].proxies.length, 4);
-    assert.equal(h.requests.length, 8);
-    assert.ok(result.slice(0, 4).every(p => p._googleCheck));
-    assert.ok(result.slice(4).every(p => !p._googleCheck));
+    assert.equal(h.starts[0].proxies.length, 9);
+    assert.equal(h.requests.length, 18);
+    assert.ok(result.slice(0, 9).every(p => p._googleCheck));
+    assert.ok(result.slice(9).every(p => !p._googleCheck));
 });
 
 test('bad scope fails before network; unmatched scope starts no META', async () => {
