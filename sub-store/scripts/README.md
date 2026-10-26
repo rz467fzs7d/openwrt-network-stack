@@ -41,7 +41,7 @@ https://fastly.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@0be4c6f/sub-stor
 
 | 参数 | 说明 | 默认值 |
 | --- | --- | --- |
-| `cn_check` | 检测范围：匹配重命名前节点名的正则，忽略大小写；只有显式 `.*` 才是全量 | 空，关闭 |
+| `cn_check` | 默认按现有名称地区识别仅检测 HK/MO/TW；可覆盖为原始节点名正则，忽略大小写；显式空值关闭，`.*` 全量 | 港澳台 |
 | `cn_check_exclude` | 排除节点名正则，优先于包含范围 | 空 |
 | `cn_check_timeout` | 每个请求超时，毫秒 | `5000` |
 | `cn_check_concurrency` | 同时检测的节点数 | `2` |
@@ -53,6 +53,8 @@ https://fastly.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@0be4c6f/sub-stor
 cn_check=JP|日本&cn_check_exclude=Office|Local
 ```
 
+不传 `cn_check` 时默认检测港澳台，复用现有名称地区识别（代码、中文名称、旗帜等），不会将澳大利亚视为澳门。
+显式传 `cn_check=` 关闭；传自定义正则覆盖默认范围，而不是叠加。
 匹配对象是进入 parser 的节点名，不是 `{region}` 格式化后的名字。
 无匹配时不启动检测。名称已识别国家或已命中 GeoIP 缓存不会跳过该检测。
 每个待测节点通过自己的 HTTP META 代理端口访问 YouTube Premium 和 Google Play，

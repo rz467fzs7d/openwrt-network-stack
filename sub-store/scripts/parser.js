@@ -29,7 +29,7 @@
  * - probe_retries 请求重试次数  默认: 1
  * - probe_retry_delay 请求重试间隔(ms) 默认: 1000
  * - probe_timeout 单节点预估耗时(ms)，同时用作单次请求超时 默认: 3000
- * - cn_check     Google 检测范围（原始节点名正则，忽略大小写）；空=关闭，.*=明确全量
+ * - cn_check     Google 检测范围：默认仅港澳台（复用名称地区识别）；自定义原始节点名正则，空=关闭，.*=全量
  * - cn_check_exclude 排除原始节点名正则，优先于 cn_check
  * - cn_check_timeout 单个 Google/YouTube 请求超时(ms)，默认 5000
  * - cn_check_concurrency 并发节点数，默认 2
@@ -215,7 +215,9 @@ async function operator(proxies = [], targetPlatform, context) {
     const cache = typeof scriptResourceCache !== 'undefined' ? scriptResourceCache : null;
     const fallbackCacheEnabled = cacheEnabled && toBoolean($arguments.cache_fallback, true);
     const includeUnsupportedProxy = toBoolean($arguments.include_unsupported, false);
-    const cnScope = compileCheckScope($arguments.cn_check, 'cn_check');
+    const cnScope = $arguments.cn_check == null
+        ? { test: name => ['HK', 'MO', 'TW'].includes(detectRegionFromName(name)?.code) }
+        : compileCheckScope($arguments.cn_check, 'cn_check');
     const cnExclude = compileCheckScope($arguments.cn_check_exclude, 'cn_check_exclude');
     const cnTimeout = parsePositiveNumber($arguments.cn_check_timeout, 5000);
     const cnConcurrency = parsePositiveInt($arguments.cn_check_concurrency, 2);

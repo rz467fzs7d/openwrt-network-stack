@@ -42,8 +42,8 @@ test('upstream YouTube classifications and Play text extraction', () => {
     assert.equal(c.parseGooglePlay('captcha').status, 'unknown');
 });
 
-test('disabled by default; include/exclude apply to original names independently of GeoIP skip', async () => {
-    const off = harness(); await off.context.operator(nodes());
+test('explicitly disabled; include/exclude apply to original names independently of GeoIP skip', async () => {
+    const off = harness({ cn_check: '' }); await off.context.operator(nodes());
     assert.equal(off.requests.length, 0); assert.equal(off.starts.length, 0);
     const h = harness({ cn_check: 'JP', cn_check_exclude: 'Office', f: '{region}{youtube_region}' },
         opt => ({ status: 200, body: opt.url.includes('youtube') ? 'ad-free "INNERTUBE_CONTEXT_GL":"CN"' : '<div class="yVZQTb">China</div>' }));
@@ -58,6 +58,18 @@ test('disabled by default; include/exclude apply to original names independently
     await h.context.operator(nodes()); assert.equal(h.requests.length, 2);
     for (const [key, value] of h.store) if (key.startsWith('parser:google-check:')) value.checkedAt = 0;
     await h.context.operator(nodes()); assert.equal(h.requests.length, 4);
+});
+
+test('default scope checks only Hong Kong, Macao and Taiwan using existing region recognition', async () => {
+    const h = harness();
+    const input = ['HK-01', '澳门家宽', '台灣 01', '🇭🇰 Home', 'JP Home', 'Australia AU', 'US Home']
+        .map(name => ({ name, type: 'ss', server: 'example.com', port: 443 }));
+    const result = await h.context.operator(input);
+    assert.equal(h.starts.length, 1);
+    assert.equal(h.starts[0].proxies.length, 4);
+    assert.equal(h.requests.length, 8);
+    assert.ok(result.slice(0, 4).every(p => p._googleCheck));
+    assert.ok(result.slice(4).every(p => !p._googleCheck));
 });
 
 test('bad scope fails before network; unmatched scope starts no META', async () => {
