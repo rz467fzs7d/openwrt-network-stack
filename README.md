@@ -1,12 +1,14 @@
 # OpenWrt Network Stack
 
-基于 OpenWrt 的完整网络解决方案：AdGuard Home (广告拦截) + OpenClash (智能分流) + Sub-Store (订阅管理)。
+围绕 OpenWrt 的网络配置与部署方案，整合 AdGuard Home DNS 过滤、OpenClash / Mihomo 分流与 Sub-Store 订阅管理，并提供节点重命名、出口地区识别和按需 Google / YouTube 送中检测。
 
 > 🚀 **完整部署指南**: 查看 [DEPLOYMENT-GUIDE.md](DEPLOYMENT-GUIDE.md) 了解详细的部署步骤和配置说明。
 
 ## 📐 网络架构
 
 ### 拓扑结构
+
+下图为同机部署示例，地址和端口需按实际环境调整。Sub-Store 也可独立部署在 NAS 等设备上；它向 OpenClash 提供订阅，不参与 DNS 查询或代理流量转发。
 
 ```
                     互联网
@@ -141,10 +143,23 @@ openwrt-network-stack/
 
 ### Sub-Store
 - 订阅托管和转换
-- 智能节点重命名 (42 个国家/地区)
-- 运营商和 IPLC 专线识别
-- Docker 部署方案 (镜像体积减少 37.5%)
+- 节点地区识别、HTTP META 出口探测与自定义重命名
+- Home、IPLC、UDPN 标签识别，以及排序、拍平和缓存
+- 模板使用 `{region*}` 时按需检测 Google / YouTube 送中情况，默认范围为亚洲国家和地区；使用 `{region}` 不执行送中检测
+- 送中标记嵌入地区字段，例如 `ENET-HK*-02`；检测失败保持未知，不自动删除节点
+- 支持检测范围、排除规则、并发、超时与缓存时长配置
+- Docker 部署方案
 - 详细文档: [sub-store/README.md](sub-store/README.md)
+
+重命名示例（`f` / `format`）：
+
+```text
+{prefix:ENET}{region*}{i:2d}{tag:Home=家宽|home}
+```
+
+明确检测结果默认缓存 6 小时，任一检测未知时最长缓存 10 分钟。
+Google 服务识别的地区不等同于普通 GeoIP 地区；具体判定方法和参数见
+[脚本说明](sub-store/scripts/README.md#google--youtube-送中检测可选)。
 
 ## 📖 快速开始
 
@@ -188,6 +203,9 @@ uci commit dhcp
 ## 📄 许可证
 
 MIT License
+
+第三方检测逻辑的授权单独说明：Google / YouTube 检测参考 RegionRestrictionCheck，
+相关逻辑遵循 AGPL-3.0，详见 [第三方声明](sub-store/scripts/THIRD_PARTY_NOTICES.md)。
 
 ## 🔗 相关链接
 
