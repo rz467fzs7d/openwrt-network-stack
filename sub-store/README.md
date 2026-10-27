@@ -40,7 +40,7 @@ OpenWrt 特定配置请参见：[docker/OPENWRT-GUIDE.md](docker/OPENWRT-GUIDE.m
 
 **CDN URL**：
 ```
-https://fastly.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@67495fd/sub-store/scripts/parser.js
+https://fastly.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@2329571/sub-store/scripts/parser.js
 ```
 
 **功能特性**：
@@ -110,7 +110,7 @@ node run-benchmark.js
 ### 2026-10-27
 
 - 送中检测按需启用：仅当重命名模板包含 `{region*}` 时运行；`{region}` 或未设置模板不触发检测。
-- 更新入口文档的脚本链接至 `67495fd`，包含最新送中检测与地区标记功能。
+- 更新入口文档的脚本链接至 `2329571`，包含按需送中检测与地区标记功能。
 - 检测方法参考 RegionRestrictionCheck，分别经节点访问 YouTube Premium 与 Google Play；请求失败或无法识别时视为未知，不据此标记送中，也不删除节点。
 - 默认检测亚洲国家和地区（含港澳台、中亚、中东）。`exit_is_cn_check` 可指定原始节点名正则；显式空值关闭检测，`.*` 检测全部；`exit_is_cn_check_exclude` 可排除指定节点。
 - 明确结果默认缓存 6 小时，任一检测未知时最长缓存 10 分钟；默认并发 2，每个请求超时 5 秒。缓存可用时复用结果，不重复探测。
