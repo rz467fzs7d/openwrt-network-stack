@@ -813,8 +813,7 @@ function resolvePlaceholder(proxy, placeholder, conn) {
     if (placeholder === 'google_play_region') return (proxy._googleCheck?.play?.region || '').trim();
     if (placeholder === 'exit_is_cn' || placeholder === 'region*') {
         const check = proxy._googleCheck;
-        const playChina = check?.play?.status === 'detected' && /^(china|cn)$/i.test(check.play.region?.trim() || '');
-        const marker = check?.youtube?.status === 'cn' || playChina ? '*' : '';
+        const marker = check?.youtube?.status === 'cn' ? '*' : '';
         return placeholder === 'region*' ? `${proxy.region_code || ''}${marker}` : marker;
     }
 

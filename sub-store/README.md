@@ -105,6 +105,7 @@ node --test sub-store/scripts/parser.google.test.js
 
 ### 2026-10-27
 
+- 修正星号判定：只依据 YouTube 的 `cn` 结果；Google Play 的 China 地区不再触发标记，保留独立诊断信息。星号不承诺无广告。
 - 送中检测按需启用：仅当重命名模板包含 `{region*}` 时运行；`{region}` 或未设置模板不触发检测。
 - 更新入口文档的脚本链接至 `2329571`，包含按需送中检测与地区标记功能。
 - 检测方法参考 RegionRestrictionCheck，分别经节点访问 YouTube Premium 与 Google Play；请求失败或无法识别时视为未知，不据此标记送中，也不删除节点。

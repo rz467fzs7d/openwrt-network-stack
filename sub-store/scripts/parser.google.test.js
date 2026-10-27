@@ -48,7 +48,10 @@ test('exit_is_cn marker attaches without a separator, only for explicit Chinese 
     const format = c.compileFormat('{prefix:ENET}{region}{i:2d}{tag}{exit_is_cn}');
     const node = { region_code: 'HK', index: 2, tag: '' };
     const render = check => c.applyCompiledFormat({ ...node, _googleCheck: check }, format, '-');
-    assert.equal(render({ play: { status: 'detected', region: 'China ' } }), 'ENET-HK-02*');
+    assert.equal(render({ play: { status: 'detected', region: 'China ' } }), 'ENET-HK-02');
+    assert.equal(render({ youtube: { status: 'available', region: 'VN' }, play: { status: 'detected', region: 'China ' } }), 'ENET-HK-02');
+    assert.equal(render({ youtube: { status: 'unavailable' }, play: { status: 'detected', region: 'CN' } }), 'ENET-HK-02');
+    assert.equal(render({ youtube: { status: 'unknown' }, play: { status: 'detected', region: 'China' } }), 'ENET-HK-02');
     assert.equal(render({ youtube: { status: 'cn' } }), 'ENET-HK-02*');
     assert.equal(render({ play: { status: 'detected', region: 'Hong Kong ' } }), 'ENET-HK-02');
     assert.equal(render({ youtube: { status: 'unavailable' }, play: { status: 'unknown' } }), 'ENET-HK-02');
@@ -59,13 +62,14 @@ test('exit_is_cn marker attaches without a separator, only for explicit Chinese 
 test('region* is a single decorated field and obeys normal connector behavior', async () => {
     const { context: c } = harness();
     const format = c.compileFormat('{prefix:ENET}{region*}{i:2d}{tag}');
-    const node = { region_code: 'HK', index: 1, tag: 'Home', _googleCheck: { play: { status: 'detected', region: 'China ' } } };
+    const node = { region_code: 'HK', index: 1, tag: 'Home', _googleCheck: { youtube: { status: 'cn' } } };
     assert.equal(c.applyCompiledFormat(node, format, '-'), 'ENET-HK*-01-Home');
     assert.equal(c.applyCompiledFormat(node, format, '_'), 'ENET_HK*_01_Home');
     assert.equal(c.applyCompiledFormat(node, c.compileFormat('{region*}-{i:2d}'), '-'), 'HK*-01');
     assert.equal(c.applyCompiledFormat({ ...node, _googleCheck: undefined }, format, '-'), 'ENET-HK-01-Home');
     assert.equal(c.applyCompiledFormat({ ...node, _googleCheck: { play: { status: 'unknown' } } }, format, '-'), 'ENET-HK-01-Home');
     assert.equal(node.region_code, 'HK');
+    assert.equal(c.applyCompiledFormat({ ...node, _googleCheck: { youtube: { status: 'available', region: 'VN' }, play: { status: 'detected', region: 'China' } } }, format, '-'), 'ENET-HK-01-Home');
     const h = harness({ f: '{prefix:ENET}{region*}{i:2d}{tag:Home=家宽|home}' }, opt => ({ status: 200,
         body: opt.url.includes('youtube') ? 'www.google.cn' : '<div class="yVZQTb">China</div>' }));
     const result = await h.context.operator([{ name: 'HK Home', type: 'ss', server: 'example.com', port: 443 }]);

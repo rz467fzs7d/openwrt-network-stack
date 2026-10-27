@@ -77,8 +77,8 @@ Play 原样返回页面地区文字，不强制换算国家码；两者不合并
 缓存按节点配置隔离，不使用地区探测的身份兜底缓存；`cache=false` 也关闭这项缓存。
 `flat` 派生的其他服务器地址不继承 Google 检测结果。
 
-`{region*}` 返回带送中标记的地区字段：已有 YouTube 结果为 `cn`，或 Google Play
-明确返回 `China` / `CN` 时输出 `HK*` 等，否则仍为 `HK`。作为一个字段正常参与 connector 拼接，
+`{region*}` 返回带送中标记的地区字段：仅当已有 YouTube 结果为 `cn` 时输出 `HK*` 等，
+否则仍为 `HK`。Google Play 地区仅供独立诊断，不参与星号判定。作为一个字段正常参与 connector 拼接，
 不改变原始 `region_code` 或地区分组编号。例如：
 
 ```text
@@ -88,8 +88,8 @@ f={prefix:ENET}{region*}{i:2d}{tag:Home=家宽|home}
 输出 `ENET-HK*-01` 或 `ENET-HK*-01-Home`；未标记节点仍为 `ENET-HK-01`。
 使用 `{region*}` 后不应再追加 `{exit_is_cn}`，否则会重复标记。
 
-`{exit_is_cn}` 保留兼容：仅当已有 YouTube 结果为 `cn`，或 Google Play 明确返回
-`China` / `CN` 时输出 `*`，贴附前一个非空命名字段，不额外添加连接符。
+`{exit_is_cn}` 保留兼容：仅当已有 YouTube 结果为 `cn` 时输出 `*`，
+贴附前一个非空命名字段，不额外添加连接符。Premium 页面中的 `ad-free` 文案不是实际无广告验证。
 例如 `f={prefix:ENET}{region}{i:2d}{tag:Home=家宽|home}{exit_is_cn}` 输出
 `ENET-HK-02*`；正常、未知或未检测时名称不变。此为已有结果的展示，不新增网络检测方法。
 
