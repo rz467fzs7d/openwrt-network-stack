@@ -36,6 +36,9 @@ https://fastly.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@0be4c6f/sub-stor
 
 ### Google / YouTube 送中检测（可选）
 
+仅当重命名模板 `f` / `format` 包含 `{region*}` 时执行检测及读取检测缓存。
+使用 `{region}`、未设置模板或仅使用 `{exit_is_cn}` 均不触发检测；范围参数仅在启用后生效。
+
 检测方法移植自 RegionRestrictionCheck，来源与许可证见
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。不使用普通 GeoIP 国家推断 Google 地区。
 

@@ -8,7 +8,7 @@ function harness(args = {}, getResponse = () => ({ status: 200, body: '' })) {
     const requests = [], starts = [], logs = [], store = new Map();
     let stops = 0;
     const context = {
-        $arguments: args,
+        $arguments: { f: '{region*}', ...args },
         ProxyUtils: { produce: nodes => nodes.map(node => ({ ...node })) },
         scriptResourceCache: { get: key => store.get(key), set: (key, value) => store.set(key, value) },
         $substore: {
@@ -73,10 +73,25 @@ test('region* is a single decorated field and obeys normal connector behavior', 
     assert.equal(result[0].region_code, 'HK');
 });
 
+test('only region* in rename format enables checks, including cached checks', async () => {
+    for (const format of [undefined, '', '{region}', '{region_code}', '{region}{exit_is_cn}', '{youtube_region}']) {
+        const h = harness({ f: format, exit_is_cn_check: '[', exit_is_cn_check_exclude: '[' });
+        const input = nodes(); input[0]._googleCheck = { stale: true };
+        const result = await h.context.operator(input);
+        assert.equal(h.starts.length, 0);
+        assert.equal(h.requests.length, 0);
+        assert.ok(result.every(p => !p._googleCheck));
+        assert.ok([...h.store.keys()].every(key => !key.startsWith('parser:google-check:')));
+    }
+    const h = harness({ format: '{region*}', f: undefined });
+    await h.context.operator(nodes());
+    assert.equal(h.requests.length, 6);
+});
+
 test('explicitly disabled; include/exclude apply to original names independently of GeoIP skip', async () => {
     const off = harness({ exit_is_cn_check: '' }); await off.context.operator(nodes());
     assert.equal(off.requests.length, 0); assert.equal(off.starts.length, 0);
-    const h = harness({ exit_is_cn_check: 'JP', exit_is_cn_check_exclude: 'Office', f: '{region}{youtube_region}' },
+    const h = harness({ exit_is_cn_check: 'JP', exit_is_cn_check_exclude: 'Office', f: '{region*}{youtube_region}' },
         opt => ({ status: 200, body: opt.url.includes('youtube') ? 'ad-free "INNERTUBE_CONTEXT_GL":"CN"' : '<div class="yVZQTb">China</div>' }));
     const result = await h.context.operator(nodes());
     assert.equal(h.starts.length, 1); assert.equal(h.starts[0].proxies.length, 1);
