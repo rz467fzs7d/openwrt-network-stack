@@ -1,4 +1,4 @@
-# DNS Benchmark - DNS 性能基���测试工具
+# DNS Benchmark - DNS 性能基准测试工具
 
 一个轻量级的 DNS 性能基准测试工具，专为 OpenWrt 等嵌入式 Linux 环境设计。
 
@@ -280,5 +280,5 @@ echo "推荐使用: $FASTEST"
 
 ## 相关资源
 
-- [OpenWrt DNS 配置��档](https://openwrt.org/docs/guide-user/base-system/dhcp)
+- [OpenWrt DNS 配置文档](https://openwrt.org/docs/guide-user/base-system/dhcp)
 - [DoH 标准 RFC 8484](https://datatracker.ietf.org/doc/html/rfc8484)

@@ -152,7 +152,7 @@ socks-port: 7891
 mixed-port: 7892
 
 # 外部控制
-external-controller: 0.0.0.0:9090
+external-controller: 127.0.0.1:9090
 secret: ""
 
 # ============================================
@@ -432,7 +432,7 @@ show_openclash_config_guide() {
     cat <<EOF
 
 ${BOLD}${GREEN}OpenClash 配置完成${NC}
-━━━━���━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ${BOLD}管理地址:${NC}
    LuCI: ${CYAN}http://${OPENWRT_IP}/cgi-bin/luci/admin/services/openclash${NC}

@@ -14,7 +14,8 @@
 
 ```bash
 # 下载部署脚本
-wget https://raw.githubusercontent.com/rz467fzs7d/openwrt-network-stack/main/scripts/deploy.sh
+git clone https://github.com/rz467fzs7d/openwrt-network-stack.git
+cd openwrt-network-stack/scripts
 
 # 添加执行权限
 chmod +x deploy.sh
@@ -165,7 +166,6 @@ services:
     restart: unless-stopped
     ports:
       - "3001:3001"
-      - "3000:3000"
     volumes:
       - ./data:/opt/app/data
     environment:
@@ -193,7 +193,6 @@ docker run -d \
   --name sub-store \
   --restart unless-stopped \
   -p 3001:3001 \
-  -p 3000:3000 \
   -v /root/sub-store/data:/opt/app/data \
   -e SUB_STORE_FRONTEND_BACKEND_PATH=/backend \
   -e TZ=Asia/Shanghai \
@@ -248,7 +247,7 @@ opkg install luci-app-openclash
 cd /etc/openclash
 
 # 下载 Mihomo 配置模板
-wget https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/openclash/config/config-mihomo-template.yaml -O config.yaml
+wget https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/clash/config/config-template.yaml -O config.yaml
 
 # 备份原配置（可选）
 # cp config.yaml config.yaml.bak
@@ -306,7 +305,7 @@ mihomo -t -d /etc/openclash
 3. 上传配置文件或在线编辑
 4. 启动 OpenClash
 
-> 📖 **详细配置**: [openclash/CONFIGURATION.md](openclash/CONFIGURATION.md)
+> 📖 **详细配置**: [clash/CONFIGURATION.md](clash/CONFIGURATION.md)
 
 ---
 
@@ -405,7 +404,7 @@ docker ps | grep sub-store
 netstat -tuln | grep -E '53|3000|3001|7874'
 # 应该看到:
 # - 53 (AdGuard Home)
-# - 3000 (Sub-Store backend / AdGuard Home web)
+# - 3000 (AdGuard Home web)
 # - 3001 (Sub-Store frontend)
 # - 7874 (OpenClash DNS)
 ```
@@ -500,7 +499,7 @@ services:
 
 **解决**:
 ```bash
-# 添��防火墙规则
+# 添加防火墙规则
 iptables -t nat -A POSTROUTING -s 172.17.0.0/16 ! -o docker0 -j MASQUERADE
 
 # 持久化规则
@@ -547,8 +546,8 @@ logread | grep openclash
 |------|------|
 | [README.md](README.md) | 网络架构和拓扑说明 |
 | [sub-store/docker/OPENWRT-GUIDE.md](sub-store/docker/OPENWRT-GUIDE.md) | Sub-Store 旁路由部署详解 |
-| [openclash/CONFIGURATION.md](openclash/CONFIGURATION.md) | OpenClash/Mihomo 配置说明 |
-| [openclash/rules/README.md](openclash/rules/README.md) | 自定义规则集 |
+| [clash/CONFIGURATION.md](clash/CONFIGURATION.md) | OpenClash/Mihomo 配置说明 |
+| [clash/CONFIGURATION.md](clash/CONFIGURATION.md) | 自定义规则集 |
 | [adguardhome/CONFIGURATION.md](adguardhome/CONFIGURATION.md) | AdGuard Home 配置详解 |
 
 ---

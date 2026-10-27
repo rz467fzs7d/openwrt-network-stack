@@ -9,29 +9,26 @@ sub-store/
 ├── docker/          # Docker 部署文件
 │   ├── Dockerfile
 │   ├── docker-compose.yml
-│   ├── OPENWRT-GUIDE.md      # OpenWrt 部署指南
-│   └── README.md             # Docker 镜像说明
-├── scripts/         # 节点处理脚本
+│   └── OPENWRT-GUIDE.md      # OpenWrt 部署指南
+└── scripts/         # 节点处理脚本与测试
 │   ├── parser.js             # 智能节点处理脚本
-│   └── README.md             # 脚本详细文档
-└── test/           # 测试和基准测试
-    ├── benchmark-dataset.js  # 标准测试数据集
-    ├── run-benchmark.js      # 自动化测试运行器
-    └── README.md             # 测试说明
+    ├── parser.test.js        # 重命名与地区识别测试
+    ├── parser.google.test.js # Google 检测测试
+    └── README.md             # 脚本详细文档
 ```
 
 ## 🚀 快速开始
 
 ### 1. 部署 Sub Store
 
-使用 Docker 部署 Sub Store 服务（优化镜像，体积减小 37.5%）：
+使用 Docker 部署 Sub Store 服务：
 
 ```bash
 cd sub-store/docker
 docker-compose up -d
 ```
 
-详细部署说明请参见：[docker/README.md](docker/README.md)
+详细部署说明请参见：[INSTALLATION.md](INSTALLATION.md)
 OpenWrt 特定配置请参见：[docker/OPENWRT-GUIDE.md](docker/OPENWRT-GUIDE.md)
 
 ### 2. 使用节点重命名脚本
@@ -49,7 +46,7 @@ https://fastly.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@2329571/sub-stor
 - ✅ 自动设置 `region` 相关属性
 - ✅ 完全自定义格式化模板
 - ✅ 支持缓存、排序、拍平与批量处理
-- ✅ 默认检测亚洲节点的 Google / YouTube 送中情况，支持限定范围
+- ✅ 模板含 `{region*}` 时检测 Google / YouTube 送中情况，默认范围为亚洲
 - ✅ 使用 `{region*}` 将送中标记嵌入地区字段，例如 `ENET-HK*-02`
 
 详细使用说明请参见：[scripts/README.md](scripts/README.md)
@@ -58,10 +55,9 @@ https://fastly.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@2329571/sub-stor
 
 | 文档 | 说明 |
 |------|------|
-| [docker/README.md](docker/README.md) | Docker 镜像和部署说明 |
+| [INSTALLATION.md](INSTALLATION.md) | Docker 镜像和部署说明 |
 | [docker/OPENWRT-GUIDE.md](docker/OPENWRT-GUIDE.md) | OpenWrt 部署完整指南 |
 | [scripts/README.md](scripts/README.md) | 节点重命名脚本详细文档 |
-| [test/README.md](test/README.md) | 测试和基准测试说明 |
 
 ## 🎯 使用场景
 
@@ -93,11 +89,11 @@ https://fastly.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@2329571/sub-stor
 在部署前测试脚本功能：
 
 ```bash
-cd test
-node run-benchmark.js
+node sub-store/scripts/parser.test.js
+node --test sub-store/scripts/parser.google.test.js
 ```
 
-运行基准测试，验证 41 个节点的识别准确率和性能。
+在仓库根目录运行上述测试，验证地区识别、重命名、检测范围与缓存行为；这些测试不代表真实网络性能基准。
 
 ## 🔗 相关链接
 

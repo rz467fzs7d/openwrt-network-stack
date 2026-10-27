@@ -26,13 +26,7 @@
 ### 1. 下载部署脚本
 
 ```bash
-# 方法 1: 使用 wget
-wget https://raw.githubusercontent.com/rz467fzs7d/openwrt-network-stack/main/scripts/deploy.sh
-
-# 方法 2: 使用 curl
-curl -O https://raw.githubusercontent.com/rz467fzs7d/openwrt-network-stack/main/scripts/deploy.sh
-
-# 方法 3: 克隆整个仓库
+# 克隆完整仓库；部署脚本依赖同目录的 lib/ 和 config/
 git clone https://github.com/rz467fzs7d/openwrt-network-stack.git
 cd openwrt-network-stack/scripts
 ```
@@ -320,7 +314,7 @@ A: 通常需要 10-15 分钟，具体取决于网络速度和设备性能。
 
 **Q: 是否会覆盖现有配置？**
 
-A: 脚本会在覆盖前提示并创建���份，备份位于 `/root/openwrt-deploy-backup/`。
+A: 脚本会在覆盖前提示并创建备份，备份位于 `/root/openwrt-deploy-backup/`。
 
 **Q: 可以只部署部分组件吗？**
 
@@ -347,5 +341,5 @@ MIT License
 - [项目主页](https://github.com/rz467fzs7d/openwrt-network-stack)
 - [部署指南](../DEPLOYMENT-GUIDE.md)
 - [AdGuard Home 配置](../adguardhome/CONFIGURATION.md)
-- [OpenClash 配置](../openclash/CONFIGURATION.md)
+- [OpenClash 配置](../clash/CONFIGURATION.md)
 - [Sub-Store 文档](../sub-store/README.md)

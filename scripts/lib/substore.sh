@@ -96,7 +96,6 @@ services:
     # 端口映射
     ports:
       - "${SUBSTORE_WEB_PORT}:3001"   # Web 界面
-      - "${SUBSTORE_BACKEND_PORT}:3000"  # Backend API
 
     # 数据卷
     volumes:
@@ -131,7 +130,7 @@ verify_substore() {
     log_info "验证 Sub-Store 服务..."
 
     # 检查端口监听
-    local ports=("${SUBSTORE_WEB_PORT}" "${SUBSTORE_BACKEND_PORT}")
+    local ports=("${SUBSTORE_WEB_PORT}")
     for port in "${ports[@]}"; do
         if ! check_port_listening "${port}"; then
             log_error "端口 ${port} 未监听"

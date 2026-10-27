@@ -57,10 +57,10 @@ opkg install luci-app-openclash_xxx_all.ipk
 cd /etc/openclash
 
 # 下载本项目的 Mihomo 配置模板
-wget https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/openclash/config/config-mihomo-template.yaml -O config.yaml
+wget https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/clash/config/config-template.yaml -O config.yaml
 
 # 或者复制本地文件
-cp /path/to/openwrt-network-stack/openclash/config/config-mihomo-template.yaml /etc/openclash/config.yaml
+cp /path/to/openwrt-network-stack/clash/config/config-template.yaml /etc/openclash/config.yaml
 ```
 
 ### 5. 配置文件
@@ -134,7 +134,7 @@ mv mihomo-linux-arm64 /usr/bin/mihomo
 mkdir -p /etc/mihomo
 
 # 下载配置模板
-wget https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/openclash/config/config-mihomo-template.yaml -O /etc/mihomo/config.yaml
+wget https://cdn.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@main/clash/config/config-template.yaml -O /etc/mihomo/config.yaml
 ```
 
 ### 4. 配置文件
@@ -323,7 +323,7 @@ curl http://127.0.0.1:3001/api/health
 ## 下一步
 
 - 查看 [CONFIGURATION.md](CONFIGURATION.md) 了解详细配置
-- 查看 [rules/README.md](rules/README.md) 了解自定义规则
+- 查看 [rules/README.md](CONFIGURATION.md) 了解自定义规则
 - 查看 [DEPLOYMENT-GUIDE.md](../DEPLOYMENT-GUIDE.md) 了解与其他组件的集成
 
 ---

@@ -249,7 +249,7 @@ verify_network_connectivity() {
         log_warn "无法连接到主路由: ${MAIN_ROUTER_IP}"
     fi
 
-    # 测试���网连接
+    # 测试外网连接
     if check_network; then
         log_success "外网连接正常"
     else

@@ -6,10 +6,9 @@ services:
     container_name: sub-store
     restart: unless-stopped
 
-    # Ports
+    # Frontend and /backend API share this port. Restrict access to trusted clients.
     ports:
       - "3001:3001"  # Web interface
-      - "3000:3000"  # Backend API (optional, usually accessed via 3001)
 
     # Volumes
     volumes:
@@ -25,8 +24,7 @@ services:
     #   - 192.168.1.1
     #   - 8.8.8.8
 
-    # Optional: Network mode
-    # network_mode: host
+    # Docker's default bridge network keeps the container isolated from the host.
 
     # Health check
     healthcheck:

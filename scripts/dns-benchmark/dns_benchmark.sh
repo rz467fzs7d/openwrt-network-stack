@@ -197,7 +197,7 @@ test_doh_dns() {
         fi
 
         if [ $ret -eq 0 ] && echo "$output" | grep -q '"Answer"'; then
-            # ��单解析JSON获取IP(不依赖jq)
+            # 简单解析JSON获取IP(不依赖jq)
             local ip=$(echo "$output" | grep -o '"data":"[0-9.]*"' | head -1 | cut -d'"' -f4)
             if [ -n "$ip" ]; then
                 success_count=$((success_count + 1))

@@ -4,6 +4,15 @@
 
 > 🚀 **完整部署指南**: 查看 [DEPLOYMENT-GUIDE.md](DEPLOYMENT-GUIDE.md) 了解详细的部署步骤和配置说明。
 
+## 部署边界与安全
+
+- 地址和端口均为示例。各组件可同机或独立部署；部署前检查端口占用和数据持久化位置。
+- Sub-Store 的前端和 `/backend` API 统一通过 `3001` 访问，无需额外发布后端端口。管理页面和订阅链接只应向可信客户端开放；需要公网访问时，配置 HTTPS、访问控制并验证实际保护范围。
+- OpenClash 控制接口默认仅监听本机。需要远程面板时，另行配置监听地址、强密钥和访问限制。
+- 健康检查可按设备能力调整；示例检查只验证 Web 响应，不代表订阅、代理或 DNS 正常。
+- 部署脚本会安装组件并调整服务配置，适合新部署。已有环境先备份、审阅脚本，不直接运行自动确认模式覆盖配置。
+- 发布日志、截图和备份前，移除真实订阅地址、个人域名、内部域名与设备标识。Git 历史中的信息不会因新提交删除而消失。
+
 ## 📐 网络架构
 
 ### 拓扑结构
@@ -88,7 +97,8 @@ OpenClash DNS (127.0.0.1:7874)
 
 ```bash
 # 下载部署脚本
-wget https://raw.githubusercontent.com/rz467fzs7d/openwrt-network-stack/main/scripts/deploy.sh
+git clone https://github.com/rz467fzs7d/openwrt-network-stack.git
+cd openwrt-network-stack/scripts
 chmod +x deploy.sh
 
 # 运行部署
@@ -112,9 +122,9 @@ chmod +x deploy.sh
 
 ```
 openwrt-network-stack/
-├── openclash/              # OpenClash/Mihomo 配置
+├── clash/              # OpenClash/Mihomo 配置
 │   ├── config/         # 配置模板
-│   └── rules/          # 自定义规则集
+│                       # 自定义规则在模板中维护
 ├── sub-store/          # Sub-Store 订阅管理
 │   ├── docker/         # Docker 部署方案
 │   └── scripts/        # 节点处理脚本
@@ -138,8 +148,8 @@ openwrt-network-stack/
 - 基于内置 GeoSite/GeoIP 的智能分流 (国内直连/国外代理)，无第三方 rule-provider 依赖
 - 多地区节点自动选择 + fallback 故障转移
 - 分应用代理策略 (AI、流媒体)
-- 自定义路由规则 (`openclash/rules/*.yaml`)
-- 详细配置: [openclash/CONFIGURATION.md](openclash/CONFIGURATION.md)
+- 配置模板中的自定义路由规则 (`clash/config/config-template.yaml`)
+- 详细配置: [clash/CONFIGURATION.md](clash/CONFIGURATION.md)
 
 ### Sub-Store
 - 订阅托管和转换
@@ -181,7 +191,7 @@ uci commit dhcp
 | 组件 | 部署方式 | 访问地址 | 详细文档 |
 |------|---------|---------|---------|
 | **Sub-Store** | Docker | `http://192.168.0.2:3001` | [sub-store/README.md](sub-store/README.md) |
-| **OpenClash** | opkg | OpenWrt LuCI 界面 | [openclash/CONFIGURATION.md](openclash/CONFIGURATION.md) |
+| **OpenClash** | opkg | OpenWrt LuCI 界面 | [clash/CONFIGURATION.md](clash/CONFIGURATION.md) |
 | **AdGuard Home** | opkg | `http://192.168.0.2:3000` | [adguardhome/CONFIGURATION.md](adguardhome/CONFIGURATION.md) |
 
 ### 3. 配置关键连接
@@ -191,8 +201,8 @@ uci commit dhcp
 
 ## 🛠️ 高级配置
 
-- **自定义路由规则**: [openclash/rules/README.md](openclash/rules/README.md)
-- **内网办公网络配置**: [openclash/rules/README.md#openclash-绕过黑名单](openclash/rules/README.md#-openclash-绕过黑名单bypass-blacklist)
+- **自定义路由规则**: [clash/CONFIGURATION.md](clash/CONFIGURATION.md)
+- **内网办公网络配置**: [clash/CONFIGURATION.md#openclash-绕过黑名单](clash/CONFIGURATION.md#-openclash-绕过黑名单bypass-blacklist)
 - **节点重命名脚本**: [sub-store/scripts/README.md](sub-store/scripts/README.md)
 - **完整部署指南**: [DEPLOYMENT-GUIDE.md](DEPLOYMENT-GUIDE.md)
 

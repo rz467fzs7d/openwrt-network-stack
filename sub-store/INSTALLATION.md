@@ -7,7 +7,7 @@ Sub-Store 订阅管理服务的安装部署说明。
 
 ## 安装方式
 
-Sub-Store 推荐通过 Docker 部署，提供了优化的镜像（体积减少 37.5%）。
+Sub-Store 推荐通过 Docker 部署，提供包含 HTTP META 的镜像，体积随版本和架构变化。
 
 ---
 
@@ -36,7 +36,6 @@ docker run -d \
   --name sub-store \
   --restart unless-stopped \
   -p 3001:3001 \
-  -p 3000:3000 \
   -v ./data:/opt/app/data \
   -e SUB_STORE_FRONTEND_BACKEND_PATH=/backend \
   -e TZ=Asia/Shanghai \
@@ -54,7 +53,7 @@ docker run -d \
 
 ## OpenWrt 特殊配置
 
-在 OpenWrt 旁���由模式下部署时，需要额外配置：
+在 OpenWrt 旁路由模式下部署时，需要额外配置：
 
 ### 1. DNS 配置
 
@@ -95,9 +94,8 @@ echo 'iptables -t nat -A POSTROUTING -s 172.17.0.0/16 ! -o docker0 -j MASQUERADE
 docker ps | grep sub-store
 
 # 检查端口监听
-netstat -tuln | grep -E '3000|3001'
+netstat -tuln | grep -E '3001'
 # 应该看到:
-# - 3000 (Backend API)
 # - 3001 (Frontend Web UI)
 ```
 
@@ -220,11 +218,8 @@ EOF
 
 本项目使用优化的 Sub-Store Docker 镜像：
 
-| 特性 | 原版 | 优化版 | 改进 |
-|------|------|--------|------|
-| **镜像大小** | 264MB | 165MB | ✅ -37.5% |
-| **基础镜像** | node:22-alpine | alpine:3.20 | ✅ 更轻量 |
-| **内置功能** | 基础功能 | + mihomo + 通知 | ✅ 更完整 |
+镜像包含 Sub-Store、前端、HTTP META、Mihomo 和通知工具。
+镜像体积随上游版本与 CPU 架构变化，不作固定比例承诺。
 
 **镜像特性**:
 - ✅ 多阶段构建优化大小
