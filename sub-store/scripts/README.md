@@ -71,6 +71,8 @@ YouTube 状态为 `cn`、`available`、`unavailable`、`unknown`；Play 为 `det
 两项分别记录 `youtubeCheckedAt` / `playCheckedAt`；某一项失败或刷新不会重置另一项的有效期。
 日志包含待请求数量 `youtube_requests` / `play_requests`。META 启动失败的短缓存仅影响相同节点的本项检测，`cache=false` 可绕过。
 
+同次执行中，只有名称或内部元数据不同、其余连接配置完全一致的待测节点，共用临时核心端口及服务请求；输出节点、名称与检测范围仍各自保留。密码、协议、SNI、嵌套选项及数组顺序均参与比较，不按服务器 IP 简单合并。缓存仍按各节点原有键保存，不跨调用共享进行中的请求；GeoIP 身份兜底逻辑不变。
+
 YouTube 请求不携带固定 Cookie，避免会话偏好掩盖地区特征。此修复使用新的检测缓存版本，不复用旧 Cookie 检测结果；其他缓存与 TTL 不变。
 保留上游语义：页面包含 `www.google.cn` 标记为 `cn`；Premium 不支持不等于 CN；
 无地区但存在上游可用标记时地区为 `UNKNOWN`。HTTP 错误、超时、无有效页面为未知。
@@ -99,6 +101,10 @@ f={prefix:ENET}{region*}{i:2d}{tag:Home=家宽|home}
 `ENET-HK-02*`；正常、未知或未检测时名称不变。此为已有结果的展示，不新增网络检测方法。
 
 测试：`node --test sub-store/scripts/parser.google.test.js`。
+
+### 名称识别缓存
+
+名称到地区的缓存最多保留 10,000 条，超过时按插入顺序淘汰最早条目；命中不会重排或单独触发持久化写入。加载旧缓存时会自动收敛到该上限。淘汰只会使名称下次重新识别，不改变识别规则或输出；原有缓存有效期不变。
 
 ### 命名占位符
 

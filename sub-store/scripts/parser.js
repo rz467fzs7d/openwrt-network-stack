@@ -223,6 +223,8 @@ async function operator(proxies = [], targetPlatform, context) {
     const cacheEnabled = toBoolean($arguments.cache, true);
     const cache = typeof scriptResourceCache !== 'undefined' ? scriptResourceCache : null;
     const probeCacheIds = new WeakMap();
+    const connectionIds = new WeakMap();
+    const googleRequests = new Map();
     const fallbackCacheEnabled = cacheEnabled && toBoolean($arguments.cache_fallback, true);
     const includeUnsupportedProxy = toBoolean($arguments.include_unsupported, false);
     const cnCheckEnabled = String(getArg('format') ?? '').includes('{region*}');
@@ -331,8 +333,8 @@ async function operator(proxies = [], targetPlatform, context) {
         const pending = [];
         const pendingServices = new Map();
         let cacheHits = 0;
-        let youtubeRequests = 0;
-        let playRequests = 0;
+        const youtubeRequests = new Set();
+        const playRequests = new Set();
         const now = Date.now();
         for (const proxy of selected) {
             const saved = cacheEnabled && cache ? cache.get(googleCacheKey(proxy)) : null;
@@ -354,11 +356,11 @@ async function operator(proxies = [], targetPlatform, context) {
             } else {
                 pending.push(proxy);
                 pendingServices.set(proxy, { youtube: !youtubeFresh, play: playCheckEnabled && !playFresh });
-                if (!youtubeFresh) youtubeRequests++;
-                if (playCheckEnabled && !playFresh) playRequests++;
+                if (!youtubeFresh) youtubeRequests.add(connectionId(proxy));
+                if (playCheckEnabled && !playFresh) playRequests.add(connectionId(proxy));
             }
         }
-        $.info(`[PARSER][GOOGLE] selected=${selected.length}/${internalProxies.length} cached=${cacheHits} pending=${pending.length} youtube_requests=${youtubeRequests} play_requests=${playRequests}`);
+        $.info(`[PARSER][GOOGLE] selected=${selected.length}/${internalProxies.length} cached=${cacheHits} pending=${pending.length} youtube_requests=${youtubeRequests.size} play_requests=${playRequests.size}`);
         if (pending.length) {
             try {
                 await probeAll(pending, proxies, null, proxyWorker, cnTimeout * (playCheckEnabled ? 2 : 1), cnConcurrency);
@@ -459,6 +461,17 @@ async function operator(proxies = [], targetPlatform, context) {
             return { ports: null, pid: null };
         }
 
+        const coreProxies = [];
+        const coreIndexes = new Map();
+        const proxyIndexes = internalProxies.map(proxy => {
+            // GeoIP fallback uses each alias's own identity cache; only service checks share ports.
+            const key = worker === probeOne ? proxy : connectionId(proxy);
+            if (!coreIndexes.has(key)) {
+                coreIndexes.set(key, coreProxies.length);
+                coreProxies.push(proxy);
+            }
+            return coreIndexes.get(key);
+        });
         const timeout = meta_start_delay + internalProxies.length * nodeTimeout;
 
         const startRes = await httpRequest({
@@ -468,7 +481,7 @@ async function operator(proxies = [], targetPlatform, context) {
                 'Content-type': 'application/json',
                 Authorization: meta_auth,
             },
-            body: JSON.stringify({ proxies: internalProxies, timeout }),
+            body: JSON.stringify({ proxies: coreProxies, timeout }),
             timeout: 10000,
         });
 
@@ -481,7 +494,7 @@ async function operator(proxies = [], targetPlatform, context) {
         try {
             await $.wait(meta_start_delay);
             await executeAsyncTasks(
-                internalProxies.map((proxy, i) => () => worker(proxy, proxies, ports[i], onResult)),
+                internalProxies.map((proxy, i) => () => worker(proxy, proxies, ports[proxyIndexes[i]], onResult)),
                 { concurrency }
             );
         } finally {
@@ -505,6 +518,20 @@ async function operator(proxies = [], targetPlatform, context) {
         return `parser:google-check:rrc-1a856acc-v2-no-cookie:${getProbeCacheId(proxy)}`;
     }
 
+    function connectionId(proxy) {
+        if (connectionIds.has(proxy)) return connectionIds.get(proxy);
+        const config = Object.fromEntries(Object.entries(proxy)
+            .filter(([key]) => !/^(name|collectionName|subName|id|_.*)$/i.test(key)));
+        const id = JSON.stringify(config, (_key, value) => {
+            if (value && typeof value === 'object' && !Array.isArray(value)) {
+                return Object.fromEntries(Object.keys(value).sort().map(key => [key, value[key]]));
+            }
+            return value;
+        });
+        connectionIds.set(proxy, id);
+        return id;
+    }
+
     function saveGoogleCheck(proxy, result) {
         if (!cacheEnabled || !cache) return;
         const key = googleCacheKey(proxy);
@@ -521,6 +548,11 @@ async function operator(proxies = [], targetPlatform, context) {
 
     async function checkGoogleNode(proxy, proxies, port, needed) {
         async function request(url, parse) {
+            const key = `${url}:${connectionId(proxy)}`;
+            if (!googleRequests.has(key)) googleRequests.set(key, fetchResult(url, parse));
+            return { ...await googleRequests.get(key) };
+        }
+        async function fetchResult(url, parse) {
             try {
                 if (!Number.isInteger(Number(port)) || Number(port) < 1 || Number(port) > 65535) throw new Error('invalid_meta_port');
                 const headers = { 'User-Agent': GOOGLE_CHECK_UA, 'accept-language': 'en-US,en;q=0.9' };
@@ -1120,6 +1152,7 @@ function reassignGroupIndex(proxies) {
 // 从节点名称识别 region 的结果只由 name 本身决定，且同一订阅的节点名跨刷新基本不变，
 // 按 name 持久化缓存后可将命中前的线性扫描（263 个候选 x 多个关键字）降为一次 Map 查找。
 const NAME_REGION_CACHE = new Map();
+const NAME_REGION_CACHE_LIMIT = 10000;
 const NAME_REGION_PERSIST_KEY = 'parser:name_region:v1';
 const NAME_REGION_PERSIST_TTL = 30 * 24 * 60 * 60 * 1000; // 30 天
 let nameRegionCacheDirty = false;
@@ -1135,6 +1168,14 @@ function loadNameRegionPersistCache() {
         for (const [k, v] of Object.entries(cached)) {
             NAME_REGION_CACHE.set(k, v);
         }
+        trimNameRegionCache();
+    }
+}
+
+function trimNameRegionCache() {
+    while (NAME_REGION_CACHE.size > NAME_REGION_CACHE_LIMIT) {
+        NAME_REGION_CACHE.delete(NAME_REGION_CACHE.keys().next().value);
+        nameRegionCacheDirty = true;
     }
 }
 
@@ -1157,6 +1198,7 @@ function detectRegionFromName(name) {
 
     const result = detectRegionFromNameUncached(name);
     NAME_REGION_CACHE.set(cacheKey, result);
+    trimNameRegionCache();
     nameRegionCacheDirty = true;
     return result;
 }

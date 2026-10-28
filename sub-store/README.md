@@ -105,6 +105,7 @@ node --test sub-store/scripts/parser.google.test.js
 
 ### 2026-10-28
 
+- 名称识别缓存上限为 10,000 条，自动收敛旧缓存；同次送中检测中连接配置相同的别名共用核心端口与服务请求，不合并输出节点，不改变 GeoIP 兜底策略。
 - 默认只请求 YouTube；模板包含 `{google_play_region}` 才检测 Play，两项独立缓存，META 启动失败短缓存 1 分钟。flat 派生地址不再继承未验证的星号。
 - 本次执行内复用节点配置缓存键；地区编号改为单遍计数，不改变节点顺序或编号规则。
 - 移除 YouTube 检测的固定 Cookie，避免其掩盖 CN 特征；更换检测缓存版本，旧 Cookie 结果不再复用。检测范围、TTL 和 YouTube 独立星号判定保持不变。

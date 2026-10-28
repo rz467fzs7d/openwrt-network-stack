@@ -28,7 +28,7 @@ function harness(args = {}, getResponse = () => ({ status: 200, body: '' })) {
     vm.createContext(context); vm.runInContext(source, context);
     return { context, requests, starts, logs, store, get stops() { return stops; } };
 }
-const nodes = () => ['JP Home', 'JP Office', 'HK Home'].map(name => ({ name, type: 'ss', server: 'example.com', port: 443 }));
+const nodes = () => ['JP Home', 'JP Office', 'HK Home'].map((name, i) => ({ name, type: 'ss', server: 'example.com', port: 443 + i }));
 
 test('upstream YouTube classifications and Play text extraction', () => {
     const { context: c } = harness();
@@ -115,7 +115,7 @@ test('explicitly disabled; include/exclude apply to original names independently
 test('default scope includes Asian regions but excludes Europe, Oceania and Americas', async () => {
     const h = harness();
     const input = ['HK-01', '澳门家宽', '台灣 01', '🇭🇰 Home', 'JP Home', 'SG Home', 'IN Home', 'TH Home', 'AE Home', 'Australia AU', 'US Home', 'GB Home']
-        .map(name => ({ name, type: 'ss', server: 'example.com', port: 443 }));
+        .map((name, i) => ({ name, type: 'ss', server: 'example.com', port: 443 + i }));
     const result = await h.context.operator(input);
     assert.equal(h.starts.length, 1);
     assert.equal(h.starts[0].proxies.length, 9);
@@ -243,4 +243,58 @@ test('flat removes only calculated markers, retaining literal stars in a templat
     const result = await h.context.operator([nodes()[0]]);
     assert.equal(result[0].name, 'literal*-JP*-01*');
     assert.equal(result[1].name, 'literal*-JP-01-192.0.2.1');
+});
+
+test('identical connections share one core port and YouTube request without merging nodes', async () => {
+    const h = harness({}, () => ({ status: 200, body: 'www.google.cn' }));
+    const aliases = nodes().map(p => ({ ...p, port: 443 }));
+    const result = await h.context.operator(structuredClone(aliases));
+    assert.equal(result.length, 3);
+    assert.equal(h.starts[0].proxies.length, 1);
+    assert.equal(h.requests.length, 1);
+    assert.ok(result.every(p => p._googleCheck.youtube.status === 'cn'));
+    assert.notEqual(result[0]._googleCheck.youtube, result[1]._googleCheck.youtube);
+    await h.context.operator(structuredClone(aliases));
+    assert.equal(h.requests.length, 1);
+});
+
+test('connection deduplication retains credentials, SNI, protocol and ordered options', async () => {
+    const h = harness({}, () => ({ status: 200, body: 'www.google.cn' }));
+    const base = nodes()[0];
+    const input = [base, { ...base, name: 'JP Password', password: 'different' },
+        { ...base, name: 'JP SNI', sni: 'different.example' },
+        { ...base, name: 'JP Protocol', type: 'trojan' },
+        { ...base, name: 'JP Ordered1', alpn: ['h2', 'http/1.1'] },
+        { ...base, name: 'JP Ordered2', alpn: ['http/1.1', 'h2'] }];
+    await h.context.operator(input);
+    assert.equal(h.starts[0].proxies.length, input.length);
+    assert.equal(h.requests.length, input.length);
+});
+
+test('name cache trims legacy entries and remains bounded without changing recognized regions', async () => {
+    const h = harness({ f: '{region}' });
+    const old = Object.fromEntries(Array.from({ length: 10002 }, (_, i) => ['old-'+i, { code: 'JP' }]));
+    h.store.set('parser:name_region:v1', old);
+    const result = await h.context.operator([{ ...nodes()[0], name: 'HK New' }]);
+    const saved = h.store.get('parser:name_region:v1');
+    assert.equal(Object.keys(saved).length, 10000);
+    assert.equal(saved['old-0'], undefined);
+    assert.equal(saved['old-2'], undefined);
+    assert.equal(saved['hk new'].code, 'HK');
+    assert.equal(result[0].region_code, 'HK');
+});
+
+test('shared checks respect scope and deduplicate nested option key order', async () => {
+    const h = harness({ exit_is_cn_check: '^JP' }, () => ({ status: 200, body: 'www.google.cn' }));
+    const base = { ...nodes()[0], 'plugin-opts': { host: 'a.example', mode: 'websocket' } };
+    const aliases = [base,
+        { ...base, name: 'JP Alias', 'plugin-opts': { mode: 'websocket', host: 'a.example' } },
+        { ...base, name: 'HK Excluded' }];
+    const result = await h.context.operator(structuredClone(aliases));
+    assert.equal(h.starts[0].proxies.length, 1);
+    assert.equal(h.requests.length, 1);
+    assert.equal(result[2]._googleCheck, undefined);
+    h.context.$arguments.cache = false;
+    await h.context.operator(structuredClone(aliases));
+    assert.equal(h.requests.length, 2);
 });
