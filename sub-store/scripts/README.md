@@ -67,6 +67,8 @@ exit_is_cn_check=JP|日本&exit_is_cn_check_exclude=Office|Local
 结果保存在 `_googleCheck.youtube` / `_googleCheck.play`，包含 `status`、`region`、
 `reason`；并输出 `[PARSER][GOOGLE]` 日志、缓存来源与检测时间。
 YouTube 状态为 `cn`、`available`、`unavailable`、`unknown`；Play 为 `detected` / `unknown`。
+
+YouTube 请求不携带固定 Cookie，避免会话偏好掩盖地区特征。此修复使用新的检测缓存版本，不复用旧 Cookie 检测结果；其他缓存与 TTL 不变。
 保留上游语义：页面包含 `www.google.cn` 标记为 `cn`；Premium 不支持不等于 CN；
 无地区但存在上游可用标记时地区为 `UNKNOWN`。HTTP 错误、超时、无有效页面为未知。
 Play 原样返回页面地区文字，不强制换算国家码；两者不合并成自行设计的判定。

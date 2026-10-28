@@ -103,6 +103,10 @@ node --test sub-store/scripts/parser.google.test.js
 
 ## 📝 更新日志
 
+### 2026-10-28
+
+- 移除 YouTube 检测的固定 Cookie，避免其掩盖 CN 特征；更换检测缓存版本，旧 Cookie 结果不再复用。检测范围、TTL 和 YouTube 独立星号判定保持不变。
+
 ### 2026-10-27
 
 - 修正星号判定：只依据 YouTube 的 `cn` 结果；Google Play 的 China 地区不再触发标记，保留独立诊断信息。星号不承诺无广告。

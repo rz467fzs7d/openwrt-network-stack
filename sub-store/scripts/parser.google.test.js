@@ -101,6 +101,8 @@ test('explicitly disabled; include/exclude apply to original names independently
     assert.equal(h.starts.length, 1); assert.equal(h.starts[0].proxies.length, 1);
     assert.equal(h.requests.length, 2); assert.equal(h.stops, 1);
     assert.ok(h.requests.every(r => r.proxy === 'http://127.0.0.1:10000' && r.retries === 0));
+    assert.ok(h.requests.every(r => !Object.keys(r.headers).some(key => key.toLowerCase() === 'cookie')));
+    assert.ok([...h.store.keys()].some(key => key.startsWith('parser:google-check:rrc-1a856acc-v2-no-cookie:')));
     assert.equal(result[0]._googleCheck.youtube.region, 'CN');
     assert.equal(result[0].region_code, 'JP'); assert.equal(result[0]._failed, undefined);
     assert.equal(result[1]._googleCheck, undefined); assert.equal(result[2]._googleCheck, undefined);

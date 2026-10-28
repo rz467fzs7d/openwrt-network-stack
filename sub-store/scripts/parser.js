@@ -150,7 +150,6 @@ const REGION_HINTS_CACHE_TTL = 30 * 24 * 60 * 60 * 1000; // 30 天
 // check.sh@1a856acc4bf42e27fec3ff64b1e9731892b5c3bb, 2026-10-26.
 // See THIRD_PARTY_NOTICES.md and LICENSE.RegionRestrictionCheck.
 const GOOGLE_CHECK_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
-const GOOGLE_CHECK_COOKIE = 'YSC=FSCWhKo2Zgw; VISITOR_PRIVACY_METADATA=CgJERRIEEgAgYQ%3D%3D; PREF=f7=4000; __Secure-YEC=CgtRWTBGTFExeV9Iayjele2yBjIKCgJERRIEEgAgYQ%3D%3D; SOCS=CAISOAgDEitib3FfaWRlbnRpdHlmcm9udGVuZHVpc2VydmVyXzIwMjQwNTI2LjAxX3AwGgV6aC1DTiACGgYIgMnpsgY; VISITOR_INFO1_LIVE=Di84mAIbgKY; __Secure-BUCKET=CGQ';
 const GOOGLE_CHECK_ASIA_REGIONS = new Set('AF AM AZ BH BD BT BN KH CN CY GE HK IN ID IR IQ IL JP JO KZ KW KG LA LB MO MY MV MN MM NP KP OM PK PS PH QA SA SG KR LK SY TW TJ TH TL TR TM AE UZ VN YE'.split(' '));
 
 function compileCheckScope(value, name) {
@@ -464,7 +463,7 @@ async function operator(proxies = [], targetPlatform, context) {
     }
 
     function googleCacheKey(proxy) {
-        return `parser:google-check:rrc-1a856acc-v1:${getProbeCacheId(proxy)}`;
+        return `parser:google-check:rrc-1a856acc-v2-no-cookie:${getProbeCacheId(proxy)}`;
     }
 
     function logGoogleResult(proxy, result, cached) {
@@ -472,11 +471,10 @@ async function operator(proxies = [], targetPlatform, context) {
     }
 
     async function checkGoogleNode(proxy, proxies, port) {
-        async function request(url, parse, cookie) {
+        async function request(url, parse) {
             try {
                 if (!Number.isInteger(Number(port)) || Number(port) < 1 || Number(port) > 65535) throw new Error('invalid_meta_port');
                 const headers = { 'User-Agent': GOOGLE_CHECK_UA, 'accept-language': 'en-US,en;q=0.9' };
-                if (cookie) headers.cookie = cookie;
                 const res = await httpRequest({ method: 'get', url, headers,
                     proxy: `http://${meta_host}:${port}`, timeout: cnTimeout, retries: 0 });
                 const status = Number(res.status ?? res.statusCode);
@@ -486,7 +484,7 @@ async function operator(proxies = [], targetPlatform, context) {
                 return { status: 'unknown', region: '', reason: error.message || 'request_failed' };
             }
         }
-        const youtube = await request('https://www.youtube.com/premium', parseYoutubePremium, GOOGLE_CHECK_COOKIE);
+        const youtube = await request('https://www.youtube.com/premium', parseYoutubePremium);
         const play = await request('https://play.google.com/', parseGooglePlay);
         const result = { youtube, play, checkedAt: Date.now(), cached: false };
         proxies[proxy._proxies_index]._googleCheck = result;
