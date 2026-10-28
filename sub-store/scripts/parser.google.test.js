@@ -89,7 +89,7 @@ test('only region* in rename format enables checks, including cached checks', as
     }
     const h = harness({ format: '{region*}', f: undefined });
     await h.context.operator(nodes());
-    assert.equal(h.requests.length, 6);
+    assert.equal(h.requests.length, 3);
 });
 
 test('explicitly disabled; include/exclude apply to original names independently of GeoIP skip', async () => {
@@ -99,7 +99,7 @@ test('explicitly disabled; include/exclude apply to original names independently
         opt => ({ status: 200, body: opt.url.includes('youtube') ? 'ad-free "INNERTUBE_CONTEXT_GL":"CN"' : '<div class="yVZQTb">China</div>' }));
     const result = await h.context.operator(nodes());
     assert.equal(h.starts.length, 1); assert.equal(h.starts[0].proxies.length, 1);
-    assert.equal(h.requests.length, 2); assert.equal(h.stops, 1);
+    assert.equal(h.requests.length, 1); assert.equal(h.stops, 1);
     assert.ok(h.requests.every(r => r.proxy === 'http://127.0.0.1:10000' && r.retries === 0));
     assert.ok(h.requests.every(r => !Object.keys(r.headers).some(key => key.toLowerCase() === 'cookie')));
     assert.ok([...h.store.keys()].some(key => key.startsWith('parser:google-check:rrc-1a856acc-v2-no-cookie:')));
@@ -107,9 +107,9 @@ test('explicitly disabled; include/exclude apply to original names independently
     assert.equal(result[0].region_code, 'JP'); assert.equal(result[0]._failed, undefined);
     assert.equal(result[1]._googleCheck, undefined); assert.equal(result[2]._googleCheck, undefined);
     assert.ok(result[0].name.includes('CN'));
+    await h.context.operator(nodes()); assert.equal(h.requests.length, 1);
+    for (const [key, value] of h.store) if (key.startsWith('parser:google-check:')) value.youtubeCheckedAt = 0;
     await h.context.operator(nodes()); assert.equal(h.requests.length, 2);
-    for (const [key, value] of h.store) if (key.startsWith('parser:google-check:')) value.checkedAt = 0;
-    await h.context.operator(nodes()); assert.equal(h.requests.length, 4);
 });
 
 test('default scope includes Asian regions but excludes Europe, Oceania and Americas', async () => {
@@ -119,7 +119,7 @@ test('default scope includes Asian regions but excludes Europe, Oceania and Amer
     const result = await h.context.operator(input);
     assert.equal(h.starts.length, 1);
     assert.equal(h.starts[0].proxies.length, 9);
-    assert.equal(h.requests.length, 18);
+    assert.equal(h.requests.length, 9);
     assert.ok(result.slice(0, 9).every(p => p._googleCheck));
     assert.ok(result.slice(9).every(p => !p._googleCheck));
 });
@@ -140,10 +140,10 @@ test('HTTP failures and exceptions remain unknown, never remove nodes; META stop
     const result = await h.context.operator(nodes());
     assert.equal(result.length, 3); assert.equal(h.stops, 1);
     assert.equal(result[0]._googleCheck.youtube.status, 'unknown');
-    assert.equal(result[0]._googleCheck.play.status, 'unknown');
+    assert.equal(result[0]._googleCheck.play.status, 'skipped');
     assert.equal(result[0]._failed, undefined);
-    for (const [key, value] of h.store) if (key.startsWith('parser:google-check:')) value.checkedAt -= 11 * 60 * 1000;
-    await h.context.operator(nodes()); assert.equal(h.requests.length, 4);
+    for (const [key, value] of h.store) if (key.startsWith('parser:google-check:')) value.youtubeCheckedAt -= 11 * 60 * 1000;
+    await h.context.operator(nodes()); assert.equal(h.requests.length, 2);
 });
 
 test('endpoint changes invalidate cache; disabling cache forces fresh checks', async () => {
@@ -151,9 +151,9 @@ test('endpoint changes invalidate cache; disabling cache forces fresh checks', a
     const h = harness({ exit_is_cn_check: '^JP Home$' }, response);
     await h.context.operator(nodes());
     const changed = nodes(); changed[0].server = 'new.example.com';
-    await h.context.operator(changed); assert.equal(h.requests.length, 4);
+    await h.context.operator(changed); assert.equal(h.requests.length, 2);
     h.context.$arguments.cache = false;
-    await h.context.operator(nodes()); assert.equal(h.requests.length, 6);
+    await h.context.operator(nodes()); assert.equal(h.requests.length, 3);
     const original = nodes(); original[2]._googleCheck = { stale: true };
     const result = await h.context.operator(original);
     assert.equal(result[2]._googleCheck, undefined);
@@ -168,9 +168,10 @@ test('explicit all scope obeys concurrency and META lease; flat endpoints do not
     });
     const result = await h.context.operator(nodes());
     assert.equal(h.starts[0].proxies.length, 3); assert.equal(peak, 1);
-    assert.ok(h.starts[0].timeout >= 30000); assert.equal(h.stops, 1);
+    assert.ok(h.starts[0].timeout >= 15000); assert.equal(h.stops, 1);
     assert.equal(result.length, 6);
     assert.ok(result.every(p => p.server === 'example.com' || p._googleCheck === undefined));
+    assert.ok(result.filter(p => p.server !== 'example.com').every(p => !p.name.includes('*')));
 });
 
 test('optional META startup failure leaves subscription intact with unknown checks', async () => {
@@ -182,4 +183,64 @@ test('optional META startup failure leaves subscription intact with unknown chec
     assert.equal(result[0]._googleCheck.youtube.reason, 'meta_failed');
     assert.equal(result[0]._failed, undefined);
     assert.equal(h.requests.length, 0);
+});
+
+test('Play is opt-in through its format field, with independent cache freshness', async () => {
+    const h = harness({ f: '{region*}{google_play_region}' }, opt => ({ status: 200,
+        body: opt.url.includes('youtube') ? 'www.google.cn' : 'captcha' }));
+    const first = await h.context.operator(nodes());
+    assert.equal(h.requests.length, 6);
+    assert.ok(first.every(p => p.name.includes('*')));
+    for (const [key, value] of h.store) if (key.startsWith('parser:google-check:')) value.playCheckedAt -= 11 * 60 * 1000;
+    await h.context.operator(nodes());
+    assert.equal(h.requests.length, 9);
+    assert.equal(h.requests.filter(r => r.url.includes('youtube')).length, 3);
+    h.context.$arguments.f = '{region*}';
+    await h.context.operator(nodes());
+    assert.equal(h.requests.length, 9);
+});
+
+test('META failures have a short negative cache, then retry; cache=false bypasses it', async () => {
+    const h = harness(); let attempts = 0;
+    h.context.$substore.http.post = async () => { attempts++; throw new Error('unavailable'); };
+    await h.context.operator(nodes()); const initial = attempts;
+    await h.context.operator(nodes()); assert.equal(attempts, initial);
+    for (const [key, value] of h.store) if (key.startsWith('parser:google-check:')) value.youtubeCheckedAt -= 61000;
+    await h.context.operator(nodes()); assert.ok(attempts > initial);
+    const retried = attempts; h.context.$arguments.cache = false;
+    await h.context.operator(nodes()); assert.ok(attempts > retried);
+});
+
+test('refreshing YouTube alone preserves an independently fresh Play cache', async () => {
+    const h = harness({ f: '{region*}{google_play_region}' }, opt => ({ status: 200,
+        body: opt.url.includes('youtube') ? 'www.google.cn' : '<div class="yVZQTb">Japan</div>' }));
+    await h.context.operator(nodes());
+    for (const [key, value] of h.store) if (key.startsWith('parser:google-check:')) value.youtubeCheckedAt = 0;
+    h.context.$arguments.f = '{region*}';
+    const result = await h.context.operator(nodes());
+    assert.equal(h.requests.length, 9);
+    assert.ok(result.every(p => p._googleCheck.play.status === 'skipped'));
+    h.context.$arguments.f = '{region*}{google_play_region}';
+    await h.context.operator(nodes());
+    assert.equal(h.requests.length, 9);
+});
+
+test('Play-only META failure does not replace fresh YouTube evidence', async () => {
+    const h = harness({ f: '{region*}{google_play_region}' }, opt => ({ status: 200,
+        body: opt.url.includes('youtube') ? 'www.google.cn' : 'captcha' }));
+    await h.context.operator(nodes());
+    for (const [key, value] of h.store) if (key.startsWith('parser:google-check:')) value.playCheckedAt = 0;
+    h.context.$substore.http.post = async () => { throw new Error('META unavailable'); };
+    const result = await h.context.operator(nodes());
+    assert.ok(result.every(p => p._googleCheck.youtube.status === 'cn' && p.name.includes('*')));
+    assert.ok(result.every(p => p._googleCheck.play.reason === 'meta_failed'));
+    assert.equal(h.requests.length, 6);
+});
+
+test('flat removes only calculated markers, retaining literal stars in a template', async () => {
+    const h = harness({ f: '{prefix:literal*}{region*}{i:2d}{exit_is_cn}', flat: '{example.com:192.0.2.1}' },
+        () => ({ status: 200, body: 'www.google.cn' }));
+    const result = await h.context.operator([nodes()[0]]);
+    assert.equal(result[0].name, 'literal*-JP*-01*');
+    assert.equal(result[1].name, 'literal*-JP-01-192.0.2.1');
 });

@@ -48,7 +48,7 @@ https://fastly.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@0be4c6f/sub-stor
 | `exit_is_cn_check_exclude` | 排除节点名正则，优先于包含范围 | 空 |
 | `exit_is_cn_check_timeout` | 每个请求超时，毫秒 | `5000` |
 | `exit_is_cn_check_concurrency` | 同时检测的节点数 | `2` |
-| `exit_is_cn_check_cache_ttl` | 明确结果缓存时长，毫秒；任一检测未知时最长缓存 10 分钟 | `21600000`（6 小时） |
+| `exit_is_cn_check_cache_ttl` | 每项明确结果独立缓存时长，毫秒；该项未知时最长 10 分钟，META 启动失败最长 1 分钟 | `21600000`（6 小时） |
 
 例如参数：
 
@@ -61,12 +61,15 @@ exit_is_cn_check=JP|日本&exit_is_cn_check_exclude=Office|Local
 显式传 `exit_is_cn_check=` 关闭；传自定义正则覆盖默认范围，而不是叠加。
 匹配对象是进入 parser 的节点名，不是 `{region}` 格式化后的名字。
 无匹配时不启动检测。名称已识别国家或已命中 GeoIP 缓存不会跳过该检测。
-每个待测节点通过自己的 HTTP META 代理端口访问 YouTube Premium 和 Google Play，
-不会切换 OpenClash 的在用节点。额外两次请求可能增加冷缓存刷新耗时。
+每个待测节点通过自己的 HTTP META 代理端口访问 YouTube Premium，
+只有模板同时包含 `{google_play_region}` 才额外请求 Google Play。
+不会切换 OpenClash 的在用节点。默认每个待测节点仅增加一次请求。
 
 结果保存在 `_googleCheck.youtube` / `_googleCheck.play`，包含 `status`、`region`、
 `reason`；并输出 `[PARSER][GOOGLE]` 日志、缓存来源与检测时间。
-YouTube 状态为 `cn`、`available`、`unavailable`、`unknown`；Play 为 `detected` / `unknown`。
+YouTube 状态为 `cn`、`available`、`unavailable`、`unknown`；Play 为 `detected` / `unknown`，未请求时为 `skipped`。
+两项分别记录 `youtubeCheckedAt` / `playCheckedAt`；某一项失败或刷新不会重置另一项的有效期。
+日志包含待请求数量 `youtube_requests` / `play_requests`。META 启动失败的短缓存仅影响相同节点的本项检测，`cache=false` 可绕过。
 
 YouTube 请求不携带固定 Cookie，避免会话偏好掩盖地区特征。此修复使用新的检测缓存版本，不复用旧 Cookie 检测结果；其他缓存与 TTL 不变。
 保留上游语义：页面包含 `www.google.cn` 标记为 `cn`；Premium 不支持不等于 CN；
@@ -77,7 +80,7 @@ Play 原样返回页面地区文字，不强制换算国家码；两者不合并
 `{youtube_region}`、`{youtube_status}`、`{google_play_region}`。
 未启用或未命中范围时这些占位符为空；默认模板不变。
 缓存按节点配置隔离，不使用地区探测的身份兜底缓存；`cache=false` 也关闭这项缓存。
-`flat` 派生的其他服务器地址不继承 Google 检测结果。
+`flat` 派生的其他服务器地址不继承 Google 检测结果或计算出的星号；模板中的字面量星号保留。
 
 `{region*}` 返回带送中标记的地区字段：仅当已有 YouTube 结果为 `cn` 时输出 `HK*` 等，
 否则仍为 `HK`。Google Play 地区仅供独立诊断，不参与星号判定。作为一个字段正常参与 connector 拼接，
