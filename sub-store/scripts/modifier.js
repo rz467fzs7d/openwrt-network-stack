@@ -1,5 +1,5 @@
 /**
- * Sub-Store node connection overrides.
+ * Sub-Store node connection modifier.
  * Parameters: scope, exclude, type, host, sni, path, port, method, prefix, suffix.
  * No options means no changes. Certificate verification is never changed.
  */

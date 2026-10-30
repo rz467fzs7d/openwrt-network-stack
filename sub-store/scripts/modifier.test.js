@@ -2,7 +2,7 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
-const source=fs.readFileSync(`${__dirname}/node-overrides.js`,'utf8');
+const source=fs.readFileSync(`${__dirname}/modifier.js`,'utf8');
 function run(args,nodes){const c={$arguments:args,$substore:{info(){}}};vm.createContext(c);vm.runInContext(source,c);return c.operator(nodes);}
 const nodes=()=>[
  {name:'HK VM',type:'vmess',server:'one.example',port:443,tls:true,network:'ws','ws-opts':{path:'/old',headers:{Host:'old.example'}}},
