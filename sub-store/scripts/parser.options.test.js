@@ -7,7 +7,7 @@ function harness(args) {
   const calls = [];
   const c = { $arguments: args, ProxyUtils: { produce: p => p.map(x => ({ ...x })) },
     $substore: { info() {}, error() {}, wait: async () => {}, http: {
-      get: async o => { calls.push(o); return o.url.includes('youtube') ? { status: 200, body: 'www.google.cn' } : { status: 204, body: '' }; },
+      get: async o => { calls.push(o); return o.url.includes('policies.google.com') ? { status: 200, body: '<a data-name="country-version">Country version:</a> China</p>' } : { status: 204, body: '' }; },
       post: async o => { calls.push(o); if (o.url.endsWith('/start')) return { body: JSON.stringify({ pid: 3, ports: JSON.parse(o.body).proxies.map((_, i) => 10000+i) }) }; if (o.url.endsWith('/udp')) return { status: 200, body: '{"result":"ok"}' }; return { status: 200, body: '{}' }; }
     } } };
   vm.createContext(c); vm.runInContext(source, c); return { c, calls };
@@ -15,9 +15,9 @@ function harness(args) {
 const input = () => [{name:'HK-01',type:'ss',server:'a.example',port:1},{name:'JP-01',type:'ss',server:'b.example',port:2}];
 test('exit runs without region* and region* combines with check', async () => {
   const h = harness({ f:'{region}', check:'exit', options:'{"exit":{"scope":"HK"}}' });
-  const r = await h.c.operator(input()); assert.equal(r[0]._googleCheck.youtube.status, 'cn'); assert.equal(r[1]._googleCheck, undefined);
+  const r = await h.c.operator(input()); assert.equal(r[0]._googleCheck.terms.status, 'cn'); assert.equal(r[1]._googleCheck, undefined);
   const h2 = harness({ f:'{region*}', check:'udp', options:{exit:{scope:'HK'},udp:{scope:'JP'}} });
-  const r2 = await h2.c.operator(input()); assert.equal(r2[0]._googleCheck.youtube.status, 'cn'); assert.equal(r2[1]._capabilityCheck.udp.status, 'ok'); assert.equal(r2[0]._capabilityCheck, undefined);
+  const r2 = await h2.c.operator(input()); assert.equal(r2[0]._googleCheck.terms.status, 'cn'); assert.equal(r2[1]._capabilityCheck.udp.status, 'ok'); assert.equal(r2[0]._capabilityCheck, undefined);
 });
 test('per-service scope and samples', async () => {
   const h = harness({ f:'{region}', check:'udp,http', options:JSON.stringify({udp:{scope:'HK',ntp:'ntp.example'},http:{scope:'JP',samples:3}}) });
@@ -26,7 +26,7 @@ test('per-service scope and samples', async () => {
   assert.equal(h.calls.filter(x => x.url.endsWith('/udp')).length, 1);
 });
 test('invalid checks and options rejected without network', async () => {
-  for (const args of [{check:'unknown'}, {check:'http',options:'{'}, {check:'udp',options:'{"udp":{"bogus":1}}'}]) {
+  for (const args of [{check:'unknown'}, {check:'http',options:'{'}, {check:'udp',options:'{"udp":{"bogus":1}}'}, {check:'exit',options:'{"exit":{"source":"play"}}'}]) {
     const h = harness(args); await assert.rejects(h.c.operator(input())); assert.equal(h.calls.length, 0);
   }
 });

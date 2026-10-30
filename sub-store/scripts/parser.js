@@ -36,13 +36,13 @@
  * - exit_is_cn_check_timeout 单个 Google/YouTube 请求超时(ms)，默认 5000
  * - exit_is_cn_check_concurrency 并发节点数，默认 2
  * - exit_is_cn_check_cache_ttl 各服务独立缓存(ms)，默认 21600000；未知最长 600000，META启动失败最长 60000
- * - 默认只请求 YouTube；模板含 google_play_region 时额外请求 Play
+ * - options.exit.source  检测来源 terms（默认）或 youtube
  * - check_udp / check_http 可选能力检测，默认 false；HTTP 多次采样计算请求失败率
  * - check_scope / check_exclude 原始节点名称正则；默认全部 / 空
  * - check_timeout 5000ms, check_concurrency 2, check_samples 1（最大 20）
  * - check_ntp time.apple.com, check_url http://cp.cloudflare.com/generate_204, check_status 204
  * - check_cache_ttl 21600000ms；失败最长缓存 600000ms，cache=false 禁用
- * - 检测仅写 _googleCheck，不改 region/_failed；模板 {region*} 输出带送中标记的地区，如 HK*；另支持 exit_is_cn/youtube_region/youtube_status/google_play_region
+ * - 检测仅写 _googleCheck，不改 region/_failed；模板 {region*} 输出带送中标记的地区，如 HK*
  * - ipinfo_url    META 失败后的 ipinfo Lite 兜底 API 模板 默认: https://api.ipinfo.io/lite/{ip}
  * - ipinfo_token  ipinfo API Token（优先于 env 注入，优先于进程环境变量）
  * - env / e       环境变量式参数注入，格式: {IPINFO_API_TOKEN:xxx}
@@ -175,18 +175,18 @@ function parseYoutubePremium(body) {
     return { status: 'unknown', region: '', reason: 'page_error' };
 }
 
-function parseGooglePlay(body) {
-    const region = body.match(/<div class="yVZQTb">([^<(]+)/)?.[1] || '';
-    return { status: region ? 'detected' : 'unknown', region, reason: region ? 'yVZQTb' : 'region_not_found' };
+function parseGoogleTerms(body) {
+    if (!body) return { status: 'unknown', region: '', reason: 'empty_response' };
+    const region = body.match(/data-name=["']country-version["'][^>]*>[^<]*<\/a>\s*([^<]+)/i)?.[1]?.trim() || '';
+    if (!region) return { status: 'unknown', region: '', reason: 'region_not_found' };
+    return { status: /^china$/i.test(region) ? 'cn' : 'available', region, reason: 'country_version' };
 }
 
 function googleServiceFresh(saved, service, now, ttl) {
     const result = saved?.[service];
     const checkedAt = saved?.[`${service}CheckedAt`] ?? saved?.checkedAt;
     if (!result || result.status === 'skipped' || !Number.isFinite(checkedAt)) return false;
-    const known = service === 'youtube'
-        ? ['cn', 'available', 'unavailable'].includes(result.status)
-        : result.status === 'detected';
+    const known = ['cn', 'available', 'unavailable'].includes(result.status);
     const lifetime = result.reason === 'meta_failed' ? Math.min(ttl, 60000)
         : known ? ttl : Math.min(ttl, 600000);
     return now >= checkedAt && now - checkedAt < lifetime;
@@ -239,12 +239,14 @@ async function operator(proxies = [], targetPlatform, context) {
         try { checkOptions = JSON.parse(checkOptions); } catch (_) { throw new Error('Invalid options JSON'); }
     }
     if (!checkOptions || typeof checkOptions !== 'object' || Array.isArray(checkOptions)) throw new Error('Invalid options');
-    const allowedOptions = { exit: ['scope', 'exclude', 'timeout', 'concurrency', 'cache_ttl'], udp: ['scope', 'exclude', 'timeout', 'ntp'], http: ['scope', 'exclude', 'timeout', 'samples', 'url', 'status'] };
+    const allowedOptions = { exit: ['source', 'scope', 'exclude', 'timeout', 'concurrency', 'cache_ttl'], udp: ['scope', 'exclude', 'timeout', 'ntp'], http: ['scope', 'exclude', 'timeout', 'samples', 'url', 'status'] };
     for (const [service, options] of Object.entries(checkOptions)) {
         if (!allowedOptions[service] || !options || typeof options !== 'object' || Array.isArray(options)) throw new Error(`Invalid options: ${service}`);
         for (const key of Object.keys(options)) if (!allowedOptions[service].includes(key)) throw new Error(`Invalid options: ${service}.${key}`);
     }
     const exitOptions = checkOptions.exit || {}, udpOptions = checkOptions.udp || {}, httpOptions = checkOptions.http || {};
+    const exitSource = String(exitOptions.source ?? 'terms').toLowerCase();
+    if (!['terms', 'youtube'].includes(exitSource)) throw new Error(`Invalid options.exit.source: ${exitSource}`);
     const explicitChecks = $arguments.check != null;
     const checks = new Set((Array.isArray($arguments.check) ? $arguments.check : String($arguments.check ?? '').split(',')).map(v => String(v).trim().toLowerCase()).filter(Boolean));
     for (const check of checks) if (!['exit', 'udp', 'http'].includes(check)) throw new Error(`Invalid check: ${check}`);
@@ -281,7 +283,6 @@ async function operator(proxies = [], targetPlatform, context) {
     const rawFormat = getArg('format') ?? '{region_code}';
     const format = normalizePlaceholder(rawFormat);
     const compiledFormat = format ? compileFormat(format) : null;
-    const playCheckEnabled = compiledFormat?.parts.some(part => part.type === 'placeholder' && part.value === 'google_play_region');
     const connector = getArg('connector') ?? '-';
     const rawSort = getArg('sort') ?? null;
     const sort = rawSort ? normalizePlaceholder(rawSort) : null;
@@ -369,51 +370,39 @@ async function operator(proxies = [], targetPlatform, context) {
     if (cnScope) {
         const selected = internalProxies.filter(proxy => cnScope.test(proxy.name || '') && !cnExclude?.test(proxy.name || ''));
         const pending = [];
-        const pendingServices = new Map();
         let cacheHits = 0;
-        const youtubeRequests = new Set();
-        const playRequests = new Set();
+        const requests = new Set();
         const now = Date.now();
         for (const proxy of selected) {
             const saved = cacheEnabled && cache ? cache.get(googleCacheKey(proxy)) : null;
-            const youtubeFresh = googleServiceFresh(saved, 'youtube', now, cnCacheTtl);
-            const playFresh = !playCheckEnabled || googleServiceFresh(saved, 'play', now, cnCacheTtl);
+            const fresh = googleServiceFresh(saved, exitSource, now, cnCacheTtl);
             const result = {
-                youtube: saved?.youtube || { status: 'unknown', region: '', reason: 'not_checked' },
-                play: playCheckEnabled ? saved?.play || { status: 'unknown', region: '', reason: 'not_checked' }
-                    : { status: 'skipped', region: '', reason: 'not_requested' },
-                youtubeCheckedAt: saved?.youtubeCheckedAt ?? saved?.checkedAt,
-                playCheckedAt: saved?.playCheckedAt ?? saved?.checkedAt,
+                source: exitSource,
+                [exitSource]: saved?.[exitSource] || { status: 'unknown', region: '', reason: 'not_checked' },
+                [`${exitSource}CheckedAt`]: saved?.[`${exitSource}CheckedAt`] ?? saved?.checkedAt,
                 checkedAt: saved?.checkedAt,
-                cached: youtubeFresh && playFresh,
+                cached: fresh,
             };
             proxies[proxy._proxies_index]._googleCheck = result;
-            if (youtubeFresh && playFresh) {
+            if (fresh) {
                 cacheHits++;
                 logGoogleResult(proxy, result, true);
             } else {
                 pending.push(proxy);
-                pendingServices.set(proxy, { youtube: !youtubeFresh, play: playCheckEnabled && !playFresh });
-                if (!youtubeFresh) youtubeRequests.add(connectionId(proxy));
-                if (playCheckEnabled && !playFresh) playRequests.add(connectionId(proxy));
+                requests.add(connectionId(proxy));
             }
         }
-        $.info(`[PARSER][GOOGLE] selected=${selected.length}/${internalProxies.length} cached=${cacheHits} pending=${pending.length} youtube_requests=${youtubeRequests.size} play_requests=${playRequests.size}`);
+        $.info(`[PARSER][GOOGLE] source=${exitSource} selected=${selected.length}/${internalProxies.length} cached=${cacheHits} pending=${pending.length} requests=${requests.size}`);
         if (pending.length) {
             try {
-                await probeAll(pending, proxies, null, proxyWorker, cnTimeout * (playCheckEnabled ? 2 : 1), cnConcurrency);
+                await probeAll(pending, proxies, null, proxyWorker, cnTimeout, cnConcurrency);
             } catch (error) {
                 $.error(`[PARSER][GOOGLE] META check failed: ${error.message || error}`);
                 for (const proxy of pending) {
                     const p = proxies[proxy._proxies_index];
                     const result = p._googleCheck;
-                    const needed = pendingServices.get(proxy);
-                    for (const service of ['youtube', 'play']) {
-                        if (needed[service]) {
-                            result[service] = { status: 'unknown', region: '', reason: 'meta_failed' };
-                            result[`${service}CheckedAt`] = Date.now();
-                        }
-                    }
+                    result[exitSource] = { status: 'unknown', region: '', reason: 'meta_failed' };
+                    result[`${exitSource}CheckedAt`] = Date.now();
                     result.checkedAt = Date.now();
                     saveGoogleCheck(proxy, result);
                     logGoogleResult(proxy, result, false);
@@ -421,7 +410,7 @@ async function operator(proxies = [], targetPlatform, context) {
             }
         }
         async function proxyWorker(proxy, proxies, port) {
-            await checkGoogleNode(proxy, proxies, port, pendingServices.get(proxy));
+            await checkGoogleNode(proxy, proxies, port);
         }
     }
 
@@ -631,7 +620,7 @@ async function operator(proxies = [], targetPlatform, context) {
     }
 
     function googleCacheKey(proxy) {
-        return `parser:google-check:rrc-1a856acc-v2-no-cookie:${getProbeCacheId(proxy)}`;
+        return `parser:google-check:v3:${exitSource}:${getProbeCacheId(proxy)}`;
     }
 
     function connectionId(proxy) {
@@ -650,19 +639,15 @@ async function operator(proxies = [], targetPlatform, context) {
 
     function saveGoogleCheck(proxy, result) {
         if (!cacheEnabled || !cache) return;
-        const key = googleCacheKey(proxy);
-        const previous = result.play.status === 'skipped' ? cache.get(key) : null;
-        cache.set(key, previous?.play ? {
-            ...result, play: previous.play,
-            playCheckedAt: previous.playCheckedAt ?? previous.checkedAt,
-        } : result);
+        cache.set(googleCacheKey(proxy), result);
     }
 
     function logGoogleResult(proxy, result, cached) {
-        $.info(`[PARSER][GOOGLE][${proxy.name}] youtube=${result.youtube.status} region=${result.youtube.region || '-'} reason=${result.youtube.reason} play=${result.play.status} region=${result.play.region || '-'} reason=${result.play.reason} cached=${cached} checkedAt=${result.checkedAt}`);
+        const check = result[exitSource];
+        $.info(`[PARSER][GOOGLE][${proxy.name}] source=${exitSource} status=${check.status} region=${check.region || '-'} reason=${check.reason} cached=${cached} checkedAt=${result.checkedAt}`);
     }
 
-    async function checkGoogleNode(proxy, proxies, port, needed) {
+    async function checkGoogleNode(proxy, proxies, port) {
         async function request(url, parse) {
             const key = `${url}:${connectionId(proxy)}`;
             if (!googleRequests.has(key)) googleRequests.set(key, fetchResult(url, parse));
@@ -682,14 +667,9 @@ async function operator(proxies = [], targetPlatform, context) {
             }
         }
         const result = { ...proxies[proxy._proxies_index]._googleCheck, cached: false };
-        if (needed.youtube) {
-            result.youtube = await request('https://www.youtube.com/premium', parseYoutubePremium);
-            result.youtubeCheckedAt = Date.now();
-        }
-        if (needed.play) {
-            result.play = await request('https://play.google.com/', parseGooglePlay);
-            result.playCheckedAt = Date.now();
-        }
+        const url = exitSource === 'youtube' ? 'https://www.youtube.com/premium' : 'https://policies.google.com/terms?hl=en-US';
+        result[exitSource] = await request(url, exitSource === 'youtube' ? parseYoutubePremium : parseGoogleTerms);
+        result[`${exitSource}CheckedAt`] = Date.now();
         result.checkedAt = Date.now();
         proxies[proxy._proxies_index]._googleCheck = result;
         saveGoogleCheck(proxy, result);
@@ -1015,7 +995,7 @@ function resolvePlaceholder(proxy, placeholder, conn) {
     if (placeholder === 'latency') return String(geo.latency !== undefined && geo.latency !== null ? geo.latency : 0);
     if (placeholder === 'youtube_region') return proxy._googleCheck?.youtube?.region || '';
     if (placeholder === 'youtube_status') return proxy._googleCheck?.youtube?.status || '';
-    if (placeholder === 'google_play_region') return (proxy._googleCheck?.play?.region || '').trim();
+    if (placeholder === 'terms_region') return proxy._googleCheck?.terms?.region || '';
     if (placeholder === 'udp_status') return proxy._capabilityCheck?.udp?.status || '';
     if (placeholder === 'http_status') return proxy._capabilityCheck?.http?.status || '';
     if (placeholder === 'http_failure_rate') {
@@ -1024,7 +1004,7 @@ function resolvePlaceholder(proxy, placeholder, conn) {
     }
     if (placeholder === 'exit_is_cn' || placeholder === 'region*') {
         const check = proxy._googleCheck;
-        const marker = check?.youtube?.status === 'cn' ? '*' : '';
+        const marker = (check?.[check?.source || 'youtube']?.status === 'cn') ? '*' : '';
         return placeholder === 'region*' ? `${proxy.region_code || ''}${marker}` : marker;
     }
 

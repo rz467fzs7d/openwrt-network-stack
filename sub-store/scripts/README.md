@@ -44,7 +44,7 @@ UDP、HTTP 和出口检测默认关闭；使用 `check=udp,http,exit` 按需启�
 {"exit":{"scope":"HK|MO|TW"},"udp":{"scope":"HK"},"http":{"scope":"JP","samples":3}}
 ```
 
-各类型均支持 `scope`、`exclude`、`timeout`；`exit` 还支持 `concurrency`、`cache_ttl`，`udp` 支持 `ntp`，`http` 支持 `samples`、`url`、`status`。旧参数仍兼容；显式设置 `check` 时，它决定 UDP 和 HTTP 是否启用，但不会关闭 `{region*}` 所触发的检测。
+各类型均支持 `scope`、`exclude`、`timeout`；`exit` 还支持 `source`、`concurrency`、`cache_ttl`，`udp` 支持 `ntp`，`http` 支持 `samples`、`url`、`status`。旧参数仍兼容；显式设置 `check` 时，它决定 UDP 和 HTTP 是否启用，但不会关闭 `{region*}` 所触发的检测。
 
 以下旧参数仍可使用：
 
@@ -90,31 +90,31 @@ exit_is_cn_check=JP|日本&exit_is_cn_check_exclude=Office|Local
 显式传 `exit_is_cn_check=` 关闭；传自定义正则覆盖默认范围，而不是叠加。
 匹配对象是进入 parser 的节点名，不是 `{region}` 格式化后的名字。
 无匹配时不启动检测。名称已识别国家或已命中 GeoIP 缓存不会跳过该检测。
-每个待测节点通过自己的 HTTP META 代理端口访问 YouTube Premium，
-只有模板同时包含 `{google_play_region}` 才额外请求 Google Play。
+每个待测节点通过自己的 HTTP META 代理端口访问 Google 条款页面，提取英文地区版本；`China` 标记为 `cn`。
+设置 `options={"exit":{"source":"youtube"}}` 可切换至 YouTube Premium；默认值为 `terms`。
+Google Play 检测及 `{google_play_region}` 已移除。
 不会切换 OpenClash 的在用节点。默认每个待测节点仅增加一次请求。
 
-结果保存在 `_googleCheck.youtube` / `_googleCheck.play`，包含 `status`、`region`、
+结果按来源保存在 `_googleCheck.terms` 或 `_googleCheck.youtube`，包含 `status`、`region`、
 `reason`；并输出 `[PARSER][GOOGLE]` 日志、缓存来源与检测时间。
-YouTube 状态为 `cn`、`available`、`unavailable`、`unknown`；Play 为 `detected` / `unknown`，未请求时为 `skipped`。
-两项分别记录 `youtubeCheckedAt` / `playCheckedAt`；某一项失败或刷新不会重置另一项的有效期。
-日志包含待请求数量 `youtube_requests` / `play_requests`。META 启动失败的短缓存仅影响相同节点的本项检测，`cache=false` 可绕过。
+条款地区状态为 `cn`、`available` 或 `unknown`；YouTube 还可能是 `unavailable`。
+两种来源使用独立缓存，切换来源不会复用旧结果。日志包含来源和待请求数量；`cache=false` 可绕过缓存。
 
 同次执行中，只有名称或内部元数据不同、其余连接配置完全一致的待测节点，共用临时核心端口及服务请求；输出节点、名称与检测范围仍各自保留。密码、协议、SNI、嵌套选项及数组顺序均参与比较，不按服务器 IP 简单合并。缓存仍按各节点原有键保存，不跨调用共享进行中的请求；GeoIP 身份兜底逻辑不变。
 
 YouTube 请求不携带固定 Cookie，避免会话偏好掩盖地区特征。此修复使用新的检测缓存版本，不复用旧 Cookie 检测结果；其他缓存与 TTL 不变。
 保留上游语义：页面包含 `www.google.cn` 标记为 `cn`；Premium 不支持不等于 CN；
 无地区但存在上游可用标记时地区为 `UNKNOWN`。HTTP 错误、超时、无有效页面为未知。
-Play 原样返回页面地区文字，不强制换算国家码；两者不合并成自行设计的判定。
+条款地区原样返回页面地区文字，不强制换算国家码；两种来源的结果互不混用。
 
 不会改写原来的节点地区、设置 `_failed` 或删除节点。可选模板占位符：
-`{youtube_region}`、`{youtube_status}`、`{google_play_region}`。
+`{youtube_region}`、`{youtube_status}`、`{terms_region}`。
 未启用或未命中范围时这些占位符为空；默认模板不变。
 缓存按节点配置隔离，不使用地区探测的身份兜底缓存；`cache=false` 也关闭这项缓存。
 `flat` 派生的其他服务器地址不继承 Google 检测结果或计算出的星号；模板中的字面量星号保留。
 
-`{region*}` 返回带送中标记的地区字段：仅当已有 YouTube 结果为 `cn` 时输出 `HK*` 等，
-否则仍为 `HK`。Google Play 地区仅供独立诊断，不参与星号判定。作为一个字段正常参与 connector 拼接，
+`{region*}` 返回带送中标记的地区字段：仅当选定来源的结果为 `cn` 时输出 `HK*` 等，
+否则仍为 `HK`。作为一个字段正常参与 connector 拼接，
 不改变原始 `region_code` 或地区分组编号。例如：
 
 ```text
@@ -124,7 +124,7 @@ f={prefix:ENET}{region*}{i:2d}{tag:Home=家宽|home}
 输出 `ENET-HK*-01` 或 `ENET-HK*-01-Home`；未标记节点仍为 `ENET-HK-01`。
 使用 `{region*}` 后不应再追加 `{exit_is_cn}`，否则会重复标记。
 
-`{exit_is_cn}` 保留兼容：仅当已有 YouTube 结果为 `cn` 时输出 `*`，
+`{exit_is_cn}` 保留兼容：仅当选定来源的结果为 `cn` 时输出 `*`，
 贴附前一个非空命名字段，不额外添加连接符。Premium 页面中的 `ad-free` 文案不是实际无广告验证。
 例如 `f={prefix:ENET}{region}{i:2d}{tag:Home=家宽|home}{exit_is_cn}` 输出
 `ENET-HK-02*`；正常、未知或未检测时名称不变。此为已有结果的展示，不新增网络检测方法。

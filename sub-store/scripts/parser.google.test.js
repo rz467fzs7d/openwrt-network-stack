@@ -8,7 +8,7 @@ function harness(args = {}, getResponse = () => ({ status: 200, body: '' })) {
     const requests = [], starts = [], logs = [], store = new Map();
     let stops = 0;
     const context = {
-        $arguments: { f: '{region*}', ...args },
+        $arguments: { f: '{region*}', options: { exit: { source: 'youtube' } }, ...args },
         ProxyUtils: { produce: nodes => nodes.map(node => ({ ...node })) },
         scriptResourceCache: { get: key => store.get(key), set: (key, value) => store.set(key, value) },
         $substore: {
@@ -30,7 +30,7 @@ function harness(args = {}, getResponse = () => ({ status: 200, body: '' })) {
 }
 const nodes = () => ['JP Home', 'JP Office', 'HK Home'].map((name, i) => ({ name, type: 'ss', server: 'example.com', port: 443 + i }));
 
-test('upstream YouTube classifications and Play text extraction', () => {
+test('YouTube and Google Terms classifications', () => {
     const { context: c } = harness();
     assert.equal(c.parseYoutubePremium('www.google.cn').status, 'cn');
     assert.equal(c.parseYoutubePremium('Premium is not available in your country').status, 'unavailable');
@@ -38,9 +38,9 @@ test('upstream YouTube classifications and Play text extraction', () => {
     assert.equal(c.parseYoutubePremium('ad-free').region, 'UNKNOWN');
     assert.equal(c.parseYoutubePremium('captcha sorry unsupported_browser').status, 'unknown');
     assert.equal(c.parseYoutubePremium('').status, 'unknown');
-    assert.equal(c.parseGooglePlay('<div class="yVZQTb">Japan (English)</div>').region, 'Japan ');
-    assert.equal(c.parseGooglePlay('captcha').status, 'unknown');
-    assert.equal(c.applyCompiledFormat({ _googleCheck: { play: { region: 'China ' } } }, c.compileFormat('{google_play_region}'), '-'), 'China');
+    assert.equal(c.parseGoogleTerms('<a data-name="country-version">Country version:</a> China</p>').status, 'cn');
+    assert.equal(c.parseGoogleTerms('<a data-name="country-version">Country version:</a> Singapore</p>').region, 'Singapore');
+    assert.equal(c.parseGoogleTerms('captcha').status, 'unknown');
 });
 
 test('exit_is_cn marker attaches without a separator, only for explicit Chinese results', () => {
@@ -102,7 +102,7 @@ test('explicitly disabled; include/exclude apply to original names independently
     assert.equal(h.requests.length, 1); assert.equal(h.stops, 1);
     assert.ok(h.requests.every(r => r.proxy === 'http://127.0.0.1:10000' && r.retries === 0));
     assert.ok(h.requests.every(r => !Object.keys(r.headers).some(key => key.toLowerCase() === 'cookie')));
-    assert.ok([...h.store.keys()].some(key => key.startsWith('parser:google-check:rrc-1a856acc-v2-no-cookie:')));
+    assert.ok([...h.store.keys()].some(key => key.startsWith('parser:google-check:v3:youtube:')));
     assert.equal(result[0]._googleCheck.youtube.region, 'CN');
     assert.equal(result[0].region_code, 'JP'); assert.equal(result[0]._failed, undefined);
     assert.equal(result[1]._googleCheck, undefined); assert.equal(result[2]._googleCheck, undefined);
@@ -140,7 +140,7 @@ test('HTTP failures and exceptions remain unknown, never remove nodes; META stop
     const result = await h.context.operator(nodes());
     assert.equal(result.length, 3); assert.equal(h.stops, 1);
     assert.equal(result[0]._googleCheck.youtube.status, 'unknown');
-    assert.equal(result[0]._googleCheck.play.status, 'skipped');
+    assert.equal(result[0]._googleCheck.play, undefined);
     assert.equal(result[0]._failed, undefined);
     for (const [key, value] of h.store) if (key.startsWith('parser:google-check:')) value.youtubeCheckedAt -= 11 * 60 * 1000;
     await h.context.operator(nodes()); assert.equal(h.requests.length, 2);
@@ -185,19 +185,13 @@ test('optional META startup failure leaves subscription intact with unknown chec
     assert.equal(h.requests.length, 0);
 });
 
-test('Play is opt-in through its format field, with independent cache freshness', async () => {
-    const h = harness({ f: '{region*}{google_play_region}' }, opt => ({ status: 200,
-        body: opt.url.includes('youtube') ? 'www.google.cn' : 'captcha' }));
-    const first = await h.context.operator(nodes());
-    assert.equal(h.requests.length, 6);
-    assert.ok(first.every(p => p.name.includes('*')));
-    for (const [key, value] of h.store) if (key.startsWith('parser:google-check:')) value.playCheckedAt -= 11 * 60 * 1000;
-    await h.context.operator(nodes());
-    assert.equal(h.requests.length, 9);
-    assert.equal(h.requests.filter(r => r.url.includes('youtube')).length, 3);
-    h.context.$arguments.f = '{region*}';
-    await h.context.operator(nodes());
-    assert.equal(h.requests.length, 9);
+test('default Terms source and legacy Play placeholder never requests Play', async () => {
+    const h = harness({ options: {}, f: '{region*}{google_play_region}' }, () => ({ status: 200,
+        body: '<a data-name="country-version">Country version:</a> China</p>' }));
+    const result = await h.context.operator(nodes());
+    assert.equal(h.requests.length, 3);
+    assert.ok(h.requests.every(r => r.url.includes('policies.google.com/terms')));
+    assert.ok(result.every(p => p._googleCheck.terms.status === 'cn' && p.name.includes('*')));
 });
 
 test('META failures have a short negative cache, then retry; cache=false bypasses it', async () => {
@@ -211,29 +205,15 @@ test('META failures have a short negative cache, then retry; cache=false bypasse
     await h.context.operator(nodes()); assert.ok(attempts > retried);
 });
 
-test('refreshing YouTube alone preserves an independently fresh Play cache', async () => {
-    const h = harness({ f: '{region*}{google_play_region}' }, opt => ({ status: 200,
-        body: opt.url.includes('youtube') ? 'www.google.cn' : '<div class="yVZQTb">Japan</div>' }));
+test('source switches have independent caches', async () => {
+    const h = harness({}, opt => ({ status: 200, body: opt.url.includes('youtube') ? 'www.google.cn' : '<a data-name="country-version">Country version:</a> Japan</p>' }));
     await h.context.operator(nodes());
-    for (const [key, value] of h.store) if (key.startsWith('parser:google-check:')) value.youtubeCheckedAt = 0;
-    h.context.$arguments.f = '{region*}';
-    const result = await h.context.operator(nodes());
-    assert.equal(h.requests.length, 9);
-    assert.ok(result.every(p => p._googleCheck.play.status === 'skipped'));
-    h.context.$arguments.f = '{region*}{google_play_region}';
-    await h.context.operator(nodes());
-    assert.equal(h.requests.length, 9);
-});
-
-test('Play-only META failure does not replace fresh YouTube evidence', async () => {
-    const h = harness({ f: '{region*}{google_play_region}' }, opt => ({ status: 200,
-        body: opt.url.includes('youtube') ? 'www.google.cn' : 'captcha' }));
-    await h.context.operator(nodes());
-    for (const [key, value] of h.store) if (key.startsWith('parser:google-check:')) value.playCheckedAt = 0;
-    h.context.$substore.http.post = async () => { throw new Error('META unavailable'); };
-    const result = await h.context.operator(nodes());
-    assert.ok(result.every(p => p._googleCheck.youtube.status === 'cn' && p.name.includes('*')));
-    assert.ok(result.every(p => p._googleCheck.play.reason === 'meta_failed'));
+    h.context.$arguments.options = { exit: { source: 'terms' } };
+    const terms = await h.context.operator(nodes());
+    assert.ok(terms.every(p => p._googleCheck.terms.region === 'Japan' && !p.name.includes('*')));
+    h.context.$arguments.options = { exit: { source: 'youtube' } };
+    const youtube = await h.context.operator(nodes());
+    assert.ok(youtube.every(p => p._googleCheck.youtube.status === 'cn' && p.name.includes('*')));
     assert.equal(h.requests.length, 6);
 });
 
