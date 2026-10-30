@@ -37,7 +37,7 @@ OpenWrt 特定配置请参见：[docker/OPENWRT-GUIDE.md](docker/OPENWRT-GUIDE.m
 
 **CDN URL**：
 ```
-https://fastly.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@2c3689b/sub-store/scripts/parser.js
+https://fastly.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@02e32d8/sub-store/scripts/parser.js
 ```
 
 **功能特性**：
