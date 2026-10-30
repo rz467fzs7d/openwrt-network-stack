@@ -29,7 +29,7 @@
  * - probe_retries 请求重试次数  默认: 1
  * - probe_retry_delay 请求重试间隔(ms) 默认: 1000
  * - probe_timeout 单节点预估耗时(ms)，同时用作单次请求超时 默认: 3000
- * - check               可选 udp,http,exit,gpt,entrance；模板含 {region*} 时也会触发出口检测
+ * - detect              可选 udp,http,exit,gpt,entrance；check 为兼容别名，模板含 {region*} 时也会触发出口检测
  * - options             JSON 对象，分别配置 exit、udp、http 的检测范围和选项
  * - exit_is_cn_check     兼容旧参数：默认亚洲地区；自定义原始节点名正则，空=关闭，.*=全量
  * - exit_is_cn_check_exclude 排除原始节点名正则，优先于 exit_is_cn_check
@@ -270,9 +270,10 @@ async function operator(proxies = [], targetPlatform, context) {
     const gptOptions = checkOptions.gpt || {}, entranceOptions = checkOptions.entrance || {};
     const exitSource = String(exitOptions.source ?? 'terms').toLowerCase();
     if (!['terms', 'youtube'].includes(exitSource)) throw new Error(`Invalid options.exit.source: ${exitSource}`);
-    const explicitChecks = $arguments.check != null;
-    const checks = new Set((Array.isArray($arguments.check) ? $arguments.check : String($arguments.check ?? '').split(',')).map(v => String(v).trim().toLowerCase()).filter(Boolean));
-    for (const check of checks) if (!['exit', 'udp', 'http', 'gpt', 'entrance'].includes(check)) throw new Error(`Invalid check: ${check}`);
+    const explicitChecks = $arguments.detect != null || $arguments.check != null;
+    const rawChecks = $arguments.detect ?? $arguments.check;
+    const checks = new Set((Array.isArray(rawChecks) ? rawChecks : String(rawChecks ?? '').split(',')).map(v => String(v).trim().toLowerCase()).filter(Boolean));
+    for (const check of checks) if (!['exit', 'udp', 'http', 'gpt', 'entrance'].includes(check)) throw new Error(`Invalid ${$arguments.detect != null ? 'detect' : 'check'}: ${check}`);
     const cnCheckEnabled = String(getArg('format') ?? '').includes('{region*}') || checks.has('exit');
     const exitScope = exitOptions.scope ?? $arguments.exit_is_cn_check;
     const cnScope = !cnCheckEnabled ? null : exitScope == null

@@ -36,7 +36,7 @@ https://fastly.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@9a8c9a1/sub-stor
 
 ### 可选能力检测
 
-UDP、HTTP、GPT、入口和出口检测默认关闭；使用 `check=udp,http,exit,gpt,entrance` 按需启用。模板含 `{region*}` 时仍会自动触发出口检测。检测不会删除节点或设置 `_failed`。
+UDP、HTTP、GPT、入口和出口检测默认关闭；使用 `detect=udp,http,exit,gpt,entrance` 按需启用。模板含 `{region*}` 时仍会自动触发出口检测。检测不会删除节点或设置 `_failed`。
 
 `options` 是 JSON 对象，按检测类型设置原始节点名的正则范围及选项，例如：
 
@@ -44,7 +44,7 @@ UDP、HTTP、GPT、入口和出口检测默认关闭；使用 `check=udp,http,ex
 {"exit":{"scope":"HK|MO|TW"},"udp":{"scope":"HK"},"http":{"scope":"JP","samples":3}}
 ```
 
-各类型均支持 `scope`、`exclude`、`timeout`；`exit` 还支持 `source`、`concurrency`、`cache_ttl`，`udp` 支持 `ntp`，`http` 支持 `samples`、`url`、`status`，`gpt` 支持 `client`（`ios` 或 `android`）。旧参数仍兼容；显式设置 `check` 时，它决定 UDP 和 HTTP 是否启用，但不会关闭 `{region*}` 所触发的检测。
+各类型均支持 `scope`、`exclude`、`timeout`；`exit` 还支持 `source`、`concurrency`、`cache_ttl`，`udp` 支持 `ntp`，`http` 支持 `samples`、`url`、`status`，`gpt` 支持 `client`（`ios` 或 `android`）。`check` 为兼容别名，两者同时设置时以 `detect` 为准，即使 `detect` 为空；都不设置时才使用旧的 `check_udp` / `check_http`。`{region*}` 仍会独立触发出口检测。
 
 `gpt` 仅探测对应客户端入口，返回 `_capabilityCheck.gpt`：`reachable` 表示收到可识别的未认证响应，`unsupported` 表示地区不支持，其他结果为 `unknown`，不保证登录或对话成功。`entrance` 解析服务器域名后查询公开 IP 的国家和运营商，结果写入 `_entrance`，不更改服务器地址；会将公网入口 IP 发送给 ip-api.com，内网地址不查询。DNS 和数据库结果可能与客户端实际连接路径不同。
 
@@ -69,7 +69,7 @@ HTTP 成功样本的平均耗时记录在 `_capabilityCheck.http.averageLatencyM
 
 ### Google / YouTube 送中检测（可选）
 
-当重命名模板 `f` / `format` 包含 `{region*}` 或 `check` 包含 `exit` 时执行检测及读取检测缓存。
+当重命名模板 `f` / `format` 包含 `{region*}` 或 `detect` 包含 `exit` 时执行检测及读取检测缓存。
 仅使用 `{region}`、未设置模板或仅使用 `{exit_is_cn}` 均不触发检测；范围参数仅在启用后生效。
 
 检测方法移植自 RegionRestrictionCheck，来源与许可证见

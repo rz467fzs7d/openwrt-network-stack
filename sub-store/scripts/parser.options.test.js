@@ -34,3 +34,12 @@ test('explicit check controls legacy UDP and HTTP, but cannot cancel region*', a
   const h = harness({f:'{region*}',check:'',check_udp:true}); const r = await h.c.operator(input());
   assert.ok(r.every(p => p._googleCheck)); assert.ok(r.every(p => !p._capabilityCheck));
 });
+test('detect takes precedence over check and legacy flags, including empty detect', async () => {
+  const h = harness({ f:'{region}', detect:'http', check:'udp', check_udp:true });
+  const r = await h.c.operator(input()); assert.ok(r.every(p => p._capabilityCheck.http)); assert.ok(r.every(p => !p._capabilityCheck.udp));
+  const empty = harness({ f:'{region*}', detect:'', check:'udp', check_udp:true });
+  const result = await empty.c.operator(input()); assert.ok(result.every(p => p._googleCheck)); assert.ok(result.every(p => !p._capabilityCheck));
+});
+test('detect rejects invalid values even with valid legacy check', async () => {
+  const h = harness({ detect:'bad', check:'http' }); await assert.rejects(h.c.operator(input()), /Invalid detect/); assert.equal(h.calls.length, 0);
+});

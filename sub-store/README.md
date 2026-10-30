@@ -105,6 +105,7 @@ node --test sub-store/scripts/parser.google.test.js
 
 ### 2026-10-30
 
+- 检测参数统一为 `detect`，兼容旧 `check`；两者同时设置时 `detect` 优先。
 - 新增可选 GPT 入口探测、节点入口地区及运营商查询；HTTP 多次采样增加成功请求平均耗时，新检测默认关闭。
 - 出口检测默认使用 Google 条款地区，可通过 `options.exit.source=youtube` 切换；两种来源的缓存隔离，移除 Google Play 检测及其占位符。
 - 使用 `check=udp,http,exit` 按需启用检测，`options` 可分别设置检测范围；新检测默认关闭，`{region*}` 仍自动触发出口检测。旧参数继续兼容。
