@@ -34,6 +34,25 @@ https://fastly.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@0be4c6f/sub-stor
 
 更多参数（`meta_host`/`meta_port`/`probe_api`/`ipinfo_url`/`ipinfo_token`/`flat`/`debug_node` 等）见脚本头部的 JSDoc。
 
+### 可选能力检测
+
+UDP 与 HTTP 检测默认关闭，仅显式启用时执行；不会删除节点或设置 `_failed`。可通过 `check_scope`、`check_exclude` 正则限制原始节点名称。
+
+| 参数 | 默认 | 说明 |
+| --- | --- | --- |
+| `check_udp` | `false` | 经节点通过 HTTP META 测试 NTP UDP |
+| `check_http` | `false` | 经节点测试 HTTP 请求 |
+| `check_samples` | `1` | HTTP 请求次数，最大 20；多次时计算请求失败率 |
+| `check_scope` / `check_exclude` | `.*` / 空 | 检测范围 / 排除规则 |
+| `check_timeout` / `check_concurrency` | `5000` / `2` | 单请求毫秒 / 并发节点数 |
+| `check_ntp` | `time.apple.com` | NTP 目标 |
+| `check_url` / `check_status` | Cloudflare 204 / `204` | HTTP 目标及预期状态码 |
+| `check_cache_ttl` | `21600000` | 成功缓存毫秒；不完整结果最多缓存 10 分钟，`cache=false` 关闭 |
+
+结果在 `_capabilityCheck.udp` 与 `_capabilityCheck.http`：UDP 为 `ok` / `unknown`；HTTP 包含状态、成功数、失败数、采样次数及 `failureRate`。该百分比是对指定 URL 的**请求失败率**，不是网络层丢包率。`{udp_status}`、`{http_status}`、`{http_failure_rate}` 可选用于命名；未检测时为空。flat 派生的新地址不继承结果。
+
+例如：`check_udp=true&check_http=true&check_scope=HK&check_samples=3`。结果依赖测试时间、目标及路径；UDP 失败不能证明所有 UDP 不可用。HTTP META UDP 接口参考 [上游脚本](https://github.com/xream/scripts/blob/main/surge/modules/sub-store-scripts/check/http_meta_udp.js)，NTP 参数独立读取 `check_ntp`。
+
 ### Google / YouTube 送中检测（可选）
 
 仅当重命名模板 `f` / `format` 包含 `{region*}` 时执行检测及读取检测缓存。

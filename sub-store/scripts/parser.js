@@ -35,6 +35,11 @@
  * - exit_is_cn_check_concurrency 并发节点数，默认 2
  * - exit_is_cn_check_cache_ttl 各服务独立缓存(ms)，默认 21600000；未知最长 600000，META启动失败最长 60000
  * - 默认只请求 YouTube；模板含 google_play_region 时额外请求 Play
+ * - check_udp / check_http 可选能力检测，默认 false；HTTP 多次采样计算请求失败率
+ * - check_scope / check_exclude 原始节点名称正则；默认全部 / 空
+ * - check_timeout 5000ms, check_concurrency 2, check_samples 1（最大 20）
+ * - check_ntp time.apple.com, check_url http://cp.cloudflare.com/generate_204, check_status 204
+ * - check_cache_ttl 21600000ms；失败最长缓存 600000ms，cache=false 禁用
  * - 检测仅写 _googleCheck，不改 region/_failed；模板 {region*} 输出带送中标记的地区，如 HK*；另支持 exit_is_cn/youtube_region/youtube_status/google_play_region
  * - ipinfo_url    META 失败后的 ipinfo Lite 兜底 API 模板 默认: https://api.ipinfo.io/lite/{ip}
  * - ipinfo_token  ipinfo API Token（优先于 env 注入，优先于进程环境变量）
@@ -235,6 +240,18 @@ async function operator(proxies = [], targetPlatform, context) {
     const cnTimeout = parsePositiveNumber($arguments.exit_is_cn_check_timeout, 5000);
     const cnConcurrency = parsePositiveInt($arguments.exit_is_cn_check_concurrency, 2);
     const cnCacheTtl = parsePositiveNumber($arguments.exit_is_cn_check_cache_ttl, 21600000);
+    const capabilityUdp = toBoolean($arguments.check_udp, false);
+    const capabilityHttp = toBoolean($arguments.check_http, false);
+    const capabilityEnabled = capabilityUdp || capabilityHttp;
+    const capabilityScope = capabilityEnabled ? compileCheckScope($arguments.check_scope ?? '.*', 'check_scope') : null;
+    const capabilityExclude = capabilityEnabled ? compileCheckScope($arguments.check_exclude, 'check_exclude') : null;
+    const capabilityTimeout = parsePositiveNumber($arguments.check_timeout, 5000);
+    const capabilityConcurrency = parsePositiveInt($arguments.check_concurrency, 2);
+    const capabilitySamples = Math.min(20, parsePositiveInt($arguments.check_samples, 1));
+    const capabilityNtp = String($arguments.check_ntp || 'time.apple.com');
+    const capabilityUrl = String($arguments.check_url || 'http://cp.cloudflare.com/generate_204');
+    const capabilityStatus = parsePositiveInt($arguments.check_status, 204);
+    const capabilityTtl = parsePositiveNumber($arguments.check_cache_ttl, 21600000);
 
     // 调试日志
     const debug = getArg('debug') ?? true;
@@ -256,6 +273,7 @@ async function operator(proxies = [], targetPlatform, context) {
     const internalProxies = [];
     proxies.forEach((proxy, index) => {
         delete proxy._googleCheck;
+        if (capabilityEnabled) delete proxy._capabilityCheck;
         try {
             const node = ProxyUtils.produce([{ ...proxy }], 'ClashMeta', 'internal', {
                 'include-unsupported-proxy': includeUnsupportedProxy,
@@ -387,6 +405,77 @@ async function operator(proxies = [], targetPlatform, context) {
         }
     }
 
+    if (capabilityEnabled && capabilityScope) {
+        const selected = internalProxies.filter(p => capabilityScope.test(p.name || '') && !capabilityExclude?.test(p.name || ''));
+        const pending = [];
+        const settings = JSON.stringify({ capabilityUdp, capabilityHttp, capabilitySamples, capabilityNtp, capabilityUrl, capabilityStatus, capabilityTimeout });
+        const keys = new Map();
+        for (const proxy of selected) {
+            const key = `parser:capability:v1:${settings}:${getProbeCacheId(proxy)}`;
+            keys.set(proxy, key);
+            const saved = cacheEnabled && cache ? cache.get(key) : null;
+            const age = Date.now() - (saved?.checkedAt ?? 0);
+            const ttl = saved?.incomplete ? Math.min(capabilityTtl, 600000) : capabilityTtl;
+            if (saved && age >= 0 && age < ttl) {
+                proxies[proxy._proxies_index]._capabilityCheck = { ...saved, cached: true };
+            } else pending.push(proxy);
+        }
+        $.info(`[PARSER][CAPABILITY] selected=${selected.length} cached=${selected.length - pending.length} pending=${pending.length} udp=${capabilityUdp} http=${capabilityHttp} samples=${capabilitySamples}`);
+        if (pending.length) {
+            try {
+                await probeAll(pending, proxies, null, capabilityWorker,
+                    capabilityTimeout * ((capabilityUdp ? 1 : 0) + (capabilityHttp ? capabilitySamples : 0)), capabilityConcurrency);
+            } catch (error) {
+                $.error(`[PARSER][CAPABILITY] META failed: ${error.message || error}`);
+                for (const proxy of pending) {
+                    if (!proxies[proxy._proxies_index]._capabilityCheck) {
+                        const result = { checkedAt: Date.now(), cached: false, incomplete: true, reason: 'meta_failed' };
+                        if (capabilityUdp) result.udp = { status: 'unknown', reason: 'meta_failed' };
+                        if (capabilityHttp) result.http = { status: 'unknown', reason: 'meta_failed' };
+                        proxies[proxy._proxies_index]._capabilityCheck = result;
+                        if (cacheEnabled && cache) cache.set(keys.get(proxy), result);
+                    }
+                }
+            }
+        }
+        async function capabilityWorker(proxy, all, port) {
+            const result = { checkedAt: Date.now(), cached: false, incomplete: false };
+            if (capabilityUdp) {
+                try {
+                    const response = await httpRequest({ method: 'post', url: `${meta_api}/udp`,
+                        headers: { 'Content-type': 'application/json', Authorization: meta_auth },
+                        body: JSON.stringify({ ntp: capabilityNtp, port, timeout: capabilityTimeout }), timeout: capabilityTimeout + 1000, retries: 0 });
+                    let body = response.body;
+                    if (typeof body === 'string') {
+                        try { body = JSON.parse(body); }
+                        catch (_) { body = { result: body }; }
+                    }
+                    if (Number(response.status ?? response.statusCode) === 200 && body?.result === 'ok') result.udp = { status: 'ok' };
+                    else { result.udp = { status: 'unknown', reason: body?.result === 'timeout' ? 'timeout' : 'no_success_response' }; result.incomplete = true; }
+                } catch (error) { result.udp = { status: 'unknown', reason: error.message || 'request_failed' }; result.incomplete = true; }
+            }
+            if (capabilityHttp) {
+                let success = 0; const reasons = [];
+                for (let i = 0; i < capabilitySamples; i++) {
+                    try {
+                        const response = await httpRequest({ method: 'get', url: capabilityUrl,
+                            proxy: `http://${meta_host}:${port}`, timeout: capabilityTimeout, retries: 0 });
+                        const status = Number(response.status ?? response.statusCode);
+                        if (status === capabilityStatus) success++; else reasons.push(`http_${status}`);
+                    } catch (error) { reasons.push(error.message || 'request_failed'); }
+                }
+                const failures = capabilitySamples - success;
+                result.http = { status: failures === 0 ? 'ok' : success ? 'partial' : 'failed',
+                    success, failures, samples: capabilitySamples, failureRate: failures * 100 / capabilitySamples, reasons };
+                if (failures) result.incomplete = true;
+            }
+            result.checkedAt = Date.now();
+            all[proxy._proxies_index]._capabilityCheck = result;
+            if (cacheEnabled && cache) cache.set(keys.get(proxy), result);
+            $.info(`[PARSER][CAPABILITY][${proxy.name}] udp=${result.udp?.status || 'off'} http=${result.http?.status || 'off'} failures=${result.http?.failures ?? '-'} cached=false`);
+        }
+    }
+
     // ---- Step 3: 提取元数据 ----
     proxies.forEach(proxy => prepareProxyMetadata(proxy, 0, forceGeoRegion));
 
@@ -430,6 +519,7 @@ async function operator(proxies = [], targetPlatform, context) {
                     cloned.server = ip;
                     // A different endpoint has not been checked through Google.
                     delete cloned._googleCheck;
+                    if (capabilityEnabled) delete cloned._capabilityCheck;
                     cloned.name = (compiledFormat
                         ? applyCompiledFormat({ ...cloned, name: cloned.originalName || '' }, compiledFormat, connector)
                         : proxy.name) + connector + ip;
@@ -900,6 +990,12 @@ function resolvePlaceholder(proxy, placeholder, conn) {
     if (placeholder === 'youtube_region') return proxy._googleCheck?.youtube?.region || '';
     if (placeholder === 'youtube_status') return proxy._googleCheck?.youtube?.status || '';
     if (placeholder === 'google_play_region') return (proxy._googleCheck?.play?.region || '').trim();
+    if (placeholder === 'udp_status') return proxy._capabilityCheck?.udp?.status || '';
+    if (placeholder === 'http_status') return proxy._capabilityCheck?.http?.status || '';
+    if (placeholder === 'http_failure_rate') {
+        const rate = proxy._capabilityCheck?.http?.failureRate;
+        return rate == null ? '' : String(rate);
+    }
     if (placeholder === 'exit_is_cn' || placeholder === 'region*') {
         const check = proxy._googleCheck;
         const marker = check?.youtube?.status === 'cn' ? '*' : '';
