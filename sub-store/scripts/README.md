@@ -1,5 +1,23 @@
 # Sub-Store 节点格式化脚本
 
+## node-overrides.js
+
+独立的节点连接参数覆盖操作器。将 `/api/module/node-overrides.js` 作为脚本链接加入订阅；默认不改任何字段。它不会关闭证书验证，也不会为缺少 `network` 的节点添加默认传输方式。
+
+| 参数 | 说明 |
+| --- | --- |
+| `scope` / `exclude` | 按原始节点名匹配 / 排除的正则，忽略大小写 |
+| `type` | 协议白名单，逗号分隔，如 `vmess,vless` |
+| `host` | 修改受支持传输的 Host 或混淆 Host |
+| `sni` | 修改受支持 TLS 节点的 SNI；与 `host` 独立 |
+| `path` / `method` | 修改受支持传输的路径 / HTTP 方法 |
+| `port` | 目标端口，范围 1–65535 |
+| `prefix` / `suffix` | 只为实际修改了连接参数的节点添加前缀 / 后缀 |
+
+支持 VMess/VLESS 的 WS、H2、HTTP 及 VLESS XHTTP，以及 Trojan WS、Snell 混淆 Host、SS 插件 Host、Shadow TLS 和 AnyTLS SNI；协议不适用的字段会跳过。端口覆盖适用于匹配的节点。参数必须与服务端配置一致，否则节点可能不可用；请先使用预览核对。脚本不会修改 `skip-cert-verify`。
+
+示例：`scope=HK&type=vmess,vless&host=example.com&sni=tls.example.com&path=/ws&port=443`。
+
 ## parser.js
 
 HTTP META 探测 + 重命名 + 排序 + 限流，一次完成。
