@@ -105,6 +105,7 @@ node --test sub-store/scripts/parser.google.test.js
 
 ### 2026-10-30
 
+- 可选 `probe_lookup=mmdb`：经节点获取出口 IP 后使用本地数据库查询国家和 ASN 组织，默认 API 行为保持不变。
 - `enhancer.js` 支持独立覆盖已有 XHTTP 下载连接的 Host、SNI、路径；`parser.js` 的 GPT 探测增加网页端 `client=web`。
 - 新增独立的 `enhancer.js`，按范围覆盖连接参数；默认不修改节点、不关闭证书验证。
 - 增加可选 `flat=auto`，通过 Sub-Store DoH 按公网 A 记录生成派生节点，同时保留原始域名节点。

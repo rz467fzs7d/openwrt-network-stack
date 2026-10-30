@@ -47,11 +47,14 @@ https://fastly.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@c01f7b9/sub-stor
 | `cache` | - | 使用 Sub-Store 脚本缓存 | `true` |
 | `cache_fallback` | - | 探测失败时用节点身份兜底缓存 | `true` |
 | `probe_all` | - | 强制对所有节点探测（默认名称可识别 region 时跳过） | `false` |
+| `probe_lookup` | - | 落地信息查询方式：`api` 或 `mmdb` | `api` |
 | `probe_concurrency` | - | 探测并发数 | `10` |
 | `probe_retries` | - | 请求重试次数 | `1` |
 | `probe_retry_delay` | - | 请求重试间隔(ms) | `1000` |
 
 更多参数（`meta_host`/`meta_port`/`probe_api`/`ipinfo_url`/`ipinfo_token`/`flat`/`debug_node` 等）见脚本头部的 JSDoc。
+
+`probe_lookup=mmdb` 时，通过节点请求出口 IP（默认 `https://api64.ipify.org`），再用 Sub-Store 的 `ProxyUtils.MMDB` 查询国家和 ASN 组织；可用 `mmdb_country_path` / `mmdb_asn_path` 指定数据库路径，否则使用 Sub-Store 环境配置。默认仍按名称识别跳过探测；需要实测所有节点时设置 `probe_all=true`，并按需设置 `force_geo_region=true` 使用实测地区命名。MMDB 与 API 结果分开缓存，失败不使用入口 IP 或身份兜底缓存冒充落地；不影响其他检测。
 
 ### 可选能力检测
 

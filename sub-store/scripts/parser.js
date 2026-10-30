@@ -29,6 +29,7 @@
  * - probe_retries 请求重试次数  默认: 1
  * - probe_retry_delay 请求重试间隔(ms) 默认: 1000
  * - probe_timeout 单节点预估耗时(ms)，同时用作单次请求超时 默认: 3000
+ * - probe_lookup api（默认）或 mmdb；mmdb 模式通过节点获取出口 IP 后本地查询国家和 ASN 组织
  * - detect              可选 udp,http,exit,gpt,entrance,ipv6,speed；check 为兼容别名
  * - options             JSON 对象，分别配置 exit、udp、http 的检测范围和选项
  * - exit_is_cn_check     兼容旧参数：默认亚洲地区；自定义原始节点名正则，空=关闭，.*=全量
@@ -243,9 +244,11 @@ async function operator(proxies = [], targetPlatform, context) {
     const meta_api = `${meta_protocol}://${meta_host}:${meta_port}`;
     const meta_start_delay = parsePositiveNumber($arguments.meta_start_delay, 3000);
 
-    // 探测配置：通过节点出口请求 ip-api.com，直接取 countryCode/isp
+    // 探测配置：通过节点出口查询地区，或取得出口 IP 后使用本地 MMDB。
+    const probeLookup = String($arguments.probe_lookup ?? 'api').toLowerCase();
+    if (!['api', 'mmdb'].includes(probeLookup)) throw new Error(`Invalid probe_lookup: ${probeLookup}`);
     const probe_timeout = parsePositiveNumber($arguments.probe_timeout, 3000);
-    const probe_api = $arguments.probe_api || 'http://ip-api.com/json?lang=zh-CN&fields=status,country,countryCode,isp,query';
+    const probe_api = $arguments.probe_api || (probeLookup === 'mmdb' ? 'https://api64.ipify.org' : 'http://ip-api.com/json?lang=zh-CN&fields=status,country,countryCode,isp,query');
     const probe_method = $arguments.probe_method || 'get';
     const probe_concurrency = parsePositiveInt($arguments.probe_concurrency, 10);
     const ipinfo_url = $arguments.ipinfo_url || 'https://api.ipinfo.io/lite/{ip}';
@@ -259,6 +262,7 @@ async function operator(proxies = [], targetPlatform, context) {
     const cacheEnabled = toBoolean($arguments.cache, true);
     const cache = typeof scriptResourceCache !== 'undefined' ? scriptResourceCache : null;
     const probeCacheIds = new WeakMap();
+    let probeMmdb;
     const connectionIds = new WeakMap();
     const googleRequests = new Map();
     const fallbackCacheEnabled = cacheEnabled && toBoolean($arguments.cache_fallback, true);
@@ -902,7 +906,7 @@ async function operator(proxies = [], targetPlatform, context) {
             const cached = { ...geoData, latency: Date.now() - startedAt };
             applyProbeResult(proxy, proxies, cached);
             setProbeCache(cacheId, cached);
-            setFallbackProbeCache(proxy, cached);
+            if (probeLookup !== 'mmdb') setFallbackProbeCache(proxy, cached);
             $.info(`[PARSER][${proxy.name}] OK country=${geoData.countryCode} latency=${cached.latency}ms api=${probe_api}`);
             onResult(proxy, cached);
         } catch (e) {
@@ -938,7 +942,22 @@ async function operator(proxies = [], targetPlatform, context) {
                 return null;
             }
 
-            const geoData = normalizeGeoApiBody(res.body);
+            let geoData;
+            if (probeLookup === 'mmdb') {
+                let body = res.body;
+                if (typeof body === 'string') {
+                    const trimmed = body.trim();
+                    try { body = JSON.parse(trimmed); } catch (_) { body = trimmed; }
+                }
+                const ip = String(typeof body === 'string' ? body : body?.ip || body?.query || '').trim();
+                if (!isIpAddress(ip)) throw new Error('invalid_exit_ip');
+                if (!probeMmdb) probeMmdb = new ProxyUtils.MMDB({ country: $arguments.mmdb_country_path, asn: $arguments.mmdb_asn_path });
+                const countryCode = String(probeMmdb.geoip(ip) || '').trim().toUpperCase();
+                if (!/^[A-Z]{2}$/.test(countryCode)) throw new Error('mmdb_country_unknown');
+                let isp = '';
+                try { isp = String(probeMmdb.ipaso(ip) || ''); } catch (e) { $.error(`[PARSER][${proxy.name}] MMDB ASN lookup failed: ${e.message || e}`); }
+                geoData = { countryCode, isp, query: ip, _lookup: 'mmdb' };
+            } else geoData = normalizeGeoApiBody(res.body);
             if (!geoData.countryCode) {
                 $.info(`[PARSER][${proxy.name}] Geo API FAIL empty countryCode latency=${Date.now() - startedAt}ms api=${url}`);
                 return null;
@@ -953,6 +972,7 @@ async function operator(proxies = [], targetPlatform, context) {
     function applyProbeResult(proxy, proxies, result) {
         const p = proxies[proxy._proxies_index];
         if (result === null) {
+            if (probeLookup === 'mmdb') delete p._geo;
             p._failed = true;
             p._failReason = 'probe_failed';
         } else {
@@ -995,7 +1015,8 @@ async function operator(proxies = [], targetPlatform, context) {
         const stableProxy = Object.fromEntries(
             Object.entries(proxy).filter(([key]) => !/^(collectionName|subName|id|_.*)$/i.test(key))
         );
-        const id = `parser:http-meta:geo:${probe_api}:${JSON.stringify(stableProxy)}`;
+        const lookupKey = probeLookup === 'mmdb' ? `mmdb:${$arguments.mmdb_country_path || ''}:${$arguments.mmdb_asn_path || ''}:` : '';
+        const id = `parser:http-meta:geo:${lookupKey}${probe_api}:${JSON.stringify(stableProxy)}`;
         probeCacheIds.set(proxy, id);
         return id;
     }
@@ -1037,6 +1058,11 @@ async function operator(proxies = [], targetPlatform, context) {
     }
 
     async function finishProbeFailure(proxy, proxies, onResult, cacheId) {
+        if (probeLookup === 'mmdb') {
+            applyProbeResult(proxy, proxies, null);
+            onResult(proxy, null);
+            return;
+        }
         const serverFallback = await requestServerIpInfoFallback(proxy);
         if (serverFallback) {
             applyProbeResult(proxy, proxies, serverFallback);
