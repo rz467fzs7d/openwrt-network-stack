@@ -11,10 +11,11 @@
 | `host` | 修改受支持传输的 Host 或混淆 Host |
 | `sni` | 修改受支持 TLS 节点的 SNI；与 `host` 独立 |
 | `path` / `method` | 修改受支持传输的路径 / HTTP 方法 |
+| `download_host` / `download_sni` / `download_path` | 分别修改已有 VLESS XHTTP 下载连接的 Host、SNI、路径，不影响主连接 |
 | `port` | 目标端口，范围 1–65535 |
 | `prefix` / `suffix` | 只为实际修改了连接参数的节点添加前缀 / 后缀 |
 
-支持 VMess/VLESS 的 WS、H2、HTTP 及 VLESS XHTTP，以及 Trojan WS、Snell 混淆 Host、SS 插件 Host、Shadow TLS 和 AnyTLS SNI；协议不适用的字段会跳过。端口覆盖适用于匹配的节点。参数必须与服务端配置一致，否则节点可能不可用；请先使用预览核对。脚本不会修改 `skip-cert-verify`。
+支持 VMess/VLESS 的 WS、H2、HTTP 及 VLESS XHTTP，以及 Trojan WS、Snell 混淆 Host、SS 插件 Host、Shadow TLS 和 AnyTLS SNI；协议不适用的字段会跳过。XHTTP 下载参数仅作用于已有 `download-settings`，不会自动创建。端口覆盖适用于匹配的节点。参数必须与服务端配置一致，否则节点可能不可用；请先使用预览核对。脚本不会修改 `skip-cert-verify`。
 
 示例：`scope=HK&type=vmess,vless&host=example.com&sni=tls.example.com&path=/ws&port=443`。
 
@@ -62,7 +63,7 @@ UDP、HTTP、GPT、入口、出口、IPv6 和测速默认关闭；使用 `detect
 {"exit":{"scope":"HK|MO|TW"},"udp":{"scope":"HK"},"http":{"scope":"JP","samples":3}}
 ```
 
-各类型均支持 `scope`、`exclude`、`timeout`；`exit` 还支持 `source`、`concurrency`、`cache_ttl`，`udp` 支持 `ntp`，`http` 支持 `samples`、`url`、`status`，`gpt` 支持 `client`（`ios` 或 `android`）。`check` 为兼容别名，两者同时设置时以 `detect` 为准，即使 `detect` 为空；都不设置时才使用旧的 `check_udp` / `check_http`。`{region*}` 仍会独立触发出口检测。
+各类型均支持 `scope`、`exclude`、`timeout`；`exit` 还支持 `source`、`concurrency`、`cache_ttl`，`udp` 支持 `ntp`，`http` 支持 `samples`、`url`、`status`，`gpt` 支持 `client`（`ios`、`android` 或 `web`）。`check` 为兼容别名，两者同时设置时以 `detect` 为准，即使 `detect` 为空；都不设置时才使用旧的 `check_udp` / `check_http`。`{region*}` 仍会独立触发出口检测。
 
 `ipv6` 通过节点访问 IPv6 专用服务，成功时 `_capabilityCheck.ipv6` 返回出口 IPv6；失败是 `unknown`，不等于不支持。`speed` 从 Cloudflare 下载测试数据，`options.speed.bytes` 默认 1048576，最多 10485760 字节，单节点依次测速；记录 `_capabilityCheck.speed.mbps`，结果受测试目标和时间影响。测速消耗流量，默认关闭。
 
@@ -72,7 +73,7 @@ UDP、HTTP、GPT、入口、出口、IPv6 和测速默认关闭；使用 `detect
 
 `flat=auto` 可按 DNS A 记录自动裂变：保留原始域名节点并附加 IP 节点，默认关闭；使用 Sub-Store 的 DoH 接口，默认 `https://dns.alidns.com/dns-query`，可用 `flat_dns` 修改，`flat_dns_timeout` 默认为 5000 毫秒。每个域名最多 16 个公网地址，解析失败、内网/Fake IP 或不支持的协议与传输不生成派生节点。保留既有 SNI 和 WebSocket Host；必要时使用原域名补齐。使用插件或非 TCP/WS 传输的节点保留原样。派生节点不继承入口、服务检测结果，是否可连接仍应单独测试。现有静态 `flat={域名:IP,IP}` 用法不变。
 
-`gpt` 仅探测对应客户端入口，返回 `_capabilityCheck.gpt`：`reachable` 表示收到可识别的未认证响应，`unsupported` 表示地区不支持，其他结果为 `unknown`，不保证登录或对话成功。`entrance` 解析服务器域名后查询公开 IP 的国家和运营商，结果写入 `_entrance`，不更改服务器地址；会将公网入口 IP 发送给 ip-api.com，内网地址不查询。DNS 和数据库结果可能与客户端实际连接路径不同。
+`gpt` 仅探测对应客户端入口，返回 `_capabilityCheck.gpt`：`reachable` 表示收到可识别的入口响应（网页端为可识别的 ChatGPT 页面），`unsupported` 表示地区不支持，其他结果为 `unknown`，不保证登录或对话成功。`entrance` 解析服务器域名后查询公开 IP 的国家和运营商，结果写入 `_entrance`，不更改服务器地址；会将公网入口 IP 发送给 ip-api.com，内网地址不查询。DNS 和数据库结果可能与客户端实际连接路径不同。
 
 HTTP 成功样本的平均耗时记录在 `_capabilityCheck.http.averageLatencyMs`；`{http_latency}`、`{gpt_status}`、`{entrance_region}`、`{entrance_isp}` 可用于格式模板。未指定 `format` 时，成功的检测结果自动追加到默认名称：UDP 为 `UDP`、GPT 入口为 `GPT`、入口为地区代码、HTTP 为毫秒数，确认送中则在地区后附加 `*`。未知或失败不显示；指定 `format` 后完全由模板控制。
 

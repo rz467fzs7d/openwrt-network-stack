@@ -35,6 +35,13 @@ test('GPT cannot treat unexpected 403 as positive, and unknown preserves node', 
     assert.equal(h.ctx.parseGptResponse(403, 'cloudflare blocked').status, 'unknown');
     assert.equal(h.ctx.parseGptResponse(200, 'hello').status, 'unknown');
 });
+test('GPT web requires a recognizable page and treats challenges as unknown', async () => {
+    const h = harness({check:'gpt',options:{gpt:{client:'web'}}});
+    h.ctx.$substore.http.get=async o=>{h.calls.push(o);return {status:200,body:'<html><title>ChatGPT</title></html>'}};
+    const result=await h.ctx.operator(nodes());assert.ok(result.every(p=>p._capabilityCheck.gpt.status==='reachable'));assert.ok(h.calls.some(c=>c.url==='https://chatgpt.com/'));
+    assert.equal(h.ctx.parseGptResponse(200,'<title>Just a moment...</title> Cloudflare challenge','web').status,'unknown');
+    assert.equal(h.ctx.parseGptResponse(200,'<title>Welcome</title>','web').status,'unknown');
+});
 test('fake IP and documentation ranges are not treated as public entrances', () => {
     const h = harness(); const net = require('net');
     for (const ip of ['198.18.1.2', '198.19.1.2', '192.0.2.1', '198.51.100.1', '203.0.113.1', '127.0.0.1']) assert.equal(h.ctx.isPublicEntranceAddress(ip, net), false);

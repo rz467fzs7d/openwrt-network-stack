@@ -1,6 +1,7 @@
 /**
  * Sub-Store node connection enhancer.
- * Parameters: scope, exclude, type, host, sni, path, port, method, prefix, suffix.
+ * Parameters: scope, exclude, type, host, sni, path, port, method, prefix, suffix,
+ * download_host, download_sni, download_path.
  * No options means no changes. Certificate verification is never changed.
  */
 function operator(proxies = []) {
@@ -22,8 +23,9 @@ function operator(proxies = []) {
         if (!Number.isSafeInteger(port) || port < 1 || port > 65535) throw new Error('Invalid port');
     }
     if (configured('path') && !text('path').startsWith('/')) throw new Error('Invalid path');
+    if (configured('download_path') && !text('download_path').startsWith('/')) throw new Error('Invalid download_path');
     if (configured('method') && !/^[A-Za-z]+$/.test(text('method'))) throw new Error('Invalid method');
-    const active = ['host', 'sni', 'path', 'port', 'method'].some(configured);
+    const active = ['host', 'sni', 'path', 'port', 'method', 'download_host', 'download_sni', 'download_path'].some(configured);
     if (!active) return proxies;
     let changed = 0;
     const output = proxies.map(proxy => {
@@ -66,6 +68,8 @@ function operator(proxies = []) {
                 setShape(headers, Object.keys(headers).find(k => k.toLowerCase() === 'host') || 'Host', host);
             } else if (type === 'vless' && net === 'xhttp') {
                 p['xhttp-opts'] ||= {}; set(p['xhttp-opts'], 'host', host);
+                const headers = p['xhttp-opts'].headers;
+                if (headers) { const key = Object.keys(headers).find(k => k.toLowerCase() === 'host'); if (key) set(headers, key, host); }
             }
         }
         if (configured('path')) {
@@ -74,6 +78,17 @@ function operator(proxies = []) {
         }
         if (configured('method') && net === 'http' && ['vmess','vless'].includes(type)) {
             p['http-opts'] ||= {}; set(p['http-opts'], 'method', text('method').toUpperCase());
+        }
+        const download = type === 'vless' && net === 'xhttp' ? p['xhttp-opts']?.['download-settings'] : null;
+        if (download && typeof download === 'object' && !Array.isArray(download)) {
+            if (configured('download_host')) {
+                const host = text('download_host');
+                set(download, 'host', host);
+                download.headers ||= {};
+                set(download.headers, Object.keys(download.headers).find(k => k.toLowerCase() === 'host') || 'Host', host);
+            }
+            if (configured('download_path')) set(download, 'path', text('download_path'));
+            if (configured('download_sni')) set(download, 'servername', text('download_sni'));
         }
         if (!modified) return proxy;
         p.name = `${args.prefix ?? ''}${name}${args.suffix ?? ''}`;

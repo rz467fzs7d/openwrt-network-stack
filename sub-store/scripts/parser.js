@@ -182,7 +182,14 @@ function parseGoogleTerms(body) {
     return { status: /^china$/i.test(region) ? 'cn' : 'available', region, reason: 'country_version' };
 }
 
-function parseGptResponse(status, body) {
+function parseGptResponse(status, body, client = 'ios') {
+    if (client === 'web') {
+        const html = typeof body === 'string' ? body : '';
+        if (Number(status) === 200 && /<title[^>]*>\s*ChatGPT\s*<\/title>/i.test(html) && !/(?:<title[^>]*>\s*Just a moment|cf-chl-|challenge-platform)/i.test(html)) {
+            return { status: 'reachable', reason: 'chatgpt_page' };
+        }
+        return { status: 'unknown', reason: `http_${status}` };
+    }
     let data = body;
     if (typeof data === 'string') { try { data = JSON.parse(data); } catch (_) { data = null; } }
     const code = String(data?.error?.code || data?.error?.error_type || '');
@@ -307,7 +314,7 @@ async function operator(proxies = [], targetPlatform, context) {
     const gptTimeout = parsePositiveNumber(gptOptions.timeout, 5000);
     const entranceTimeout = parsePositiveNumber(entranceOptions.timeout, 5000);
     const gptClient = String(gptOptions.client ?? 'ios').toLowerCase();
-    if (!['ios', 'android'].includes(gptClient)) throw new Error(`Invalid options.gpt.client: ${gptClient}`);
+    if (!['ios', 'android', 'web'].includes(gptClient)) throw new Error(`Invalid options.gpt.client: ${gptClient}`);
     const udpTimeout = parsePositiveNumber(udpOptions.timeout ?? $arguments.check_timeout, 5000);
     const httpTimeout = parsePositiveNumber(httpOptions.timeout ?? $arguments.check_timeout, 5000);
     const capabilityConcurrency = parsePositiveInt($arguments.check_concurrency, 2);
@@ -602,9 +609,9 @@ async function operator(proxies = [], targetPlatform, context) {
             if (needed.get(proxy).gpt) {
                 const started = Date.now();
                 try {
-                    const response = await httpRequest({ method: 'get', url: `https://${gptClient}.chat.openai.com`,
+                    const response = await httpRequest({ method: 'get', url: gptClient === 'web' ? 'https://chatgpt.com/' : `https://${gptClient}.chat.openai.com`,
                         headers: { 'User-Agent': GOOGLE_CHECK_UA }, proxy: `http://${meta_host}:${port}`, timeout: gptTimeout, retries: 0 });
-                    result.gpt = { ...parseGptResponse(response.status ?? response.statusCode, response.body), latencyMs: Date.now() - started };
+                    result.gpt = { ...parseGptResponse(response.status ?? response.statusCode, response.body, gptClient), latencyMs: Date.now() - started };
                 } catch (error) { result.gpt = { status: 'unknown', reason: error.message || 'request_failed' }; }
                 if (result.gpt.status === 'unknown') result.incomplete = true;
             }
