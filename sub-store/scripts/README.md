@@ -52,6 +52,8 @@ UDP、HTTP、GPT、入口、出口、IPv6 和测速默认关闭；使用 `detect
 
 `dedupe=true` 可按完整连接配置去重，仅保留第一项，默认关闭；密码、SNI 等连接配置不同不会合并。节点名不同但连接配置相同的节点会合并。
 
+`flat=auto` 可按 DNS A 记录自动裂变：保留原始域名节点并附加 IP 节点，默认关闭；使用 Sub-Store 的 DoH 接口，默认 `https://dns.alidns.com/dns-query`，可用 `flat_dns` 修改，`flat_dns_timeout` 默认为 5000 毫秒。每个域名最多 16 个公网地址，解析失败、内网/Fake IP 或不支持的协议与传输不生成派生节点。保留既有 SNI 和 WebSocket Host；必要时使用原域名补齐。使用插件或非 TCP/WS 传输的节点保留原样。派生节点不继承入口、服务检测结果，是否可连接仍应单独测试。现有静态 `flat={域名:IP,IP}` 用法不变。
+
 `gpt` 仅探测对应客户端入口，返回 `_capabilityCheck.gpt`：`reachable` 表示收到可识别的未认证响应，`unsupported` 表示地区不支持，其他结果为 `unknown`，不保证登录或对话成功。`entrance` 解析服务器域名后查询公开 IP 的国家和运营商，结果写入 `_entrance`，不更改服务器地址；会将公网入口 IP 发送给 ip-api.com，内网地址不查询。DNS 和数据库结果可能与客户端实际连接路径不同。
 
 HTTP 成功样本的平均耗时记录在 `_capabilityCheck.http.averageLatencyMs`；`{http_latency}`、`{gpt_status}`、`{entrance_region}`、`{entrance_isp}` 可用于格式模板。未指定 `format` 时，成功的检测结果自动追加到默认名称：UDP 为 `UDP`、GPT 入口为 `GPT`、入口为地区代码、HTTP 为毫秒数，确认送中则在地区后附加 `*`。未知或失败不显示；指定 `format` 后完全由模板控制。

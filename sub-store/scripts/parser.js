@@ -335,6 +335,7 @@ async function operator(proxies = [], targetPlatform, context) {
     const sort = rawSort ? normalizePlaceholder(rawSort) : null;
     const forceGeoRegion = toBoolean($arguments.force_geo_region, false);
     const flatMap = parseFlatMap($arguments.flat ?? '');
+    const autoFlat = String($arguments.flat ?? '').trim().toLowerCase() === 'auto';
     const debugNodeKeyword = String($arguments.debug_node || '').toLowerCase();
 
     function formatNode(proxy) {
@@ -690,6 +691,25 @@ async function operator(proxies = [], targetPlatform, context) {
     }
 
     // ---- Step 4.8: flat 拍平 ----
+    const autoFlatEligible = proxy => !proxy.plugin && ['ss', 'snell', 'trojan', 'vmess', 'vless', 'http', 'socks5', 'hysteria2', 'tuic', 'anytls'].includes(String(proxy.type || '').toLowerCase()) && (!proxy.network || ['tcp', 'ws'].includes(String(proxy.network).toLowerCase()));
+    if (autoFlat && typeof ProxyUtils.doh === 'function') {
+        const hosts = [...new Set(proxies.filter(autoFlatEligible).map(p => String(p.server || '').trim()).filter(host => host && !isIpAddress(host) && !/(?:^localhost$|\.localhost$|\.local$)/i.test(host)))];
+        await executeAsyncTasks(hosts.map(host => async () => {
+            let timer;
+            try {
+                const timers = require('timers');
+                const response = await Promise.race([
+                    ProxyUtils.doh({ url: $arguments.flat_dns || 'https://dns.alidns.com/dns-query', domain: host, type: 'A' }),
+                    new Promise((_, reject) => { timer = timers.setTimeout(() => reject(new Error('dns_timeout')), parsePositiveNumber($arguments.flat_dns_timeout, 5000)); }),
+                ]);
+                const net = require('net');
+                const ips = [...new Set((response?.answers || []).filter(a => a?.type === 'A' && isPublicEntranceAddress(a.data, net)).map(a => a.data))].slice(0, 16);
+                if (ips.length) flatMap[host] = ips;
+                $.info(`[PARSER][FLAT] domain=${host} addresses=${ips.length}`);
+            } catch (error) { $.error(`[PARSER][FLAT] domain=${host} resolution_failed=${error.message || error}`); }
+            finally { if (timer) require('timers').clearTimeout(timer); }
+        }), { concurrency: 2 });
+    }
     if (Object.keys(flatMap).length > 0) {
         const expanded = [];
         for (const proxy of proxies) {
@@ -697,12 +717,24 @@ async function operator(proxies = [], targetPlatform, context) {
             if (ips && ips.length) {
                 expanded.push(proxy);
                 for (const ip of ips) {
+                    if (autoFlat && !autoFlatEligible(proxy)) continue;
                     const cloned = JSON.parse(JSON.stringify(proxy));
                     cloned.server = ip;
+                    if (autoFlat) {
+                        cloned._domain = proxy.server;
+                        const tls = cloned.tls === true || ['trojan', 'hysteria2', 'tuic', 'anytls'].includes(String(cloned.type).toLowerCase());
+                        if (tls && !cloned.sni && !cloned.servername) cloned.sni = cloned.servername = proxy.server;
+                        if (String(cloned.network || '').toLowerCase() === 'ws') {
+                            cloned['ws-opts'] ||= {};
+                            cloned['ws-opts'].headers ||= {};
+                            const headers = cloned['ws-opts'].headers;
+                            if (!Object.keys(headers).some(key => key.toLowerCase() === 'host')) headers.Host = proxy.server;
+                        }
+                    }
                     // A different endpoint has not been checked through Google.
                     delete cloned._googleCheck;
-                    if (capabilityEnabled) delete cloned._capabilityCheck;
-                    if (entranceEnabled) delete cloned._entrance;
+                    delete cloned._capabilityCheck;
+                    delete cloned._entrance;
                     cloned.name = (compiledFormat
                         ? formatNode({ ...cloned, name: cloned.originalName || '' })
                         : proxy.name) + connector + ip;
