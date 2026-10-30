@@ -315,6 +315,7 @@ async function operator(proxies = [], targetPlatform, context) {
 
     // Rename 配置
     const rawFormat = getArg('format') ?? '{region_code}';
+    const automaticDetectionNames = getArg('format') == null;
     const format = normalizePlaceholder(rawFormat);
     const compiledFormat = format ? compileFormat(format) : null;
     const connector = getArg('connector') ?? '-';
@@ -323,6 +324,20 @@ async function operator(proxies = [], targetPlatform, context) {
     const forceGeoRegion = toBoolean($arguments.force_geo_region, false);
     const flatMap = parseFlatMap($arguments.flat ?? '');
     const debugNodeKeyword = String($arguments.debug_node || '').toLowerCase();
+
+    function formatNode(proxy) {
+        let name = applyCompiledFormat(proxy, compiledFormat, connector);
+        if (!automaticDetectionNames) return name;
+        const check = proxy._googleCheck;
+        if (checks.has('exit') && check?.[check?.source]?.status === 'cn') name += '*';
+        const capabilities = proxy._capabilityCheck || {};
+        const tags = [];
+        if (capabilityUdp && capabilities.udp?.status === 'ok') tags.push('UDP');
+        if (capabilityGpt && capabilities.gpt?.status === 'reachable') tags.push('GPT');
+        if (entranceEnabled && proxy._entrance?.status === 'ok' && proxy._entrance.countryCode) tags.push(proxy._entrance.countryCode);
+        if (capabilityHttp && capabilities.http?.status === 'ok' && capabilities.http.averageLatencyMs != null) tags.push(`${capabilities.http.averageLatencyMs}ms`);
+        return [name, ...tags].filter(Boolean).join(connector);
+    }
 
     // ---- Step 1: 转换节点为 internal 格式 ----
     const internalProxies = [];
@@ -598,7 +613,7 @@ async function operator(proxies = [], targetPlatform, context) {
     // 故按 name 排序时每节点格式化 2 次，是语义需求，非冗余。
     if (compiledFormat && sortRules.some(rule => rule.type === 'name')) {
         proxies.forEach(proxy => {
-            proxy.name = applyCompiledFormat(proxy, compiledFormat, connector);
+            proxy.name = formatNode(proxy);
         });
     }
 
@@ -610,7 +625,7 @@ async function operator(proxies = [], targetPlatform, context) {
     if (compiledFormat) {
         proxies = reassignGroupIndex(proxies);
         proxies.forEach(proxy => {
-            proxy.name = applyCompiledFormat(proxy, compiledFormat, connector);
+            proxy.name = formatNode(proxy);
         });
     }
 
@@ -629,7 +644,7 @@ async function operator(proxies = [], targetPlatform, context) {
                     if (capabilityEnabled) delete cloned._capabilityCheck;
                     if (entranceEnabled) delete cloned._entrance;
                     cloned.name = (compiledFormat
-                        ? applyCompiledFormat({ ...cloned, name: cloned.originalName || '' }, compiledFormat, connector)
+                        ? formatNode({ ...cloned, name: cloned.originalName || '' })
                         : proxy.name) + connector + ip;
                     expanded.push(cloned);
                 }

@@ -48,7 +48,7 @@ UDP、HTTP、GPT、入口和出口检测默认关闭；使用 `detect=udp,http,e
 
 `gpt` 仅探测对应客户端入口，返回 `_capabilityCheck.gpt`：`reachable` 表示收到可识别的未认证响应，`unsupported` 表示地区不支持，其他结果为 `unknown`，不保证登录或对话成功。`entrance` 解析服务器域名后查询公开 IP 的国家和运营商，结果写入 `_entrance`，不更改服务器地址；会将公网入口 IP 发送给 ip-api.com，内网地址不查询。DNS 和数据库结果可能与客户端实际连接路径不同。
 
-HTTP 成功样本的平均耗时记录在 `_capabilityCheck.http.averageLatencyMs`；`{http_latency}`、`{gpt_status}`、`{entrance_region}`、`{entrance_isp}` 可用于格式模板。新检测不自动修改名称；未检测或未知时占位符为空。
+HTTP 成功样本的平均耗时记录在 `_capabilityCheck.http.averageLatencyMs`；`{http_latency}`、`{gpt_status}`、`{entrance_region}`、`{entrance_isp}` 可用于格式模板。未指定 `format` 时，成功的检测结果自动追加到默认名称：UDP 为 `UDP`、GPT 入口为 `GPT`、入口为地区代码、HTTP 为毫秒数，确认送中则在地区后附加 `*`。未知或失败不显示；指定 `format` 后完全由模板控制。
 
 以下旧参数仍可使用：
 

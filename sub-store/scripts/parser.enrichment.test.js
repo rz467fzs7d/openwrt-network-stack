@@ -40,3 +40,21 @@ test('fake IP and documentation ranges are not treated as public entrances', () 
     for (const ip of ['198.18.1.2', '198.19.1.2', '192.0.2.1', '198.51.100.1', '203.0.113.1', '127.0.0.1']) assert.equal(h.ctx.isPublicEntranceAddress(ip, net), false);
     assert.equal(h.ctx.isPublicEntranceAddress('8.8.8.8', net), true);
 });
+test('no format appends successful enabled detections and omits unknown or failed ones', async () => {
+    const h = harness({ f: undefined, detect: 'gpt,entrance,http' });
+    const r = await h.ctx.operator(nodes());
+    assert.match(r[0].name, /^HK-GPT-US-\d+ms$/);
+    assert.match(r[1].name, /^JP-GPT-\d+ms$/);
+    const custom = harness({ f: '{prefix:X}{region}', detect: 'gpt,entrance,http' });
+    const customResult = await custom.ctx.operator(nodes()); assert.equal(customResult[0].name, 'X-HK');
+});
+test('automatic exit marker only appears for confirmed China and flat clones do not inherit tags', async () => {
+    const h = harness({ f: undefined, detect: 'exit,gpt,entrance,http', flat: '{node.example:8.8.4.4}' });
+    h.ctx.$substore.http.get = async o => {
+        if (o.url.includes('policies.google.com')) return { status: 200, body: '<a data-name="country-version">Country version:</a> China</p>' };
+        if (o.url.includes('chat.openai.com')) return { status: 403, body: 'blocked' };
+        if (o.url.includes('ip-api.com/json/')) return { status: 200, body: '{"status":"success","countryCode":"US"}' };
+        return { status: 500, body: '' };
+    };
+    const r = await h.ctx.operator([nodes()[0]]); assert.equal(r[0].name, 'HK*-US'); assert.equal(r[1].name, 'HK-8.8.4.4');
+});
