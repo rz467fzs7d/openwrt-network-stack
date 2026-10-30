@@ -36,7 +36,17 @@ https://fastly.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@2ea4cbe/sub-stor
 
 ### 可选能力检测
 
-UDP 与 HTTP 检测默认关闭，仅显式启用时执行；不会删除节点或设置 `_failed`。可通过 `check_scope`、`check_exclude` 正则限制原始节点名称。
+UDP、HTTP 和出口检测默认关闭；使用 `check=udp,http,exit` 按需启用。模板含 `{region*}` 时仍会自动触发出口检测。检测不会删除节点或设置 `_failed`。
+
+`options` 是 JSON 对象，按检测类型设置原始节点名的正则范围及选项，例如：
+
+```json
+{"exit":{"scope":"HK|MO|TW"},"udp":{"scope":"HK"},"http":{"scope":"JP","samples":3}}
+```
+
+各类型均支持 `scope`、`exclude`、`timeout`；`exit` 还支持 `concurrency`、`cache_ttl`，`udp` 支持 `ntp`，`http` 支持 `samples`、`url`、`status`。旧参数仍兼容；显式设置 `check` 时，它决定 UDP 和 HTTP 是否启用，但不会关闭 `{region*}` 所触发的检测。
+
+以下旧参数仍可使用：
 
 | 参数 | 默认 | 说明 |
 | --- | --- | --- |
@@ -55,8 +65,8 @@ UDP 与 HTTP 检测默认关闭，仅显式启用时执行；不会删除节点�
 
 ### Google / YouTube 送中检测（可选）
 
-仅当重命名模板 `f` / `format` 包含 `{region*}` 时执行检测及读取检测缓存。
-使用 `{region}`、未设置模板或仅使用 `{exit_is_cn}` 均不触发检测；范围参数仅在启用后生效。
+当重命名模板 `f` / `format` 包含 `{region*}` 或 `check` 包含 `exit` 时执行检测及读取检测缓存。
+仅使用 `{region}`、未设置模板或仅使用 `{exit_is_cn}` 均不触发检测；范围参数仅在启用后生效。
 
 检测方法移植自 RegionRestrictionCheck，来源与许可证见
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。不使用普通 GeoIP 国家推断 Google 地区。

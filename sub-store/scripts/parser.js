@@ -29,7 +29,9 @@
  * - probe_retries 请求重试次数  默认: 1
  * - probe_retry_delay 请求重试间隔(ms) 默认: 1000
  * - probe_timeout 单节点预估耗时(ms)，同时用作单次请求超时 默认: 3000
- * - exit_is_cn_check     仅模板含 {region*} 时检测：默认亚洲地区；自定义原始节点名正则，空=关闭，.*=全量
+ * - check               可选 udp,http,exit；模板含 {region*} 时也会触发出口检测
+ * - options             JSON 对象，分别配置 exit、udp、http 的检测范围和选项
+ * - exit_is_cn_check     兼容旧参数：默认亚洲地区；自定义原始节点名正则，空=关闭，.*=全量
  * - exit_is_cn_check_exclude 排除原始节点名正则，优先于 exit_is_cn_check
  * - exit_is_cn_check_timeout 单个 Google/YouTube 请求超时(ms)，默认 5000
  * - exit_is_cn_check_concurrency 并发节点数，默认 2
@@ -232,25 +234,43 @@ async function operator(proxies = [], targetPlatform, context) {
     const googleRequests = new Map();
     const fallbackCacheEnabled = cacheEnabled && toBoolean($arguments.cache_fallback, true);
     const includeUnsupportedProxy = toBoolean($arguments.include_unsupported, false);
-    const cnCheckEnabled = String(getArg('format') ?? '').includes('{region*}');
-    const cnScope = !cnCheckEnabled ? null : $arguments.exit_is_cn_check == null
+    let checkOptions = $arguments.options ?? {};
+    if (typeof checkOptions === 'string') {
+        try { checkOptions = JSON.parse(checkOptions); } catch (_) { throw new Error('Invalid options JSON'); }
+    }
+    if (!checkOptions || typeof checkOptions !== 'object' || Array.isArray(checkOptions)) throw new Error('Invalid options');
+    const allowedOptions = { exit: ['scope', 'exclude', 'timeout', 'concurrency', 'cache_ttl'], udp: ['scope', 'exclude', 'timeout', 'ntp'], http: ['scope', 'exclude', 'timeout', 'samples', 'url', 'status'] };
+    for (const [service, options] of Object.entries(checkOptions)) {
+        if (!allowedOptions[service] || !options || typeof options !== 'object' || Array.isArray(options)) throw new Error(`Invalid options: ${service}`);
+        for (const key of Object.keys(options)) if (!allowedOptions[service].includes(key)) throw new Error(`Invalid options: ${service}.${key}`);
+    }
+    const exitOptions = checkOptions.exit || {}, udpOptions = checkOptions.udp || {}, httpOptions = checkOptions.http || {};
+    const explicitChecks = $arguments.check != null;
+    const checks = new Set((Array.isArray($arguments.check) ? $arguments.check : String($arguments.check ?? '').split(',')).map(v => String(v).trim().toLowerCase()).filter(Boolean));
+    for (const check of checks) if (!['exit', 'udp', 'http'].includes(check)) throw new Error(`Invalid check: ${check}`);
+    const cnCheckEnabled = String(getArg('format') ?? '').includes('{region*}') || checks.has('exit');
+    const exitScope = exitOptions.scope ?? $arguments.exit_is_cn_check;
+    const cnScope = !cnCheckEnabled ? null : exitScope == null
         ? { test: name => GOOGLE_CHECK_ASIA_REGIONS.has(detectRegionFromName(name)?.code) }
-        : compileCheckScope($arguments.exit_is_cn_check, 'exit_is_cn_check');
-    const cnExclude = cnCheckEnabled ? compileCheckScope($arguments.exit_is_cn_check_exclude, 'exit_is_cn_check_exclude') : null;
-    const cnTimeout = parsePositiveNumber($arguments.exit_is_cn_check_timeout, 5000);
-    const cnConcurrency = parsePositiveInt($arguments.exit_is_cn_check_concurrency, 2);
-    const cnCacheTtl = parsePositiveNumber($arguments.exit_is_cn_check_cache_ttl, 21600000);
-    const capabilityUdp = toBoolean($arguments.check_udp, false);
-    const capabilityHttp = toBoolean($arguments.check_http, false);
+        : compileCheckScope(exitScope, exitOptions.scope != null ? 'options.exit.scope' : 'exit_is_cn_check');
+    const cnExclude = cnCheckEnabled ? compileCheckScope(exitOptions.exclude ?? $arguments.exit_is_cn_check_exclude, 'options.exit.exclude') : null;
+    const cnTimeout = parsePositiveNumber(exitOptions.timeout ?? $arguments.exit_is_cn_check_timeout, 5000);
+    const cnConcurrency = parsePositiveInt(exitOptions.concurrency ?? $arguments.exit_is_cn_check_concurrency, 2);
+    const cnCacheTtl = parsePositiveNumber(exitOptions.cache_ttl ?? $arguments.exit_is_cn_check_cache_ttl, 21600000);
+    const capabilityUdp = explicitChecks ? checks.has('udp') : toBoolean($arguments.check_udp, false);
+    const capabilityHttp = explicitChecks ? checks.has('http') : toBoolean($arguments.check_http, false);
     const capabilityEnabled = capabilityUdp || capabilityHttp;
-    const capabilityScope = capabilityEnabled ? compileCheckScope($arguments.check_scope ?? '.*', 'check_scope') : null;
-    const capabilityExclude = capabilityEnabled ? compileCheckScope($arguments.check_exclude, 'check_exclude') : null;
-    const capabilityTimeout = parsePositiveNumber($arguments.check_timeout, 5000);
+    const udpScope = capabilityUdp ? compileCheckScope(udpOptions.scope ?? $arguments.check_scope ?? '.*', udpOptions.scope != null ? 'options.udp.scope' : 'check_scope') : null;
+    const httpScope = capabilityHttp ? compileCheckScope(httpOptions.scope ?? $arguments.check_scope ?? '.*', httpOptions.scope != null ? 'options.http.scope' : 'check_scope') : null;
+    const udpExclude = capabilityUdp ? compileCheckScope(udpOptions.exclude ?? $arguments.check_exclude, 'options.udp.exclude') : null;
+    const httpExclude = capabilityHttp ? compileCheckScope(httpOptions.exclude ?? $arguments.check_exclude, 'options.http.exclude') : null;
+    const udpTimeout = parsePositiveNumber(udpOptions.timeout ?? $arguments.check_timeout, 5000);
+    const httpTimeout = parsePositiveNumber(httpOptions.timeout ?? $arguments.check_timeout, 5000);
     const capabilityConcurrency = parsePositiveInt($arguments.check_concurrency, 2);
-    const capabilitySamples = Math.min(20, parsePositiveInt($arguments.check_samples, 1));
-    const capabilityNtp = String($arguments.check_ntp || 'time.apple.com');
-    const capabilityUrl = String($arguments.check_url || 'http://cp.cloudflare.com/generate_204');
-    const capabilityStatus = parsePositiveInt($arguments.check_status, 204);
+    const capabilitySamples = Math.min(20, parsePositiveInt(httpOptions.samples ?? $arguments.check_samples, 1));
+    const capabilityNtp = String(udpOptions.ntp || $arguments.check_ntp || 'time.apple.com');
+    const capabilityUrl = String(httpOptions.url || $arguments.check_url || 'http://cp.cloudflare.com/generate_204');
+    const capabilityStatus = parsePositiveInt(httpOptions.status ?? $arguments.check_status, 204);
     const capabilityTtl = parsePositiveNumber($arguments.check_cache_ttl, 21600000);
 
     // 调试日志
@@ -405,12 +425,18 @@ async function operator(proxies = [], targetPlatform, context) {
         }
     }
 
-    if (capabilityEnabled && capabilityScope) {
-        const selected = internalProxies.filter(p => capabilityScope.test(p.name || '') && !capabilityExclude?.test(p.name || ''));
+    if (capabilityEnabled && (udpScope || httpScope)) {
+        const needed = new Map();
+        const selected = internalProxies.filter(p => {
+            const name = p.name || '';
+            const flags = { udp: !!udpScope?.test(name) && !udpExclude?.test(name), http: !!httpScope?.test(name) && !httpExclude?.test(name) };
+            needed.set(p, flags);
+            return flags.udp || flags.http;
+        });
         const pending = [];
-        const settings = JSON.stringify({ capabilityUdp, capabilityHttp, capabilitySamples, capabilityNtp, capabilityUrl, capabilityStatus, capabilityTimeout });
         const keys = new Map();
         for (const proxy of selected) {
+            const settings = JSON.stringify({ ...needed.get(proxy), capabilitySamples, capabilityNtp, capabilityUrl, capabilityStatus, udpTimeout, httpTimeout });
             const key = `parser:capability:v1:${settings}:${getProbeCacheId(proxy)}`;
             keys.set(proxy, key);
             const saved = cacheEnabled && cache ? cache.get(key) : null;
@@ -424,14 +450,14 @@ async function operator(proxies = [], targetPlatform, context) {
         if (pending.length) {
             try {
                 await probeAll(pending, proxies, null, capabilityWorker,
-                    capabilityTimeout * ((capabilityUdp ? 1 : 0) + (capabilityHttp ? capabilitySamples : 0)), capabilityConcurrency);
+                    (capabilityUdp ? udpTimeout : 0) + (capabilityHttp ? httpTimeout * capabilitySamples : 0), capabilityConcurrency);
             } catch (error) {
                 $.error(`[PARSER][CAPABILITY] META failed: ${error.message || error}`);
                 for (const proxy of pending) {
                     if (!proxies[proxy._proxies_index]._capabilityCheck) {
                         const result = { checkedAt: Date.now(), cached: false, incomplete: true, reason: 'meta_failed' };
-                        if (capabilityUdp) result.udp = { status: 'unknown', reason: 'meta_failed' };
-                        if (capabilityHttp) result.http = { status: 'unknown', reason: 'meta_failed' };
+                        if (needed.get(proxy).udp) result.udp = { status: 'unknown', reason: 'meta_failed' };
+                        if (needed.get(proxy).http) result.http = { status: 'unknown', reason: 'meta_failed' };
                         proxies[proxy._proxies_index]._capabilityCheck = result;
                         if (cacheEnabled && cache) cache.set(keys.get(proxy), result);
                     }
@@ -440,11 +466,11 @@ async function operator(proxies = [], targetPlatform, context) {
         }
         async function capabilityWorker(proxy, all, port) {
             const result = { checkedAt: Date.now(), cached: false, incomplete: false };
-            if (capabilityUdp) {
+            if (needed.get(proxy).udp) {
                 try {
                     const response = await httpRequest({ method: 'post', url: `${meta_api}/udp`,
                         headers: { 'Content-type': 'application/json', Authorization: meta_auth },
-                        body: JSON.stringify({ ntp: capabilityNtp, port, timeout: capabilityTimeout }), timeout: capabilityTimeout + 1000, retries: 0 });
+                        body: JSON.stringify({ ntp: capabilityNtp, port, timeout: udpTimeout }), timeout: udpTimeout + 1000, retries: 0 });
                     let body = response.body;
                     if (typeof body === 'string') {
                         try { body = JSON.parse(body); }
@@ -454,12 +480,12 @@ async function operator(proxies = [], targetPlatform, context) {
                     else { result.udp = { status: 'unknown', reason: body?.result === 'timeout' ? 'timeout' : 'no_success_response' }; result.incomplete = true; }
                 } catch (error) { result.udp = { status: 'unknown', reason: error.message || 'request_failed' }; result.incomplete = true; }
             }
-            if (capabilityHttp) {
+            if (needed.get(proxy).http) {
                 let success = 0; const reasons = [];
                 for (let i = 0; i < capabilitySamples; i++) {
                     try {
                         const response = await httpRequest({ method: 'get', url: capabilityUrl,
-                            proxy: `http://${meta_host}:${port}`, timeout: capabilityTimeout, retries: 0 });
+                            proxy: `http://${meta_host}:${port}`, timeout: httpTimeout, retries: 0 });
                         const status = Number(response.status ?? response.statusCode);
                         if (status === capabilityStatus) success++; else reasons.push(`http_${status}`);
                     } catch (error) { reasons.push(error.message || 'request_failed'); }

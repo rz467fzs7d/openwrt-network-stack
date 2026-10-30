@@ -103,6 +103,10 @@ node --test sub-store/scripts/parser.google.test.js
 
 ## 📝 更新日志
 
+### 2026-10-30
+
+- 使用 `check=udp,http,exit` 按需启用检测，`options` 可分别设置检测范围；新检测默认关闭，`{region*}` 仍自动触发出口检测。旧参数继续兼容。
+
 ### 2026-10-28
 
 - 名称识别缓存上限为 10,000 条，自动收敛旧缓存；同次送中检测中连接配置相同的别名共用核心端口与服务请求，不合并输出节点，不改变 GeoIP 兜底策略。
@@ -116,7 +120,7 @@ node --test sub-store/scripts/parser.google.test.js
 - 送中检测按需启用：仅当重命名模板包含 `{region*}` 时运行；`{region}` 或未设置模板不触发检测。
 - 更新入口文档的脚本链接至 `26ca2c0`，包含按需送中检测与 YouTube 独立判定修复。
 - 检测方法参考 RegionRestrictionCheck，分别经节点访问 YouTube Premium 与 Google Play；请求失败或无法识别时视为未知，不据此标记送中，也不删除节点。
-- 默认检测亚洲国家和地区（含港澳台、中亚、中东）。`exit_is_cn_check` 可指定原始节点名正则；显式空值关闭检测，`.*` 检测全部；`exit_is_cn_check_exclude` 可排除指定节点。
+- 出口检测启用后默认检测亚洲国家和地区（含港澳台、中亚、中东）；`options.exit.scope` 可指定原始节点名正则，`options.exit.exclude` 可排除节点。旧的 `exit_is_cn_check` 参数仍兼容。
 - 明确结果默认缓存 6 小时，任一检测未知时最长缓存 10 分钟；默认并发 2，每个请求超时 5 秒。缓存可用时复用结果，不重复探测。
 - 推荐格式：`{prefix:ENET}{region*}{i:2d}{tag:Home=家宽|home}`。送中节点输出 `ENET-HK*-02`，普通节点输出 `ENET-HK-02`；原始地区属性保持不变。
 
