@@ -36,7 +36,7 @@ https://fastly.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@02e32d8/sub-stor
 
 ### 可选能力检测
 
-UDP、HTTP 和出口检测默认关闭；使用 `check=udp,http,exit` 按需启用。模板含 `{region*}` 时仍会自动触发出口检测。检测不会删除节点或设置 `_failed`。
+UDP、HTTP、GPT、入口和出口检测默认关闭；使用 `check=udp,http,exit,gpt,entrance` 按需启用。模板含 `{region*}` 时仍会自动触发出口检测。检测不会删除节点或设置 `_failed`。
 
 `options` 是 JSON 对象，按检测类型设置原始节点名的正则范围及选项，例如：
 
@@ -44,7 +44,11 @@ UDP、HTTP 和出口检测默认关闭；使用 `check=udp,http,exit` 按需启�
 {"exit":{"scope":"HK|MO|TW"},"udp":{"scope":"HK"},"http":{"scope":"JP","samples":3}}
 ```
 
-各类型均支持 `scope`、`exclude`、`timeout`；`exit` 还支持 `source`、`concurrency`、`cache_ttl`，`udp` 支持 `ntp`，`http` 支持 `samples`、`url`、`status`。旧参数仍兼容；显式设置 `check` 时，它决定 UDP 和 HTTP 是否启用，但不会关闭 `{region*}` 所触发的检测。
+各类型均支持 `scope`、`exclude`、`timeout`；`exit` 还支持 `source`、`concurrency`、`cache_ttl`，`udp` 支持 `ntp`，`http` 支持 `samples`、`url`、`status`，`gpt` 支持 `client`（`ios` 或 `android`）。旧参数仍兼容；显式设置 `check` 时，它决定 UDP 和 HTTP 是否启用，但不会关闭 `{region*}` 所触发的检测。
+
+`gpt` 仅探测对应客户端入口，返回 `_capabilityCheck.gpt`：`reachable` 表示收到可识别的未认证响应，`unsupported` 表示地区不支持，其他结果为 `unknown`，不保证登录或对话成功。`entrance` 解析服务器域名后查询公开 IP 的国家和运营商，结果写入 `_entrance`，不更改服务器地址；会将公网入口 IP 发送给 ip-api.com，内网地址不查询。DNS 和数据库结果可能与客户端实际连接路径不同。
+
+HTTP 成功样本的平均耗时记录在 `_capabilityCheck.http.averageLatencyMs`；`{http_latency}`、`{gpt_status}`、`{entrance_region}`、`{entrance_isp}` 可用于格式模板。新检测不自动修改名称；未检测或未知时占位符为空。
 
 以下旧参数仍可使用：
 
