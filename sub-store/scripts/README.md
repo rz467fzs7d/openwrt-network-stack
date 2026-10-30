@@ -36,7 +36,7 @@ https://fastly.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@b5191b1/sub-stor
 
 ### 可选能力检测
 
-UDP、HTTP、GPT、入口和出口检测默认关闭；使用 `detect=udp,http,exit,gpt,entrance` 按需启用。模板含 `{region*}` 时仍会自动触发出口检测。检测不会删除节点或设置 `_failed`。
+UDP、HTTP、GPT、入口、出口、IPv6 和测速默认关闭；使用 `detect=udp,http,exit,gpt,entrance,ipv6,speed` 按需启用。模板含 `{region*}` 时仍会自动触发出口检测。默认不会删除节点或设置 `_failed`。
 
 `options` 是 JSON 对象，按检测类型设置原始节点名的正则范围及选项，例如：
 
@@ -45,6 +45,12 @@ UDP、HTTP、GPT、入口和出口检测默认关闭；使用 `detect=udp,http,e
 ```
 
 各类型均支持 `scope`、`exclude`、`timeout`；`exit` 还支持 `source`、`concurrency`、`cache_ttl`，`udp` 支持 `ntp`，`http` 支持 `samples`、`url`、`status`，`gpt` 支持 `client`（`ios` 或 `android`）。`check` 为兼容别名，两者同时设置时以 `detect` 为准，即使 `detect` 为空；都不设置时才使用旧的 `check_udp` / `check_http`。`{region*}` 仍会独立触发出口检测。
+
+`ipv6` 通过节点访问 IPv6 专用服务，成功时 `_capabilityCheck.ipv6` 返回出口 IPv6；失败是 `unknown`，不等于不支持。`speed` 从 Cloudflare 下载测试数据，`options.speed.bytes` 默认 1048576，最多 10485760 字节，单节点依次测速；记录 `_capabilityCheck.speed.mbps`，结果受测试目标和时间影响。测速消耗流量，默认关闭。
+
+`sort=http_latency:asc` 或 `sort=speed:desc` 可按 HTTP 平均耗时、测速结果排序，没有结果的节点始终排在最后。显式配置 `options.http.max_latency`（毫秒）或 `options.http.max_failure_rate`（百分比）才按阈值剔除已有结果的节点；没有结果的节点保留。可通过 `{entrance_region}` / `{entrance_isp}` 和 `{exit_region}` / `{exit_isp}` 组合展示入口与落地；落地字段依赖实际地区探测，需要时设置 `probe_all=true`，不会把节点名称推断当作实测出口。
+
+`dedupe=true` 可按完整连接配置去重，仅保留第一项，默认关闭；密码、SNI 等连接配置不同不会合并。节点名不同但连接配置相同的节点会合并。
 
 `gpt` 仅探测对应客户端入口，返回 `_capabilityCheck.gpt`：`reachable` 表示收到可识别的未认证响应，`unsupported` 表示地区不支持，其他结果为 `unknown`，不保证登录或对话成功。`entrance` 解析服务器域名后查询公开 IP 的国家和运营商，结果写入 `_entrance`，不更改服务器地址；会将公网入口 IP 发送给 ip-api.com，内网地址不查询。DNS 和数据库结果可能与客户端实际连接路径不同。
 

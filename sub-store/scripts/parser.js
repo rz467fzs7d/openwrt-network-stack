@@ -29,7 +29,7 @@
  * - probe_retries 请求重试次数  默认: 1
  * - probe_retry_delay 请求重试间隔(ms) 默认: 1000
  * - probe_timeout 单节点预估耗时(ms)，同时用作单次请求超时 默认: 3000
- * - detect              可选 udp,http,exit,gpt,entrance；check 为兼容别名，模板含 {region*} 时也会触发出口检测
+ * - detect              可选 udp,http,exit,gpt,entrance,ipv6,speed；check 为兼容别名
  * - options             JSON 对象，分别配置 exit、udp、http 的检测范围和选项
  * - exit_is_cn_check     兼容旧参数：默认亚洲地区；自定义原始节点名正则，空=关闭，.*=全量
  * - exit_is_cn_check_exclude 排除原始节点名正则，优先于 exit_is_cn_check
@@ -63,7 +63,7 @@
  *                 prefix:XXX（固定前缀文本，参与 connector 拼接，不是静态文本）
  * - connector / c 占位符连接符 默认: -
  *
- * Sort 参数（不支持 latency 排序）
+ * Sort 参数
  * - sort / s   排序规则
  *   推荐语法: region:HK,SG,JP:asc|tag:Plus:desc|has_tag:desc|index:asc
  *   兼容旧语法: {region} ASC, {tag(IPLC)} DESC, {index} ASC
@@ -261,19 +261,20 @@ async function operator(proxies = [], targetPlatform, context) {
         try { checkOptions = JSON.parse(checkOptions); } catch (_) { throw new Error('Invalid options JSON'); }
     }
     if (!checkOptions || typeof checkOptions !== 'object' || Array.isArray(checkOptions)) throw new Error('Invalid options');
-    const allowedOptions = { exit: ['source', 'scope', 'exclude', 'timeout', 'concurrency', 'cache_ttl'], udp: ['scope', 'exclude', 'timeout', 'ntp'], http: ['scope', 'exclude', 'timeout', 'samples', 'url', 'status'], gpt: ['scope', 'exclude', 'timeout', 'client'], entrance: ['scope', 'exclude', 'timeout'] };
+    const allowedOptions = { exit: ['source', 'scope', 'exclude', 'timeout', 'concurrency', 'cache_ttl'], udp: ['scope', 'exclude', 'timeout', 'ntp'], http: ['scope', 'exclude', 'timeout', 'samples', 'url', 'status', 'max_latency', 'max_failure_rate'], gpt: ['scope', 'exclude', 'timeout', 'client'], entrance: ['scope', 'exclude', 'timeout'], ipv6: ['scope', 'exclude', 'timeout'], speed: ['scope', 'exclude', 'timeout', 'bytes'] };
     for (const [service, options] of Object.entries(checkOptions)) {
         if (!allowedOptions[service] || !options || typeof options !== 'object' || Array.isArray(options)) throw new Error(`Invalid options: ${service}`);
         for (const key of Object.keys(options)) if (!allowedOptions[service].includes(key)) throw new Error(`Invalid options: ${service}.${key}`);
     }
     const exitOptions = checkOptions.exit || {}, udpOptions = checkOptions.udp || {}, httpOptions = checkOptions.http || {};
     const gptOptions = checkOptions.gpt || {}, entranceOptions = checkOptions.entrance || {};
+    const ipv6Options = checkOptions.ipv6 || {}, speedOptions = checkOptions.speed || {};
     const exitSource = String(exitOptions.source ?? 'terms').toLowerCase();
     if (!['terms', 'youtube'].includes(exitSource)) throw new Error(`Invalid options.exit.source: ${exitSource}`);
     const explicitChecks = $arguments.detect != null || $arguments.check != null;
     const rawChecks = $arguments.detect ?? $arguments.check;
     const checks = new Set((Array.isArray(rawChecks) ? rawChecks : String(rawChecks ?? '').split(',')).map(v => String(v).trim().toLowerCase()).filter(Boolean));
-    for (const check of checks) if (!['exit', 'udp', 'http', 'gpt', 'entrance'].includes(check)) throw new Error(`Invalid ${$arguments.detect != null ? 'detect' : 'check'}: ${check}`);
+    for (const check of checks) if (!['exit', 'udp', 'http', 'gpt', 'entrance', 'ipv6', 'speed'].includes(check)) throw new Error(`Invalid ${$arguments.detect != null ? 'detect' : 'check'}: ${check}`);
     const cnCheckEnabled = String(getArg('format') ?? '').includes('{region*}') || checks.has('exit');
     const exitScope = exitOptions.scope ?? $arguments.exit_is_cn_check;
     const cnScope = !cnCheckEnabled ? null : exitScope == null
@@ -286,14 +287,21 @@ async function operator(proxies = [], targetPlatform, context) {
     const capabilityUdp = explicitChecks ? checks.has('udp') : toBoolean($arguments.check_udp, false);
     const capabilityHttp = explicitChecks ? checks.has('http') : toBoolean($arguments.check_http, false);
     const capabilityGpt = checks.has('gpt');
+    const capabilityIpv6 = checks.has('ipv6'), capabilitySpeed = checks.has('speed');
     const entranceEnabled = checks.has('entrance');
-    const capabilityEnabled = capabilityUdp || capabilityHttp || capabilityGpt;
+    const capabilityEnabled = capabilityUdp || capabilityHttp || capabilityGpt || capabilityIpv6 || capabilitySpeed;
     const udpScope = capabilityUdp ? compileCheckScope(udpOptions.scope ?? $arguments.check_scope ?? '.*', udpOptions.scope != null ? 'options.udp.scope' : 'check_scope') : null;
     const httpScope = capabilityHttp ? compileCheckScope(httpOptions.scope ?? $arguments.check_scope ?? '.*', httpOptions.scope != null ? 'options.http.scope' : 'check_scope') : null;
     const udpExclude = capabilityUdp ? compileCheckScope(udpOptions.exclude ?? $arguments.check_exclude, 'options.udp.exclude') : null;
     const httpExclude = capabilityHttp ? compileCheckScope(httpOptions.exclude ?? $arguments.check_exclude, 'options.http.exclude') : null;
     const gptScope = capabilityGpt ? compileCheckScope(gptOptions.scope ?? '.*', 'options.gpt.scope') : null;
     const gptExclude = capabilityGpt ? compileCheckScope(gptOptions.exclude, 'options.gpt.exclude') : null;
+    const ipv6Scope = capabilityIpv6 ? compileCheckScope(ipv6Options.scope ?? '.*', 'options.ipv6.scope') : null;
+    const ipv6Exclude = capabilityIpv6 ? compileCheckScope(ipv6Options.exclude, 'options.ipv6.exclude') : null;
+    const speedScope = capabilitySpeed ? compileCheckScope(speedOptions.scope ?? '.*', 'options.speed.scope') : null;
+    const speedExclude = capabilitySpeed ? compileCheckScope(speedOptions.exclude, 'options.speed.exclude') : null;
+    const ipv6Timeout = parsePositiveNumber(ipv6Options.timeout, 5000), speedTimeout = parsePositiveNumber(speedOptions.timeout, 15000);
+    const speedBytes = Math.min(10 * 1024 * 1024, parsePositiveInt(speedOptions.bytes, 1024 * 1024));
     const entranceScope = entranceEnabled ? compileCheckScope(entranceOptions.scope ?? '.*', 'options.entrance.scope') : null;
     const entranceExclude = entranceEnabled ? compileCheckScope(entranceOptions.exclude, 'options.entrance.exclude') : null;
     const gptTimeout = parsePositiveNumber(gptOptions.timeout, 5000);
@@ -308,6 +316,10 @@ async function operator(proxies = [], targetPlatform, context) {
     const capabilityUrl = String(httpOptions.url || $arguments.check_url || 'http://cp.cloudflare.com/generate_204');
     const capabilityStatus = parsePositiveInt(httpOptions.status ?? $arguments.check_status, 204);
     const capabilityTtl = parsePositiveNumber($arguments.check_cache_ttl, 21600000);
+    const maxLatency = httpOptions.max_latency == null ? null : Number(httpOptions.max_latency);
+    const maxFailureRate = httpOptions.max_failure_rate == null ? null : Number(httpOptions.max_failure_rate);
+    if (maxLatency != null && (!Number.isFinite(maxLatency) || maxLatency < 0)) throw new Error('Invalid options.http.max_latency');
+    if (maxFailureRate != null && (!Number.isFinite(maxFailureRate) || maxFailureRate < 0 || maxFailureRate > 100)) throw new Error('Invalid options.http.max_failure_rate');
 
     // 调试日志
     const debug = getArg('debug') ?? true;
@@ -334,8 +346,10 @@ async function operator(proxies = [], targetPlatform, context) {
         const tags = [];
         if (capabilityUdp && capabilities.udp?.status === 'ok') tags.push('UDP');
         if (capabilityGpt && capabilities.gpt?.status === 'reachable') tags.push('GPT');
+        if (capabilityIpv6 && capabilities.ipv6?.status === 'ok') tags.push('IPv6');
         if (entranceEnabled && proxy._entrance?.status === 'ok' && proxy._entrance.countryCode) tags.push(proxy._entrance.countryCode);
         if (capabilityHttp && capabilities.http?.status === 'ok' && capabilities.http.averageLatencyMs != null) tags.push(`${capabilities.http.averageLatencyMs}ms`);
+        if (capabilitySpeed && capabilities.speed?.status === 'ok') tags.push(`${capabilities.speed.mbps}Mbps`);
         return [name, ...tags].filter(Boolean).join(connector);
     }
 
@@ -510,18 +524,18 @@ async function operator(proxies = [], targetPlatform, context) {
         }
     }
 
-    if (capabilityEnabled && (udpScope || httpScope || gptScope)) {
+    if (capabilityEnabled && (udpScope || httpScope || gptScope || ipv6Scope || speedScope)) {
         const needed = new Map();
         const selected = internalProxies.filter(p => {
             const name = p.name || '';
-            const flags = { udp: !!udpScope?.test(name) && !udpExclude?.test(name), http: !!httpScope?.test(name) && !httpExclude?.test(name), gpt: !!gptScope?.test(name) && !gptExclude?.test(name) };
+            const flags = { udp: !!udpScope?.test(name) && !udpExclude?.test(name), http: !!httpScope?.test(name) && !httpExclude?.test(name), gpt: !!gptScope?.test(name) && !gptExclude?.test(name), ipv6: !!ipv6Scope?.test(name) && !ipv6Exclude?.test(name), speed: !!speedScope?.test(name) && !speedExclude?.test(name) };
             needed.set(p, flags);
-            return flags.udp || flags.http || flags.gpt;
+            return flags.udp || flags.http || flags.gpt || flags.ipv6 || flags.speed;
         });
         const pending = [];
         const keys = new Map();
         for (const proxy of selected) {
-            const settings = JSON.stringify({ ...needed.get(proxy), capabilitySamples, capabilityNtp, capabilityUrl, capabilityStatus, udpTimeout, httpTimeout, gptTimeout, gptClient });
+            const settings = JSON.stringify({ ...needed.get(proxy), capabilitySamples, capabilityNtp, capabilityUrl, capabilityStatus, udpTimeout, httpTimeout, gptTimeout, gptClient, ipv6Timeout, speedTimeout, speedBytes });
             const key = `parser:capability:v1:${settings}:${getProbeCacheId(proxy)}`;
             keys.set(proxy, key);
             const saved = cacheEnabled && cache ? cache.get(key) : null;
@@ -535,7 +549,7 @@ async function operator(proxies = [], targetPlatform, context) {
         if (pending.length) {
             try {
                 await probeAll(pending, proxies, null, capabilityWorker,
-                    (capabilityUdp ? udpTimeout : 0) + (capabilityHttp ? httpTimeout * capabilitySamples : 0) + (capabilityGpt ? gptTimeout : 0), capabilityConcurrency);
+                    (capabilityUdp ? udpTimeout : 0) + (capabilityHttp ? httpTimeout * capabilitySamples : 0) + (capabilityGpt ? gptTimeout : 0) + (capabilityIpv6 ? ipv6Timeout : 0) + (capabilitySpeed ? speedTimeout : 0), capabilitySpeed ? 1 : capabilityConcurrency);
             } catch (error) {
                 $.error(`[PARSER][CAPABILITY] META failed: ${error.message || error}`);
                 for (const proxy of pending) {
@@ -544,6 +558,8 @@ async function operator(proxies = [], targetPlatform, context) {
                         if (needed.get(proxy).udp) result.udp = { status: 'unknown', reason: 'meta_failed' };
                         if (needed.get(proxy).http) result.http = { status: 'unknown', reason: 'meta_failed' };
                         if (needed.get(proxy).gpt) result.gpt = { status: 'unknown', reason: 'meta_failed' };
+                        if (needed.get(proxy).ipv6) result.ipv6 = { status: 'unknown', reason: 'meta_failed' };
+                        if (needed.get(proxy).speed) result.speed = { status: 'unknown', reason: 'meta_failed' };
                         proxies[proxy._proxies_index]._capabilityCheck = result;
                         if (cacheEnabled && cache) cache.set(keys.get(proxy), result);
                     }
@@ -591,11 +607,55 @@ async function operator(proxies = [], targetPlatform, context) {
                 } catch (error) { result.gpt = { status: 'unknown', reason: error.message || 'request_failed' }; }
                 if (result.gpt.status === 'unknown') result.incomplete = true;
             }
+            if (needed.get(proxy).ipv6) {
+                try {
+                    const response = await httpRequest({ method: 'get', url: 'https://api6.ipify.org', proxy: `http://${meta_host}:${port}`, timeout: ipv6Timeout, retries: 0 });
+                    const ip = String(response.body || '').trim();
+                    result.ipv6 = Number(response.status ?? response.statusCode) === 200 && require('net').isIP(ip) === 6
+                        ? { status: 'ok', ip } : { status: 'unknown', reason: 'invalid_response' };
+                } catch (error) { result.ipv6 = { status: 'unknown', reason: error.message || 'request_failed' }; }
+                if (result.ipv6.status !== 'ok') result.incomplete = true;
+            }
+            if (needed.get(proxy).speed) {
+                const started = Date.now();
+                try {
+                    const response = await httpRequest({ method: 'get', url: `https://speed.cloudflare.com/__down?bytes=${speedBytes}`, proxy: `http://${meta_host}:${port}`, timeout: speedTimeout, retries: 0 });
+                    const body = response.rawBody ?? response.body;
+                    const bytes = typeof body === 'string' ? require('buffer').Buffer.byteLength(body) : body?.byteLength;
+                    if (Number(response.status ?? response.statusCode) !== 200 || bytes !== speedBytes) throw new Error('incomplete_download');
+                    const elapsedMs = Math.max(1, Date.now() - started);
+                    result.speed = { status: 'ok', bytes, elapsedMs, mbps: Math.round(bytes * 8 / elapsedMs / 1000 * 100) / 100 };
+                } catch (error) { result.speed = { status: 'unknown', reason: error.message || 'request_failed' }; result.incomplete = true; }
+            }
             result.checkedAt = Date.now();
             all[proxy._proxies_index]._capabilityCheck = result;
             if (cacheEnabled && cache) cache.set(keys.get(proxy), result);
             $.info(`[PARSER][CAPABILITY][${proxy.name}] udp=${result.udp?.status || 'off'} http=${result.http?.status || 'off'} gpt=${result.gpt?.status || 'off'} failures=${result.http?.failures ?? '-'} cached=false`);
         }
+    }
+
+    if (toBoolean($arguments.dedupe, false)) {
+        const seen = new Set(), duplicates = new Set();
+        for (const proxy of internalProxies) {
+            const id = connectionId(proxy);
+            if (seen.has(id)) duplicates.add(proxies[proxy._proxies_index]);
+            else seen.add(id);
+        }
+        const before = proxies.length;
+        proxies = proxies.filter(proxy => !duplicates.has(proxy));
+        $.info(`[PARSER] duplicate_filtered=${before - proxies.length}`);
+    }
+
+    if (capabilityHttp && (maxLatency != null || maxFailureRate != null)) {
+        const before = proxies.length;
+        proxies = proxies.filter(proxy => {
+            const result = proxy._capabilityCheck?.http;
+            if (!result || result.status === 'unknown') return true;
+            if (maxLatency != null && Number.isFinite(result.averageLatencyMs) && result.averageLatencyMs > maxLatency) return false;
+            if (maxFailureRate != null && Number.isFinite(result.failureRate) && result.failureRate > maxFailureRate) return false;
+            return true;
+        });
+        $.info(`[PARSER][HTTP] threshold_filtered=${before - proxies.length}`);
     }
 
     // ---- Step 3: 提取元数据 ----
@@ -1109,6 +1169,10 @@ function resolvePlaceholder(proxy, placeholder, conn) {
     if (placeholder === 'gpt_status') return proxy._capabilityCheck?.gpt?.status || '';
     if (placeholder === 'entrance_region') return proxy._entrance?.countryCode || '';
     if (placeholder === 'entrance_isp') return proxy._entrance?.isp || '';
+    if (placeholder === 'exit_region') return proxy._geo?.countryCode || '';
+    if (placeholder === 'exit_isp') return proxy._geo?.isp || '';
+    if (placeholder === 'ipv6_status') return proxy._capabilityCheck?.ipv6?.status || '';
+    if (placeholder === 'speed_mbps') return proxy._capabilityCheck?.speed?.status === 'ok' ? String(proxy._capabilityCheck.speed.mbps) : '';
     if (placeholder === 'http_latency') {
         const latency = proxy._capabilityCheck?.http?.averageLatencyMs;
         return latency == null ? '' : String(latency);
@@ -1280,7 +1344,13 @@ function applySort(proxies, rules) {
             const { type, values, hasValues, order } = rule;
             let comparison = 0;
 
-            if (type === 'countryCode') {
+            if (type === 'http_latency' || type === 'speed') {
+                const va = type === 'speed' ? a._capabilityCheck?.speed?.mbps : a._capabilityCheck?.http?.averageLatencyMs;
+                const vb = type === 'speed' ? b._capabilityCheck?.speed?.mbps : b._capabilityCheck?.http?.averageLatencyMs;
+                const validA = Number.isFinite(va), validB = Number.isFinite(vb);
+                if (validA !== validB) return validA ? -1 : 1;
+                if (validA) comparison = va - vb;
+            } else if (type === 'countryCode') {
                 const va = a._geo?.countryCode || a.region_code || 'ZZ';
                 const vb = b._geo?.countryCode || b.region_code || 'ZZ';
                 if (hasValues && values.length) {
