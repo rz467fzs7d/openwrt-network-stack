@@ -11,7 +11,7 @@ HTTP META 探测 + 重命名 + 排序 + 限流，一次完成。
 **mode: link**（推荐）：
 
 ```
-https://fastly.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@2ea4cbe/sub-store/scripts/parser.js#f={region}{i:2d}{tag}&c=-&s={region}ASC
+https://fastly.jsdelivr.net/gh/rz467fzs7d/openwrt-network-stack@2c3689b/sub-store/scripts/parser.js#f={region}{i:2d}{tag}&c=-&s={region}ASC
 ```
 
 参数命名规则：按功能分组加前缀（`meta_*` HTTP META 服务、`probe_*` 探测流程、`cache*` 缓存），常用的 `format`/`connector`/`sort`/`debug`/`env` 保留短别名。
