@@ -1,5 +1,5 @@
 /**
- * Sub-Store node connection modifier.
+ * Sub-Store node connection enhancer.
  * Parameters: scope, exclude, type, host, sni, path, port, method, prefix, suffix.
  * No options means no changes. Certificate verification is never changed.
  */
